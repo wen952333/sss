@@ -30,11 +30,6 @@
 .room-bar-user {
   font-size: 15px;
 }
-.room-bar-profile {
-  border-bottom: 1.5px solid #fff;
-  cursor: pointer;
-  font-size: 15px;
-}
 
 .room-main {
   background: #1b4427;
@@ -46,7 +41,7 @@
   box-shadow: 0 2px 16px #0003;
 }
 
-/* 玩家列表 */
+/* 玩家列表横幅 */
 .room-players {
   display: flex;
   gap: 9px;
@@ -62,6 +57,7 @@
   font-size: 16px;
   font-weight: bold;
   border: 2px solid #1c8c46;
+  transition: background 0.2s, border 0.2s;
 }
 .room-player.me { border-color: #40ff68; }
 .room-player.empty {
@@ -69,6 +65,12 @@
   border-style: dashed;
   border-color: #2c7e5d;
   font-weight: normal;
+  background: #194730;
+}
+.room-player.ready {
+  background: #2fe96e;
+  color: #222;
+  border-color: #14a32c;
 }
 
 /* 理牌区 */
@@ -130,7 +132,12 @@
   background: #40ff68;
   color: #222;
 }
-.room-btn:hover:not(.ready.on) {
+.room-btn:disabled {
+  background: #aaa;
+  color: #fff;
+  cursor: not-allowed;
+}
+.room-btn:hover:not(.ready.on):not(:disabled) {
   background: #2f7b4f;
 }
 .room-tip {
