@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { apiRequest } from "../api";
 import { getCardImage } from "../utils/cardMapper";
-import "./GameRoom.css"; // 建议新建专用样式文件，见下方
+import "./GameRoom.css";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
 export default function GameRoom({ user, room, leaveRoom }) {
   const [game, setGame] = useState(null);
@@ -9,32 +10,30 @@ export default function GameRoom({ user, room, leaveRoom }) {
   const [myCards, setMyCards] = useState([]);
   const [submitted, setSubmitted] = useState(false);
 
-  // 轮询获取房间状态
   useEffect(() => {
     let timer;
     const fetchGame = async () => {
       const res = await apiRequest("get_room", { room_id: room.id });
       if (res.success) {
         setGame(res.game);
-        setMyCards(res.game.cards || []);
+        // 只有未提交时才允许手动理牌
+        if (!submitted && res.game.cards) setMyCards(res.game.cards);
         setSubmitted(!!res.game.cards && res.game.cards.length === 13);
       } else setError(res.message);
     };
     fetchGame();
     timer = setInterval(fetchGame, 2000);
     return () => clearInterval(timer);
-  }, [room.id]);
+    // eslint-disable-next-line
+  }, [room.id, submitted]);
 
-  // 是否房主
   const isHost = game && game.players && game.players[0].phone === user.phone;
 
-  // 发牌
   const handleStart = async () => {
     const res = await apiRequest("start_game", { room_id: room.id });
     if (!res.success) setError(res.message);
   };
 
-  // 出牌（这里只是模拟直接提交手牌顺序，后续可支持拖拽排序等）
   const handleSubmit = async () => {
     if (!myCards || myCards.length !== 13) return setError("没有13张牌");
     const res = await apiRequest("submit_hand", { room_id: room.id, cards: myCards });
@@ -42,11 +41,19 @@ export default function GameRoom({ user, room, leaveRoom }) {
     else setSubmitted(true);
   };
 
-  // 结算
   const handleSettle = async () => {
     const res = await apiRequest("settle_game", { room_id: room.id });
     if (!res.success) setError(res.message);
   };
+
+  // 拖拽排序
+  function onDragEnd(result) {
+    if (!result.destination) return;
+    const newCards = Array.from(myCards);
+    const [removed] = newCards.splice(result.source.index, 1);
+    newCards.splice(result.destination.index, 0, removed);
+    setMyCards(newCards);
+  }
 
   if (!game) return <div>加载中...</div>;
 
@@ -63,10 +70,8 @@ export default function GameRoom({ user, room, leaveRoom }) {
           const isMe = p.phone === user.phone;
           const isZhuang = idx === 0;
           return (
-            <div
-              key={p.phone}
-              className={`gr-seat gr-seat-${idx + 1} ${isMe ? "gr-me" : ""}`}
-            >
+            <div key={p.phone}
+              className={`gr-seat gr-seat-${idx + 1} ${isMe ? "gr-me" : ""}`}>
               <div className="gr-avatar">
                 <span role="img" aria-label="avatar">🧑</span>
                 {isZhuang && <span className="gr-zhuang">庄</span>}
@@ -83,7 +88,38 @@ export default function GameRoom({ user, room, leaveRoom }) {
                   : null}
               </div>
               {/* 只展示自己的手牌 */}
-              {isMe && myCards.length > 0 && (
+              {isMe && myCards.length > 0 && game.status === 1 && !submitted && (
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <Droppable droppableId="hand" direction="horizontal">
+                    {(provided) => (
+                      <div
+                        className="gr-cards draggable"
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                      >
+                        {myCards.map((card, i) => (
+                          <Draggable key={card} draggableId={card} index={i}>
+                            {(provided, snapshot) => (
+                              <img
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                src={getCardImage(card)}
+                                alt={card}
+                                className={`gr-card${snapshot.isDragging ? ' dragging' : ''}`}
+                                style={provided.draggableProps.style}
+                              />
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              )}
+              {/* 出牌后只展示静态手牌 */}
+              {isMe && (game.status !== 1 || submitted) && myCards.length > 0 && (
                 <div className="gr-cards">
                   {myCards.map(card => (
                     <img key={card} src={getCardImage(card)} alt={card} className="gr-card" />
@@ -101,7 +137,7 @@ export default function GameRoom({ user, room, leaveRoom }) {
           <button className="gr-btn" onClick={handleStart}>发牌开始游戏</button>
         )}
         {game.status === 1 && myCards.length === 13 && !submitted && (
-          <button className="gr-btn" onClick={handleSubmit}>提交我的出牌</button>
+          <button className="gr-btn" onClick={handleSubmit}>提交我的理牌</button>
         )}
         {game.status === 1 && isHost && (
           <button className="gr-btn" onClick={handleSettle}>结算本局</button>
@@ -109,6 +145,9 @@ export default function GameRoom({ user, room, leaveRoom }) {
         {game.status === 2 && (
           <div className="gr-info">本局已结束，积分已结算</div>
         )}
+        <div style={{ color: "#888", marginTop: 8 }}>
+          {game.status === 1 && !submitted && "可拖拽你的手牌，理好后提交"}
+        </div>
         {error && <div className="gr-error">{error}</div>}
       </div>
     </div>
