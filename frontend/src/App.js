@@ -18,7 +18,7 @@ function App() {
     if (stored) {
       setUser(JSON.parse(stored));
       setView("room");
-      // 调用whoami接口校验cookie/session是否有效
+      // 自动向后端校验 session
       whoami().then(res => {
         if (res.success) {
           localStorage.setItem("user", JSON.stringify(res.user));
