@@ -1,0 +1,74 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  background: #f2f2f2;
+  font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+}
+
+.app-container {
+  max-width: 400px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100vh;
+}
+
+nav {
+  display: flex;
+  justify-content: space-around;
+  background: #2196f3;
+  color: #fff;
+  padding: 10px 0;
+}
+
+nav button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+}
+
+input, button {
+  margin: 8px 0;
+  padding: 8px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  width: 90%;
+  box-sizing: border-box;
+}
+
+input:focus, button:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+
+.login-form {
+  margin: 40px auto;
+  max-width: 320px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 28px 18px;
+}
+
+.card {
+  vertical-align: middle;
+  transition: transform 0.1s;
+}
+
+.card.selected {
+  transform: translateY(-10px) scale(1.05);
+  box-shadow: 0 2px 8px #2196f366;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+.toggle-link {
+  color: #2196f3;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+}
