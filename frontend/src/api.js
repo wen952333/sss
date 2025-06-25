@@ -6,5 +6,11 @@ export async function apiRequest(action, data) {
     credentials: "include", // ★★必须加，携带cookie
     body: JSON.stringify({ action, ...data }),
   });
-  return await res.json();
+  // 增加异常处理，防止非json报错
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { success: false, message: "服务器异常: " + text };
+  }
 }
