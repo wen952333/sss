@@ -10,7 +10,7 @@ export default function Register({ onRegister, onSwitch }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const res = await apiRequest("register", { phone, nickname, password });
-    if (res.success) onRegister(res.user);
+    if (res.success) onRegister(res);
     else setMsg(res.message);
   };
 
