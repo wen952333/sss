@@ -1,0 +1,134 @@
+.game-room-table {
+  background: #1e2c3a;
+  border-radius: 18px;
+  padding: 8px;
+  max-width: 500px;
+  margin: 0 auto 12px auto;
+  color: #fff;
+  min-height: 500px;
+}
+
+.gr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0 10px 0;
+  border-bottom: 1px solid #3a4661;
+  font-size: 17px;
+}
+
+.gr-leave-btn {
+  background: #c00;
+  color: #fff;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.gr-table {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  margin: 18px 0;
+  min-height: 220px;
+}
+.gr-seat {
+  background: rgba(255,255,255,0.08);
+  border-radius: 13px;
+  padding: 10px 8px 4px 8px;
+  margin: 6px 3px;
+  width: 47%;
+  min-width: 140px;
+  min-height: 120px;
+  box-sizing: border-box;
+  box-shadow: 0 0 8px #0003;
+  position: relative;
+}
+.gr-me {
+  border: 2px solid #ffb400;
+  box-shadow: 0 0 15px #f2b13c66;
+}
+.gr-avatar {
+  font-size: 23px;
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.gr-zhuang {
+  background: #ffb400;
+  color: #222;
+  font-size: 13px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-weight: bold;
+}
+.gr-nickname {
+  font-size: 16px;
+  margin-top: 2px;
+}
+.gr-sub {
+  font-size: 13px;
+  color: #e4e4e4;
+}
+.gr-status {
+  margin-top: 2px;
+  font-size: 14px;
+}
+.gr-ready {
+  color: #2ee74e;
+}
+.gr-wait {
+  color: #ffb400;
+}
+.gr-score {
+  color: #00eaff;
+}
+
+.gr-cards {
+  margin-top: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-start;
+}
+.gr-card {
+  width: 32px;
+  height: 44px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 4px #6662;
+  margin-right: 1px;
+}
+.gr-actions {
+  margin-top: 15px;
+  text-align: center;
+}
+.gr-btn {
+  background: #ffb400;
+  color: #222;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 17px;
+  font-weight: bold;
+  margin: 7px 8px;
+  box-shadow: 0 2px 8px #ffb40044;
+}
+.gr-info {
+  margin-top: 8px;
+  color: #2ee74e;
+  font-size: 16px;
+}
+.gr-error {
+  color: #ff3c3c;
+  margin-top: 10px;
+}
+
+@media (max-width: 500px) {
+  .game-room-table { min-height: 350px; }
+  .gr-seat { min-width: 108px; font-size: 14px; }
+  .gr-card { width: 24px; height: 33px;}
+  .gr-btn { font-size: 15px; padding: 8px 13px;}
+}
