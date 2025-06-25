@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'game.php';
 session_start();
 header("Content-Type: application/json");
 
@@ -20,6 +21,7 @@ function auth() {
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
 
+// 注册
 if ($action === 'register') {
   $phone = $input['phone'] ?? '';
   $nickname = $input['nickname'] ?? '';
@@ -35,6 +37,7 @@ if ($action === 'register') {
   die(json_encode(['success'=>true, 'user'=>['phone'=>$user['phone'], 'nickname'=>$user['nickname'], 'score'=>$user['score']]]));
 }
 
+// 登录
 if ($action === 'login') {
   $phone = $input['phone'] ?? '';
   $password = $input['password'] ?? '';
@@ -45,6 +48,7 @@ if ($action === 'login') {
   die(json_encode(['success'=>true, 'user'=>['phone'=>$user['phone'], 'nickname'=>$user['nickname'], 'score'=>$user['score']]]));
 }
 
+// 房间列表
 if ($action === 'list_rooms') {
   $rooms = query("SELECT * FROM room ORDER BY id DESC", [], true);
   foreach ($rooms as &$room) {
@@ -54,6 +58,7 @@ if ($action === 'list_rooms') {
   die(json_encode(['success'=>true, 'rooms'=>$rooms]));
 }
 
+// 创建房间
 if ($action === 'create_room') {
   $user = auth();
   $name = $input['name'] ?? '';
@@ -64,6 +69,7 @@ if ($action === 'create_room') {
   die(json_encode(['success'=>true, 'room'=>$room]));
 }
 
+// 加入房间
 if ($action === 'join_room') {
   $user = auth();
   $room_id = $input['room_id'] ?? 0;
@@ -79,18 +85,83 @@ if ($action === 'join_room') {
   die(json_encode(['success'=>true, 'room'=>$exists]));
 }
 
+// 获取房间及游戏状态
 if ($action === 'get_room') {
   $user = auth();
   $room_id = $input['room_id'] ?? 0;
   $room = query("SELECT * FROM room WHERE id=?", [$room_id]);
   if (!$room) die(json_encode(['success'=>false, 'message'=>'房间不存在']));
-  $players = query("SELECT u.phone, u.nickname, u.score FROM room_player p JOIN user u ON u.id=p.user_id WHERE p.room_id=?", [$room_id], true);
-  // 伪代码: 返回本玩家手牌等信息
+  $players = query("SELECT u.phone, u.nickname, u.score, p.seat, p.cards, p.score as round_score 
+                    FROM room_player p JOIN user u ON u.id=p.user_id WHERE p.room_id=? ORDER BY p.seat", [$room_id], true);
   $me = query("SELECT * FROM room_player WHERE room_id=? AND user_id=?", [$room_id, $user['id']]);
-  $cards = $me ? explode(',', $me['cards']) : [];
-  die(json_encode(['success'=>true, 'game'=>['players'=>$players, 'cards'=>$cards]]));
+  $mycards = $me && $me['cards'] ? explode(',', $me['cards']) : [];
+  die(json_encode(['success'=>true, 'game'=>[
+      'status'=>intval($room['status']), // 0等待 1进行中 2已结束
+      'players'=>$players,
+      'cards'=>$mycards
+  ]]));
 }
 
+// 发牌开始游戏（仅房主可操作）
+if ($action === 'start_game') {
+  $user = auth();
+  $room_id = $input['room_id'] ?? 0;
+  $room = query("SELECT * FROM room WHERE id=?", [$room_id]);
+  if (!$room) die(json_encode(['success'=>false, 'message'=>'房间不存在']));
+  // 仅房主可发牌
+  $players = query("SELECT * FROM room_player WHERE room_id=? ORDER BY seat", [$room_id], true);
+  if (!$players || $players[0]['user_id'] != $user['id']) die(json_encode(['success'=>false, 'message'=>'只有房主可操作']));
+  // 已发过牌则不能再发
+  foreach ($players as $p) if ($p['cards']) die(json_encode(['success'=>false, 'message'=>'已发牌']));
+  // 发牌
+  $deals = deal_cards(count($players));
+  foreach ($players as $i => $p) {
+    $cards = implode(',', $deals[$i]);
+    execute("UPDATE room_player SET cards=? WHERE id=?", [$cards, $p['id']]);
+  }
+  execute("UPDATE room SET status=1 WHERE id=?", [$room_id]);
+  die(json_encode(['success'=>true]));
+}
+
+// 玩家提交手牌
+if ($action === 'submit_hand') {
+  $user = auth();
+  $room_id = $input['room_id'] ?? 0;
+  $cards = $input['cards'] ?? [];
+  if (count($cards) != 13) die(json_encode(['success'=>false, 'message'=>'必须13张牌']));
+  // 校验是否本房间玩家
+  $player = query("SELECT * FROM room_player WHERE room_id=? AND user_id=?", [$room_id, $user['id']]);
+  if (!$player) die(json_encode(['success'=>false, 'message'=>'未在房间']));
+  // 存储玩家牌序
+  execute("UPDATE room_player SET cards=? WHERE id=?", [implode(',', $cards), $player['id']]);
+  die(json_encode(['success'=>true]));
+}
+
+// 结算比分（仅房主可操作）
+if ($action === 'settle_game') {
+  $user = auth();
+  $room_id = $input['room_id'] ?? 0;
+  $room = query("SELECT * FROM room WHERE id=?", [$room_id]);
+  if (!$room) die(json_encode(['success'=>false, 'message'=>'房间不存在']));
+  // 仅房主可结算
+  $players = query("SELECT * FROM room_player WHERE room_id=? ORDER BY seat", [$room_id], true);
+  if (!$players || $players[0]['user_id'] != $user['id']) die(json_encode(['success'=>false, 'message'=>'只有房主可操作']));
+  // 所有玩家必须都已出牌
+  foreach ($players as $p) if (!$p['cards']) die(json_encode(['success'=>false, 'message'=>'等待所有玩家出牌']));
+  // 比牌
+  $hands = [];
+  foreach ($players as $p) $hands[] = explode(',', $p['cards']);
+  $winners = compare_hands($hands);
+  foreach ($players as $i => $p) {
+    $score = in_array($i, $winners) ? 10 : -5;
+    execute("UPDATE user SET score=score+? WHERE id=?", [$score, $p['user_id']]);
+    execute("UPDATE room_player SET score=? WHERE id=?", [$score, $p['id']]);
+  }
+  execute("UPDATE room SET status=2 WHERE id=?", [$room_id]);
+  die(json_encode(['success'=>true, 'winners'=>$winners]));
+}
+
+// 积分赠送
 if ($action === 'gift_points') {
   $user = auth();
   $to_phone = $input['to_phone'] ?? '';
@@ -104,7 +175,5 @@ if ($action === 'gift_points') {
   execute("INSERT INTO gift_log (from_id, to_id, amount) VALUES (?, ?, ?)", [$user['id'], $to['id'], $amount]);
   die(json_encode(['success'=>true]));
 }
-
-// TODO: 游戏发牌、比牌逻辑（可参考 game.php 拆分实现）
 
 die(json_encode(['success'=>false, 'message'=>'未知操作']));
