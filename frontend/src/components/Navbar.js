@@ -1,13 +1,20 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function Navbar({ onLogout }) {
-  const loc = useLocation();
+  const navigate = useNavigate();
+
+  // 退出登录处理
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    // 跳转到登录页
+    navigate("/login");
+  };
+
   return (
-    <nav>
-      <Link to="/" className={loc.pathname === "/" ? "active" : ""}>大厅</Link>
-      <Link to="/score" className={loc.pathname === "/score" ? "active" : ""}>积分</Link>
-      <button onClick={onLogout}>退出</button>
+    <nav style={{ padding: "16px", background: "#f5f5f5" }}>
+      <span style={{ fontWeight: "bold", marginRight: "24px" }}>系统导航栏</span>
+      <button onClick={handleLogout}>退出</button>
     </nav>
   );
 }
