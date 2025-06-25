@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PlayerArea from '../components/PlayerArea';
 import CardArea from '../components/CardArea';
-import GameControls from '../components/GameControls';
 import { joinRoom, getRoomDetails, leaveRoom, startGame, playCards } from '../services/gameService';
 import '../styles/RoomPage.css';
 
