@@ -7,9 +7,9 @@ const Footer = () => {
       <div className="footer-content">
         <p>© {new Date().getFullYear()} 十三水游戏</p>
         <div className="footer-links">
-          <a href="#">关于我们</a>
-          <a href="#">游戏规则</a>
-          <a href="#">联系客服</a>
+          <span>关于我们</span>
+          <span>游戏规则</span>
+          <span>联系客服</span>
         </div>
       </div>
     </footer>
