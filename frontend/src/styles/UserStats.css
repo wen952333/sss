@@ -1,0 +1,49 @@
+.user-stats {
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.user-stats h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  text-align: center;
+  color: #333;
+}
+
+.points-display {
+  font-size: 32px;
+  font-weight: bold;
+  text-align: center;
+  color: #4a6cf7;
+  margin-bottom: 20px;
+}
+
+.stats-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.stats-actions button {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+}
+
+.transfer-btn {
+  background-color: #10b981;
+}
+
+.transfer-btn:hover {
+  background-color: #059669;
+}
+
+.history-btn {
+  background-color: #8b5cf6;
+}
+
+.history-btn:hover {
+  background-color: #7c3aed;
+}
