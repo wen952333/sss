@@ -1,0 +1,85 @@
+.transfer-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 20px;
+}
+
+.transfer-card {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.transfer-card h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.current-points {
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 25px;
+  color: #4a6cf7;
+}
+
+.search-container {
+  display: flex;
+  gap: 10px;
+}
+
+.search-container .form-control {
+  flex: 1;
+}
+
+.search-btn {
+  min-width: 80px;
+}
+
+.user-found {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.user-found p {
+  margin: 5px 0;
+}
+
+.transfer-btn {
+  width: 100%;
+  margin-top: 15px;
+  padding: 12px;
+  background-color: #10b981;
+}
+
+.back-btn {
+  width: 100%;
+  margin-top: 15px;
+  padding: 12px;
+  background-color: #6c757d;
+}
+
+.message {
+  padding: 10px;
+  border-radius: 8px;
+  margin: 15px 0;
+  text-align: center;
+}
+
+.message.success {
+  background-color: #d1fae5;
+  color: #047857;
+}
+
+.message.error {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
