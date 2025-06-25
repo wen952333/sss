@@ -24,6 +24,7 @@ export default function Register({ onRegister, onSwitch }) {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         required
+        autoComplete="username"
       />
       <input
         className="input"
@@ -31,6 +32,7 @@ export default function Register({ onRegister, onSwitch }) {
         value={nickname}
         onChange={(e) => setNickname(e.target.value)}
         required
+        autoComplete="nickname"
       />
       <input
         className="input"
@@ -39,6 +41,7 @@ export default function Register({ onRegister, onSwitch }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
+        autoComplete="new-password"
       />
       <button className="btn w-full mt-3" type="submit">
         注册
