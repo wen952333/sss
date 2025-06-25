@@ -4,7 +4,7 @@ export async function apiRequest(action, data) {
   const res = await fetch(backend, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include", // 关键！带上 cookie 以便 session 校验
+    credentials: "include", // 必须，带上cookie用于session校验
     body: JSON.stringify({ action, ...data }),
   });
   return await res.json();
