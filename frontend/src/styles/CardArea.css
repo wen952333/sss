@@ -1,0 +1,23 @@
+.card-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 15px;
+  background-color: #f8fafc;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.card-wrapper {
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.card-wrapper:hover {
+  transform: translateY(-5px);
+}
+
+.card-wrapper.selected {
+  transform: translateY(-15px);
+}
