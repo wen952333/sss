@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import RoomList from '../components/RoomList';
-import CreateRoom from '../components/CreateRoom';
-import UserStats from '../components/UserStats';
+import RoomList from '../components/RoomList'; // 确保这行存在
+import CreateRoom from '../components/CreateRoom'; // 确保这行存在
+import UserStats from '../components/UserStats'; // 确保这行存在
 import { getRooms, createRoom } from '../services/gameService';
 import '../styles/Dashboard.css';
 
@@ -57,6 +57,8 @@ const Dashboard = () => {
       </div>
       
       <div className="dashboard-content">
+        <UserStats points={user.points} />
+        
         <div className="actions">
           <button 
             className="btn create-room-btn"
@@ -70,10 +72,8 @@ const Dashboard = () => {
           <h3>游戏房间</h3>
           {loading ? (
             <p>加载中...</p>
-          ) : rooms.length > 0 ? (
-            <RoomList rooms={rooms} onJoinRoom={handleJoinRoom} />
           ) : (
-            <p>暂无房间，请创建一个新房间</p>
+            <RoomList rooms={rooms} onJoinRoom={handleJoinRoom} />
           )}
         </div>
       </div>
