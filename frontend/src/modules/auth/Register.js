@@ -23,9 +23,29 @@ export default function Register({ onRegister, onShowLogin }) {
   return (
     <form onSubmit={handleSubmit} className="login-form">
       <h2>注册账号</h2>
-      <input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} maxLength={11} />
-      <input type="text" placeholder="昵称" value={nickname} onChange={e => setNickname(e.target.value)} maxLength={10} />
-      <input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} />
+      <input
+        type="tel"
+        placeholder="手机号"
+        value={phone}
+        onChange={e => setPhone(e.target.value)}
+        maxLength={11}
+        autoComplete="username"
+      />
+      <input
+        type="text"
+        placeholder="昵称"
+        value={nickname}
+        onChange={e => setNickname(e.target.value)}
+        maxLength={10}
+        autoComplete="nickname"
+      />
+      <input
+        type="password"
+        placeholder="密码"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        autoComplete="new-password"
+      />
       <button type="submit">注册</button>
       <div style={{display: "flex", justifyContent: "space-between", fontSize: 14, marginTop: 8}}>
         <div />
