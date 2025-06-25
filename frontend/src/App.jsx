@@ -10,7 +10,6 @@ const USER_KEY = "sss_user";
 const ROOM_KEY = "sss_room";
 
 function App() {
-  // 本地恢复登录状态
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(USER_KEY)) || null;
@@ -26,7 +25,6 @@ function App() {
     }
   });
 
-  // 持久化
   useEffect(() => {
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
     else localStorage.removeItem(USER_KEY);
@@ -36,7 +34,6 @@ function App() {
     else localStorage.removeItem(ROOM_KEY);
   }, [room]);
 
-  // 退出登录
   const handleLogout = () => {
     setUser(null);
     setRoom(null);
@@ -44,12 +41,11 @@ function App() {
     localStorage.removeItem(ROOM_KEY);
   };
 
-  // 创建房间，成功后直接进房间
-  const handleCreateRoom = async (roomName) => {
-    if (!roomName.trim()) return;
-    const res = await apiRequest("create_room", { name: roomName });
+  // 自动生成房间名
+  const handleCreateRoom = async () => {
+    const autoName = "房间" + Math.floor(1000 + Math.random() * 9000);
+    const res = await apiRequest("create_room", { name: autoName });
     if (res.success) setRoom(res.room);
-    // 可选：失败提示
   };
 
   if (!user) return <AuthPage onLogin={setUser} />;
