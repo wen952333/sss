@@ -1,11 +1,15 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/Header.css';
 
 const Header = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // 隐藏登录页面的额外登录入口
+  const isAuthPage = location.pathname === '/auth';
 
   const handleLogout = () => {
     logout();
@@ -31,9 +35,12 @@ const Header = () => {
               </button>
             </>
           ) : (
-            <Link to="/auth" className="btn login-btn">
-              登录/注册
-            </Link>
+            // 在非登录页面显示登录入口
+            !isAuthPage && (
+              <Link to="/auth" className="btn login-btn">
+                登录/注册
+              </Link>
+            )
           )}
         </div>
       </div>
