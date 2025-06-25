@@ -1,4 +1,4 @@
-// 扑克牌识别和工具函数
+// 获取扑克牌图片文件名
 export const getCardImage = (rank, suit) => {
   let rankName = rank.toLowerCase();
   const suitName = suit.toLowerCase();
@@ -20,7 +20,11 @@ export const generateDeck = () => {
   const deck = [];
   suits.forEach(suit => {
     ranks.forEach(rank => {
-      deck.push({ rank, suit, image: getCardImage(rank, suit) });
+      deck.push({ 
+        rank, 
+        suit, 
+        image: getCardImage(rank, suit) 
+      });
     });
   });
   
@@ -35,4 +39,10 @@ export const shuffleDeck = (deck) => {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
+};
+
+// 计算牌型分数
+export const calculateHandScore = (cards) => {
+  // 这里简化处理，实际游戏需要复杂的牌型判断
+  return cards.length; // 示例分数
 };
