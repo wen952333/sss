@@ -3,13 +3,14 @@ import AuthPage from "./components/AuthPage";
 import RoomList from "./components/RoomList";
 import GameRoom from "./components/GameRoom";
 import TopBar from "./components/TopBar";
+import { apiRequest } from "./api";
 import './App.css';
 
 const USER_KEY = "sss_user";
 const ROOM_KEY = "sss_room";
 
 function App() {
-  // 优先从本地恢复
+  // 本地恢复登录状态
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(USER_KEY)) || null;
@@ -25,13 +26,11 @@ function App() {
     }
   });
 
-  // 同步user到localStorage
+  // 持久化
   useEffect(() => {
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
     else localStorage.removeItem(USER_KEY);
   }, [user]);
-
-  // 同步room到localStorage
   useEffect(() => {
     if (room) localStorage.setItem(ROOM_KEY, JSON.stringify(room));
     else localStorage.removeItem(ROOM_KEY);
@@ -45,16 +44,15 @@ function App() {
     localStorage.removeItem(ROOM_KEY);
   };
 
-  // 创建房间
+  // 创建房间，成功后直接进房间
   const handleCreateRoom = async (roomName) => {
-    // 此处复用 RoomList 的API逻辑，或可直接调用
-    // 你可以将创建房间API移到App，也可以传递给RoomList
-    // RoomList已支持joinRoom回调
-    // 实际上可以用ref转调RoomList的createRoom
+    if (!roomName.trim()) return;
+    const res = await apiRequest("create_room", { name: roomName });
+    if (res.success) setRoom(res.room);
+    // 可选：失败提示
   };
 
   if (!user) return <AuthPage onLogin={setUser} />;
-
   if (room) return (
     <GameRoom user={user} room={room} leaveRoom={() => setRoom(null)} />
   );
