@@ -5,7 +5,7 @@ import "./GameRoom.css";
 import ArrangePanel from "./ArrangePanel";
 import ShowdownPanel from "./ShowdownPanel";
 
-// 简单自动分牌（按顺序3-5-5）
+// 自动分牌（3-5-5）
 function autoArrange13(cards) {
   return {
     top: cards.slice(0, 3),
@@ -19,10 +19,9 @@ export default function GameRoom({ user, room, leaveRoom }) {
   const [myCards, setMyCards] = useState([]);
   const [arrangeMode, setArrangeMode] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [showdown, setShowdown] = useState(null); // 比牌结果
+  const [showdown, setShowdown] = useState(null);
   const [error, setError] = useState("");
 
-  // 获取房间和游戏状态
   useEffect(() => {
     let timer;
     const fetchGame = async () => {
@@ -32,7 +31,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
         // 只在未理牌时设手牌
         if (!submitted && res.game.cards) setMyCards(res.game.cards);
         setSubmitted(!!res.game.cards && res.game.cards.length === 13);
-        // 比牌后加载比牌界面
         if (res.game.status === 2) {
           // 拉取结算信息
           const detail = await apiRequest("get_showdown", { room_id: room.id });
@@ -49,7 +47,7 @@ export default function GameRoom({ user, room, leaveRoom }) {
 
   const isHost = game && game.players && game.players[0].phone === user.phone;
 
-  // 开始发牌
+  // 发牌
   const handleStart = async () => {
     const res = await apiRequest("start_game", { room_id: room.id });
     if (!res.success) setError(res.message);
@@ -70,13 +68,13 @@ export default function GameRoom({ user, room, leaveRoom }) {
     });
   };
 
-  // 结算比牌
+  // 结算
   const handleSettle = async () => {
     const res = await apiRequest("settle_game", { room_id: room.id });
     if (!res.success) setError(res.message);
   };
 
-  // 继续游戏（清理状态，等房主发牌）
+  // 继续游戏
   const handleContinue = () => {
     setSubmitted(false);
     setArrangeMode(false);
@@ -85,13 +83,13 @@ export default function GameRoom({ user, room, leaveRoom }) {
     setMyCards([]);
   };
 
-  // 离开房间
+  // 离开
   const handleLeave = async () => {
     await apiRequest("leave_room", { room_id: room.id });
     leaveRoom();
   };
 
-  // 进入理牌界面
+  // 理牌界面
   if (arrangeMode && myCards.length === 13 && !submitted)
     return (
       <div className="game-room-table">
@@ -121,9 +119,9 @@ export default function GameRoom({ user, room, leaveRoom }) {
       />
     );
 
-  // 默认牌桌界面
   if (!game) return <div>加载中...</div>;
 
+  // 新风格牌桌
   return (
     <div className="game-room-table">
       <div className="gr-header">
@@ -137,11 +135,10 @@ export default function GameRoom({ user, room, leaveRoom }) {
           return (
             <div key={p.phone}
               className={`gr-seat gr-seat-${idx + 1} ${isMe ? "gr-me" : ""}`}>
-              <div className="gr-avatar">
-                <span role="img" aria-label="avatar">🧑</span>
+              <div className="gr-nickname">
+                {p.nickname}
                 {isZhuang && <span className="gr-zhuang">庄</span>}
               </div>
-              <div className="gr-nickname">{p.nickname}</div>
               <div className="gr-sub">{p.phone.slice(-4)} | {p.score}分</div>
               <div className="gr-status">
                 {game.status === 1
