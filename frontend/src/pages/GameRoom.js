@@ -33,27 +33,36 @@ export default function GameRoom({ user, roomId, onLeave }) {
   }
 
   async function handleSubmitCards() {
-    // 实现出牌逻辑
+    // 这里应实现出牌逻辑（提交牌型给后端），略
+    setMsg("出牌功能开发中");
   }
 
-  // 房间未开始，点准备，已开始显示手牌，选择出牌
   return (
-    <div>
-      <h2>房间：{room?.name}</h2>
-      <button onClick={onLeave}>离开房间</button>
-      <div>
+    <div className="game-room-container">
+      <div className="game-room-header">
+        <h2>房间：{room?.name}</h2>
+        <button className="leave-btn" onClick={onLeave}>离开房间</button>
+      </div>
+      <div className="players-list">
+        玩家：
         {room && room.players.map(p => (
-          <span key={p.id} style={{ marginRight: 8 }}>
-            {p.nickname} {p.ready ? "✅" : ""}
+          <span
+            key={p.id}
+            className={`player-item${p.ready ? " ready" : ""}${p.id === user.id ? " self" : ""}`}
+          >
+            {p.nickname}{p.ready ? "✅" : ""}{p.id === user.id ? "（我）" : ""}
           </span>
         ))}
       </div>
       {room && !room.started && (
-        <button onClick={handleReady}>准备</button>
+        <div className="wait-ready">
+          <button className="main-btn" onClick={handleReady}>准备</button>
+          <div className="tip-text">请等待其他玩家准备</div>
+        </div>
       )}
       {room && room.started && (
-        <div>
-          <div>
+        <div className="cards-section">
+          <div className="cards-row">
             {room.myCards && room.myCards.map((c, idx) => (
               <Card
                 key={idx}
@@ -64,10 +73,10 @@ export default function GameRoom({ user, roomId, onLeave }) {
               />
             ))}
           </div>
-          <button onClick={handleSubmitCards}>提交牌型</button>
+          <button className="main-btn" style={{marginTop:18}} onClick={handleSubmitCards}>提交牌型</button>
         </div>
       )}
-      <div style={{ color: "red" }}>{msg}</div>
+      <div className="msg-text">{msg}</div>
     </div>
   );
 }
