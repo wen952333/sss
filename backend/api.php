@@ -9,6 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit;
 }
 
+header("Access-Control-Allow-Origin: https://ss.wenge.ip-ddns.com");
+header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json");
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   header("Allow: POST");
