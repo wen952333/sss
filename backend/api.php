@@ -138,6 +138,16 @@ switch ($action) {
     $u = $db->query("SELECT points FROM users WHERE id=$uid")->fetch(PDO::FETCH_ASSOC);
     json(['success'=>true, 'points'=>$u['points']]);
     break;
+  case 'whoami':
+    $uid = get_uid();
+    if (!$uid) json(['success'=>false, 'message'=>'未登录']);
+    $u = $db->query("SELECT id,phone,nickname,points FROM users WHERE id=$uid")->fetch(PDO::FETCH_ASSOC);
+    if ($u) {
+      json(['success'=>true, 'user'=>$u]);
+    } else {
+      json(['success'=>false, 'message'=>'未登录']);
+    }
+    break;
   default:
     json(['success'=>false, 'message'=>'未知操作']);
 }
