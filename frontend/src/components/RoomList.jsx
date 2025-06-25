@@ -1,18 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiRequest } from "../api";
 import "./RoomList.css";
 
 export default function RoomList({ user, joinRoom }) {
   const [rooms, setRooms] = useState([]);
-  const [roomName, setRoomName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const roomsRef = useRef([]);
 
+  // 平滑刷新：只在数据变化时setRooms
   const fetchRooms = async () => {
     setLoading(true);
     const res = await apiRequest("list_rooms", {});
-    if (res.success) setRooms(res.rooms);
     setLoading(false);
+    if (res.success) {
+      // 只在数据变化时更新
+      if (JSON.stringify(res.rooms) !== JSON.stringify(roomsRef.current)) {
+        setRooms(res.rooms);
+        roomsRef.current = res.rooms;
+      }
+    }
   };
 
   useEffect(() => {
@@ -20,13 +27,6 @@ export default function RoomList({ user, joinRoom }) {
     const timer = setInterval(fetchRooms, 3000);
     return () => clearInterval(timer);
   }, []);
-
-  const createRoom = async () => {
-    if (!roomName.trim()) return;
-    const res = await apiRequest("create_room", { name: roomName });
-    if (res.success) joinRoom(res.room);
-    else setError(res.message);
-  };
 
   const handleJoin = async roomId => {
     const res = await apiRequest("join_room", { room_id: roomId });
@@ -59,10 +59,6 @@ export default function RoomList({ user, joinRoom }) {
           ))}
         </div>
       )}
-      <div className="room-list-create">
-        <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="新房间名称" />
-        <button onClick={createRoom}>创建房间</button>
-      </div>
       {error && <div className="error">{error}</div>}
     </div>
   );
