@@ -1,0 +1,11 @@
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+
+# 下面这段让 .php 以外的请求直接 404（可选）
+<FilesMatch "\.php$">
+  SetHandler application/x-httpd-php
+</FilesMatch>
+<FilesMatch "\.(?!php$)[^.]+$">
+  Deny from all
+</FilesMatch>
