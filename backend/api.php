@@ -12,6 +12,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 header("Access-Control-Allow-Origin: https://ss.wenge.ip-ddns.com");
 header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json");
+
+// 支持跨域 session cookie，必须在 session_start() 前设置
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '', // 不要写主机名
+    'secure' => true, // 你的API是https才用true
+    'httponly' => true,
+    'samesite' => 'None'
+]);
+session_start();
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   header("Allow: POST");
   http_response_code(405);
@@ -21,7 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 require_once 'db.php';
 require_once 'game.php';
-session_start();
 
 // 简易token机制（生产建议JWT或session）
 function get_user() {
@@ -110,7 +121,7 @@ if ($action === 'get_room') {
   $room_id = $input['room_id'] ?? 0;
   $room = query("SELECT * FROM room WHERE id=?", [$room_id]);
   if (!$room) die(json_encode(['success'=>false, 'message'=>'房间不存在']));
-  $players = query("SELECT u.phone, u.nickname, u.score, p.seat, p.cards, p.score as round_score 
+  $players = query("SELECT u.phone, u.nickname, u.score, p.seat, p.cards, p.score as round_score
                     FROM room_player p JOIN user u ON u.id=p.user_id WHERE p.room_id=? ORDER BY p.seat", [$room_id], true);
   $me = query("SELECT * FROM room_player WHERE room_id=? AND user_id=?", [$room_id, $user['id']]);
   $mycards = $me && $me['cards'] ? explode(',', $me['cards']) : [];
