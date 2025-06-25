@@ -5,18 +5,30 @@ import RoomList from "./components/Game/RoomList";
 import CreateRoom from "./components/Game/CreateRoom";
 import GameTable from "./components/Game/GameTable";
 import Points from "./components/Points";
+import { whoami } from "./api";
 
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("login");
   const [roomId, setRoomId] = useState(null);
 
+  // 页面加载时：本地有user就用whoami校验
   useEffect(() => {
-    // 页面加载时检测本地是否有用户信息
     const stored = localStorage.getItem("user");
     if (stored) {
       setUser(JSON.parse(stored));
       setView("room");
+      // 调用whoami接口校验cookie/session是否有效
+      whoami().then(res => {
+        if (res.success) {
+          localStorage.setItem("user", JSON.stringify(res.user));
+          setUser(res.user);
+        } else {
+          localStorage.removeItem("user");
+          setUser(null);
+          setView("login");
+        }
+      });
     }
   }, []);
 
