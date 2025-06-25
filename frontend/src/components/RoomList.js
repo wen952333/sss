@@ -1,10 +1,7 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import '../styles/RoomList.css';
 
 const RoomList = ({ rooms, onJoinRoom }) => {
-  const navigate = useNavigate();
-
   if (!rooms || rooms.length === 0) {
     return <p className="no-rooms">暂无房间</p>;
   }
