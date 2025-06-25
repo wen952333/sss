@@ -2,8 +2,7 @@ import React, { useState, useEffect } from "react";
 import AuthPage from "./components/AuthPage";
 import RoomList from "./components/RoomList";
 import GameRoom from "./components/GameRoom";
-import UserProfile from "./components/UserProfile";
-import GiftPoints from "./components/GiftPoints";
+import TopBar from "./components/TopBar";
 import './App.css';
 
 const USER_KEY = "sss_user";
@@ -46,6 +45,14 @@ function App() {
     localStorage.removeItem(ROOM_KEY);
   };
 
+  // 创建房间
+  const handleCreateRoom = async (roomName) => {
+    // 此处复用 RoomList 的API逻辑，或可直接调用
+    // 你可以将创建房间API移到App，也可以传递给RoomList
+    // RoomList已支持joinRoom回调
+    // 实际上可以用ref转调RoomList的createRoom
+  };
+
   if (!user) return <AuthPage onLogin={setUser} />;
 
   if (room) return (
@@ -54,9 +61,8 @@ function App() {
 
   return (
     <div className="main-menu">
-      <UserProfile user={user} setUser={handleLogout} />
+      <TopBar user={user} setUser={handleLogout} onCreateRoom={handleCreateRoom} />
       <RoomList user={user} joinRoom={setRoom} />
-      <GiftPoints user={user} />
     </div>
   );
 }
