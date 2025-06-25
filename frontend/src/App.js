@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
@@ -7,7 +7,7 @@ import TransferPoints from './pages/TransferPoints';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import './App.css';
+import './styles/App.css'; // 更新导入路径
 
 function App() {
   return (
