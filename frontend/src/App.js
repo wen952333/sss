@@ -5,26 +5,25 @@ import RoomList from "./components/Game/RoomList";
 import CreateRoom from "./components/Game/CreateRoom";
 import GameTable from "./components/Game/GameTable";
 import Points from "./components/Points";
-import { whoami } from "./api";
+import { whoami, apiRequest } from "./api";
 
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("login");
   const [roomId, setRoomId] = useState(null);
 
-  // 页面加载时：本地有user就用whoami校验
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) {
       setUser(JSON.parse(stored));
       setView("room");
-      // 自动向后端校验 session
       whoami().then(res => {
         if (res.success) {
           localStorage.setItem("user", JSON.stringify(res.user));
           setUser(res.user);
         } else {
           localStorage.removeItem("user");
+          localStorage.removeItem("token");
           setUser(null);
           setView("login");
         }
@@ -32,14 +31,17 @@ function App() {
     }
   }, []);
 
-  const handleLogin = (u) => {
-    localStorage.setItem("user", JSON.stringify(u));
-    setUser(u);
+  // 登录/注册成功后
+  const handleLogin = (res) => {
+    localStorage.setItem("user", JSON.stringify(res.user));
+    localStorage.setItem("token", res.token);
+    setUser(res.user);
     setView("room");
   };
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     setUser(null);
     setView("login");
   };
