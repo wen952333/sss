@@ -5,14 +5,14 @@ import "./RoomList.css";
 export default function RoomList({ user, joinRoom }) {
   const [rooms, setRooms] = useState([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const roomsRef = useRef([]);
 
   // 平滑刷新：只在数据变化时setRooms
   const fetchRooms = async () => {
-    setLoading(true);
+    setFetching(true);
     const res = await apiRequest("list_rooms", {});
-    setLoading(false);
+    setFetching(false);
     if (res.success) {
       // 只在数据变化时更新
       if (JSON.stringify(res.rooms) !== JSON.stringify(roomsRef.current)) {
@@ -38,11 +38,12 @@ export default function RoomList({ user, joinRoom }) {
     <div className="room-list-card">
       <div className="room-list-header">
         <h2>房间列表</h2>
-        <button className="room-list-refresh" onClick={fetchRooms}>⟳</button>
+        <button className="room-list-refresh" onClick={fetchRooms} disabled={fetching}>
+          {fetching ? "⟳" : "⟳"}
+        </button>
       </div>
-      {loading ? (
-        <div className="room-list-loading">正在加载房间...</div>
-      ) : rooms.length === 0 ? (
+      {/* 只在初次空时显示提示，不要频繁切换 */}
+      {rooms.length === 0 ? (
         <div className="room-list-empty">暂无房间，快创建一个吧！</div>
       ) : (
         <div className="room-list-table">
