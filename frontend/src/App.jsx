@@ -6,12 +6,11 @@ import UserProfile from "./components/UserProfile";
 import GiftPoints from "./components/GiftPoints";
 import './App.css';
 
-// 封装本地存取
 const USER_KEY = "sss_user";
 const ROOM_KEY = "sss_room";
 
 function App() {
-  // 初始从本地恢复
+  // 优先从本地恢复
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(USER_KEY)) || null;
