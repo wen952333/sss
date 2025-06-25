@@ -2,33 +2,57 @@ import React, { useEffect, useState } from "react";
 import { apiRequest } from "../api";
 import "./GameRoom.css";
 
+const emptyPlayer = { nickname: "等待加入…", status: "empty" };
+
 export default function GameRoom({ user, room, leaveRoom }) {
-  const [game, setGame] = useState(null);
-  const [players, setPlayers] = useState([]);
+  const [players, setPlayers] = useState([emptyPlayer, emptyPlayer, emptyPlayer, emptyPlayer]);
   const [myHand, setMyHand] = useState([]); // 13张手牌
   const [arranged, setArranged] = useState({ head: [], mid: [], tail: [] });
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState("");
-  const [status, setStatus] = useState(0); // 0等待准备 1理牌中 2比牌中 3结算
+  const [myReady, setMyReady] = useState(false);
+  const [allReady, setAllReady] = useState(false);
+  const [status, setStatus] = useState(0); // 0等待准备 1发牌理牌 2比牌 3结算
   const [isHost, setIsHost] = useState(false);
+  const [error, setError] = useState("");
 
-  // 拉取房间与玩家状态
+  // 刷新房间和玩家状态
   useEffect(() => {
     let timer;
     const fetchRoom = async () => {
       const res = await apiRequest("get_room", { room_id: room.id });
       if (res.success) {
-        setGame(res.game);
-        setPlayers(res.game.players);
         setStatus(res.game.status);
+        setIsHost(res.game.players[0]?.phone === user.phone);
+        // player组装（补空位）
+        const ps = [...res.game.players];
+        for (let i = ps.length; i < 4; ++i) ps.push(emptyPlayer);
+        // 标记就绪
+        setPlayers(ps.map(p => {
+          if (p.phone === user.phone) setMyReady(!!p.cards && p.cards.length === 13);
+          if (p.cards && p.cards.length === 13) return { ...p, status: "ready" };
+          if (p.status === "empty") return p;
+          return { ...p, status: "wait" };
+        }));
+        // 卡牌
         if (res.game.cards && res.game.cards.length === 13) setMyHand(res.game.cards);
-        setIsHost(res.game.players[0].phone === user.phone);
+        // 全部玩家准备
+        setAllReady(
+          ps.slice(0, 4).filter(p => p.status !== "empty").every(p => p.cards && p.cards.length === 13)
+        );
+        // 自动分牌: 4人都准备且发牌
+        if (
+          res.game.status === 1 &&
+          ps.slice(0, 4).filter(p => p.status !== "empty").every(p => p.cards && p.cards.length === 13) &&
+          myHand.length === 13
+        ) {
+          autoArrange();
+        }
       }
     };
     fetchRoom();
     timer = setInterval(fetchRoom, 2000);
     return () => clearInterval(timer);
-  }, [room.id]);
+    // eslint-disable-next-line
+  }, [room.id, myReady]);
 
   // 自动分牌
   const autoArrange = () => {
@@ -40,18 +64,18 @@ export default function GameRoom({ user, room, leaveRoom }) {
     });
   };
 
-  // 玩家准备
-  const handleReady = () => {
-    setReady(true);
-    // 后端可补充ready接口
-  };
-
-  // 玩家分牌提交
-  const handleSubmit = async () => {
-    const all = [...arranged.head, ...arranged.mid, ...arranged.tail];
-    if (all.length !== 13) return setError("请分好13张牌");
+  // 玩家点击准备
+  const handleReady = async () => {
+    if (!myHand.length) {
+      setError("等待发牌…");
+      return;
+    }
+    // 提交自动分牌结果
+    autoArrange();
+    const all = [...myHand.slice(0, 3), ...myHand.slice(3, 8), ...myHand.slice(8, 13)];
     const res = await apiRequest("submit_hand", { room_id: room.id, cards: all });
     if (!res.success) setError(res.message);
+    setMyReady(true);
   };
 
   // 主人开始比牌
@@ -60,55 +84,78 @@ export default function GameRoom({ user, room, leaveRoom }) {
     if (!res.success) setError(res.message);
   };
 
+  // 退出房间
+  const handleLeave = async () => {
+    await apiRequest("leave_room", { room_id: room.id });
+    leaveRoom();
+  };
+
   return (
     <div className="room-root">
-      {/* 顶部深色横幅 */}
+      {/* 顶部横幅 */}
       <div className="room-bar">
-        <span className="room-bar-back" onClick={leaveRoom}>〈 返回</span>
+        <span className="room-bar-back" onClick={handleLeave}>〈 退出房间</span>
         <span className="room-bar-title">十三水牌桌（{room.name}）</span>
         <span className="room-bar-user">
-          欢迎, {user.nickname} (积分: {user.score}) &nbsp;
-          <span className="room-bar-profile">个人中心</span>
+          欢迎, {user.nickname} (积分: {user.score})
         </span>
       </div>
 
       <div className="room-main">
-        {/* 玩家列表 */}
+        {/* 玩家状态横幅 */}
         <div className="room-players">
           {players.map((p, idx) => (
-            <div key={p.phone} className={`room-player ${p.phone === user.phone ? "me" : ""}`}>
+            <div
+              key={idx}
+              className={
+                "room-player" +
+                (p.phone === user.phone ? " me" : "") +
+                (p.status === "ready" ? " ready" : p.status === "empty" ? " empty" : "")
+              }
+            >
               <div>{p.nickname}</div>
-              <div>{p.cards ? "已准备" : "未准备"}</div>
-            </div>
-          ))}
-          {Array(4 - players.length).fill(0).map((_, i) => (
-            <div key={i + players.length} className="room-player empty">
-              等待加入...
+              <div>
+                {p.status === "ready"
+                  ? "已准备"
+                  : p.status === "empty"
+                  ? "等待加入…"
+                  : "未准备"}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* 理牌区 */}
+        {/* 理牌区，自动分牌 */}
         <div className="room-cardarea">
           <div className="room-section">
-            <div>请放置3张牌 <span className="room-section-label">头道</span></div>
+            <div>头道</div>
             <div className="room-cardbox">{arranged.head.map(card => <CardView key={card} card={card} />)}</div>
           </div>
           <div className="room-section">
-            <div>请放置5张牌 <span className="room-section-label">中道</span></div>
+            <div>中道</div>
             <div className="room-cardbox">{arranged.mid.map(card => <CardView key={card} card={card} />)}</div>
           </div>
           <div className="room-section">
-            <div>请放置5张牌 <span className="room-section-label">尾道</span></div>
+            <div>尾道</div>
             <div className="room-cardbox">{arranged.tail.map(card => <CardView key={card} card={card} />)}</div>
           </div>
         </div>
 
         {/* 操作按钮 */}
         <div className="room-actions">
-          <button className={`room-btn ready${ready ? " on" : ""}`} onClick={handleReady}>准备</button>
+          <button
+            className={`room-btn ready${myReady ? " on" : ""}`}
+            onClick={handleReady}
+            disabled={myReady || myHand.length !== 13}
+          >
+            准备
+          </button>
           <button className="room-btn" onClick={autoArrange}>自动分牌</button>
-          {isHost && <button className="room-btn" onClick={handleStartCompare}>开始比牌</button>}
+          {isHost && (
+            <button className="room-btn" onClick={handleStartCompare} disabled={!allReady}>
+              开始比牌
+            </button>
+          )}
         </div>
         <div className="room-tip">点击“准备”以开始</div>
         {error && <div className="room-error">{error}</div>}
@@ -118,6 +165,5 @@ export default function GameRoom({ user, room, leaveRoom }) {
 }
 
 function CardView({ card }) {
-  // 你可以用图片或文字
   return <span className="card-view">{card}</span>;
 }
