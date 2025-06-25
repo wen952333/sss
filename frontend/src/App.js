@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Register from "./components/Auth/Register";
 import Login from "./components/Auth/Login";
 import RoomList from "./components/Game/RoomList";
@@ -11,24 +11,39 @@ function App() {
   const [view, setView] = useState("login");
   const [roomId, setRoomId] = useState(null);
 
+  useEffect(() => {
+    // 页面加载时检测本地是否有用户信息
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      setUser(JSON.parse(stored));
+      setView("room");
+    }
+  }, []);
+
+  const handleLogin = (u) => {
+    localStorage.setItem("user", JSON.stringify(u));
+    setUser(u);
+    setView("room");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    setUser(null);
+    setView("login");
+  };
+
   if (!user) {
     if (view === "login")
       return (
         <Login
-          onLogin={(u) => {
-            setUser(u);
-            setView("room");
-          }}
+          onLogin={handleLogin}
           onSwitch={() => setView("register")}
         />
       );
     else
       return (
         <Register
-          onRegister={(u) => {
-            setUser(u);
-            setView("room");
-          }}
+          onRegister={handleLogin}
           onSwitch={() => setView("login")}
         />
       );
@@ -41,15 +56,7 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-200 to-pink-100">
       <header className="p-4 flex justify-between items-center">
         <span className="font-bold text-2xl">十三水</span>
-        <button
-          className="btn"
-          onClick={() => {
-            setUser(null);
-            setView("login");
-          }}
-        >
-          退出登录
-        </button>
+        <button className="btn" onClick={handleLogout}>退出登录</button>
       </header>
       <main className="p-4">
         <Points user={user} />
