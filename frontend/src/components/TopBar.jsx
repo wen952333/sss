@@ -24,7 +24,7 @@ export default function TopBar({ user, setUser, onCreateRoom }) {
             if(roomName.trim()) {onCreateRoom(roomName); setRoomName("");} 
           }}>创建房间</button>
         </div>
-        <button className="topbar-logout" onClick={() => setUser(null)}>
+        <button className="topbar-logout" onClick={setUser}>
           退出登录
         </button>
       </div>
