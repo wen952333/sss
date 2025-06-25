@@ -1,0 +1,32 @@
+.game-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  background-color: white;
+  border-top: 1px solid #e2e8f0;
+}
+
+.leave-btn {
+  background-color: #ef4444;
+}
+
+.leave-btn:hover {
+  background-color: #dc2626;
+}
+
+.start-btn {
+  background-color: #10b981;
+}
+
+.start-btn:hover {
+  background-color: #059669;
+}
+
+.play-btn {
+  background-color: #3b82f6;
+}
+
+.play-btn:hover {
+  background-color: #2563eb;
+}
