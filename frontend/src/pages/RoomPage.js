@@ -35,7 +35,7 @@ const RoomPage = () => {
     };
     
     fetchRoom();
-    const interval = setInterval(fetchRoom, 3000); // 每3秒轮询一次
+    const interval = setInterval(fetchRoom, 3000);
     
     return () => clearInterval(interval);
   }, [id, user]);
@@ -78,6 +78,11 @@ const RoomPage = () => {
     });
   };
   
+  if (!user) {
+    navigate('/auth');
+    return null;
+  }
+  
   if (loading) {
     return <div className="room-loading">加载房间信息中...</div>;
   }
@@ -97,8 +102,10 @@ const RoomPage = () => {
     <div className="room-container">
       <div className="room-header">
         <h2>{room.name}</h2>
-        <p>状态: {room.status === 'waiting' ? '等待中' : '游戏中'}</p>
-        <button className="btn leave-btn" onClick={handleLeaveRoom}>离开房间</button>
+        <div className="room-status">
+          <span>状态: {room.status === 'waiting' ? '等待中' : '游戏中'}</span>
+          <button className="btn leave-btn" onClick={handleLeaveRoom}>离开房间</button>
+        </div>
       </div>
       
       <div className="players-container">
@@ -107,28 +114,38 @@ const RoomPage = () => {
             key={player.id} 
             player={player} 
             isCurrent={player.id === user.id}
-            points={player.points}
           />
         ))}
       </div>
       
       {room.status === 'playing' && currentPlayer && (
-        <CardArea 
-          cards={currentPlayer.cards} 
-          selectedCards={selectedCards}
-          onCardSelect={toggleCardSelect}
-        />
+        <>
+          <div className="hand-cards">
+            <h3>你的手牌</h3>
+            <CardArea 
+              cards={currentPlayer.cards} 
+              selectedCards={selectedCards}
+              onCardSelect={toggleCardSelect}
+            />
+          </div>
+          
+          <div className="game-controls">
+            {selectedCards.length > 0 && (
+              <button className="btn play-btn" onClick={handlePlayCards}>
+                出牌 ({selectedCards.length}张)
+              </button>
+            )}
+          </div>
+        </>
       )}
       
-      <div className="game-controls">
-        {room.status === 'waiting' && isOwner && (
-          <button className="btn start-btn" onClick={handleStartGame}>开始游戏</button>
-        )}
-        
-        {room.status === 'playing' && selectedCards.length > 0 && (
-          <button className="btn play-btn" onClick={handlePlayCards}>出牌</button>
-        )}
-      </div>
+      {room.status === 'waiting' && isOwner && (
+        <div className="start-game-container">
+          <button className="btn start-btn" onClick={handleStartGame}>
+            开始游戏
+          </button>
+        </div>
+      )}
     </div>
   );
 };
