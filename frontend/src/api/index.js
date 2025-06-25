@@ -1,7 +1,6 @@
-const API_BASE = "https://9526.ip-ddns.com/api.php"; // PHP后端入口
+const API_BASE = "https://9526.ip-ddns.com/api.php"; // 注意结尾必须是 /api.php
 
 export async function apiRequest(action, data = {}) {
-  // 统一POST请求
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
