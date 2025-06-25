@@ -44,56 +44,56 @@ const AuthPage = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div className="game-logo">
+          <h1>十三水游戏</h1>
+        </div>
+        
         <h2>{isLogin ? '登录' : '注册'}</h2>
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>手机号</label>
             <input
               type="tel"
               className="form-control"
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
-              placeholder="请输入手机号"
+              placeholder="手机号"
               required
             />
           </div>
           
           {!isLogin && (
             <div className="form-group">
-              <label>昵称</label>
               <input
                 type="text"
                 className="form-control"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="请输入昵称"
+                placeholder="昵称"
                 required
               />
             </div>
           )}
           
           <div className="form-group">
-            <label>密码</label>
             <input
               type="password"
               className="form-control"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
+              placeholder="密码"
               required
             />
           </div>
           
           {!isLogin && (
             <div className="form-group">
-              <label>确认密码</label>
               <input
                 type="password"
                 className="form-control"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="请再次输入密码"
+                placeholder="确认密码"
                 required
               />
             </div>
