@@ -1,56 +1,63 @@
 .game-room-table {
-  background: #1e2c3a;
+  background: radial-gradient(circle at 60% 10%, #388e3c 0%, #1b5e20 100%);
   border-radius: 18px;
-  padding: 8px;
-  max-width: 500px;
-  margin: 0 auto 12px auto;
+  padding: 20px 10px 18px 10px;
+  max-width: 600px;
+  margin: 0 auto 22px auto;
   color: #fff;
-  min-height: 500px;
+  min-height: 600px;
+  box-shadow: 0 0 24px #0006;
+  border: 4px solid #fff5;
+  position: relative;
 }
 
 .gr-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0 10px 0;
+  padding: 8px 0 14px 0;
   border-bottom: 1px solid #3a4661;
-  font-size: 17px;
+  font-size: 20px;
+  font-weight: bold;
 }
 
 .gr-leave-btn {
   background: #c00;
   color: #fff;
   border: none;
-  padding: 7px 14px;
+  padding: 8px 20px;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 16px;
+  box-shadow: 0 2px 8px #f43c3c44;
+  cursor: pointer;
 }
 
 .gr-table {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-around;
-  margin: 18px 0;
-  min-height: 220px;
+  margin: 28px 0 18px 0;
+  min-height: 260px;
 }
 .gr-seat {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.09);
   border-radius: 13px;
-  padding: 10px 8px 4px 8px;
-  margin: 6px 3px;
+  padding: 14px 10px 9px 10px;
+  margin: 10px 6px;
   width: 47%;
-  min-width: 140px;
-  min-height: 120px;
+  min-width: 160px;
+  min-height: 130px;
   box-sizing: border-box;
-  box-shadow: 0 0 8px #0003;
+  box-shadow: 0 0 14px #0003;
   position: relative;
+  transition: box-shadow 0.2s;
 }
 .gr-me {
-  border: 2px solid #ffb400;
-  box-shadow: 0 0 15px #f2b13c66;
+  border: 2.5px solid #ffb400;
+  box-shadow: 0 0 25px #f2b13c66;
 }
 .gr-avatar {
-  font-size: 23px;
+  font-size: 27px;
   position: relative;
   display: inline-block;
   vertical-align: middle;
@@ -58,77 +65,98 @@
 .gr-zhuang {
   background: #ffb400;
   color: #222;
-  font-size: 13px;
-  border-radius: 4px;
-  padding: 1px 5px;
-  margin-left: 4px;
+  font-size: 14px;
+  border-radius: 5px;
+  padding: 2px 8px;
+  margin-left: 7px;
   font-weight: bold;
+  box-shadow: 0 1px 5px #ffb40044;
 }
 .gr-nickname {
-  font-size: 16px;
+  font-size: 18px;
   margin-top: 2px;
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 .gr-sub {
-  font-size: 13px;
+  font-size: 14px;
   color: #e4e4e4;
 }
 .gr-status {
   margin-top: 2px;
-  font-size: 14px;
+  font-size: 15px;
 }
 .gr-ready {
   color: #2ee74e;
+  font-weight: bold;
 }
 .gr-wait {
   color: #ffb400;
+  font-weight: bold;
 }
 .gr-score {
   color: #00eaff;
+  font-weight: bold;
 }
 
 .gr-cards {
-  margin-top: 7px;
+  margin-top: 9px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   justify-content: flex-start;
 }
 .gr-card {
-  width: 32px;
-  height: 44px;
-  border-radius: 4px;
+  width: 38px;
+  height: 54px;
+  border-radius: 6px;
   background: #fff;
-  box-shadow: 0 1px 4px #6662;
-  margin-right: 1px;
+  box-shadow: 0 2px 10px #4442;
+  margin-right: 2px;
+  transition: box-shadow 0.2s, transform 0.2s;
+  transform: rotate(-3deg) scale(1);
+}
+.gr-card:hover {
+  box-shadow: 0 6px 28px #ffb40088;
+  transform: scale(1.15) rotate(1deg);
+  z-index: 9;
 }
 .gr-actions {
-  margin-top: 15px;
+  margin-top: 18px;
   text-align: center;
 }
 .gr-btn {
-  background: #ffb400;
+  background: linear-gradient(90deg, #ffb400 60%, #ffe066 100%);
   color: #222;
   border: none;
   border-radius: 8px;
-  padding: 10px 22px;
-  font-size: 17px;
+  padding: 12px 28px;
+  font-size: 19px;
   font-weight: bold;
   margin: 7px 8px;
-  box-shadow: 0 2px 8px #ffb40044;
+  box-shadow: 0 2px 11px #ffb40044;
+  cursor: pointer;
+  transition: box-shadow 0.13s;
+}
+.gr-btn:active {
+  box-shadow: 0 0 0 #ffb40044;
 }
 .gr-info {
-  margin-top: 8px;
+  margin-top: 9px;
   color: #2ee74e;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: bold;
 }
 .gr-error {
   color: #ff3c3c;
-  margin-top: 10px;
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: bold;
 }
 
 @media (max-width: 500px) {
   .game-room-table { min-height: 350px; }
   .gr-seat { min-width: 108px; font-size: 14px; }
-  .gr-card { width: 24px; height: 33px;}
-  .gr-btn { font-size: 15px; padding: 8px 13px;}
+  .gr-card { width: 26px; height: 37px;}
+  .gr-btn { font-size: 16px; padding: 8px 13px;}
 }
