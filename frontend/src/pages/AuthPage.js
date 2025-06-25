@@ -59,6 +59,7 @@ const AuthPage = () => {
               onChange={(e) => setMobile(e.target.value)}
               placeholder="手机号"
               required
+              autoComplete="username"
             />
           </div>
           
@@ -83,6 +84,7 @@ const AuthPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="密码"
               required
+              autoComplete={isLogin ? "current-password" : "new-password"}
             />
           </div>
           
@@ -95,6 +97,7 @@ const AuthPage = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="确认密码"
                 required
+                autoComplete="new-password"
               />
             </div>
           )}
