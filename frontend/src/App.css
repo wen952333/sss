@@ -1,0 +1,66 @@
+body, html, #root {
+  height: 100%;
+  margin: 0;
+  font-family: "PingFang SC", "Arial", sans-serif;
+  background: #f7fafc;
+}
+
+.main-menu {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.auth-page, .room-list, .game-room, .gift-points, .user-profile {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px #0001;
+}
+
+input, button {
+  font-size: 16px;
+  margin: 8px 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  outline: none;
+}
+
+button {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+button:active {
+  background: #0051a8;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.card-img {
+  width: 40px;
+  height: 58px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px #6662;
+  background: #fff;
+}
+
+@media (max-width: 500px) {
+  .main-menu, .auth-page, .room-list, .game-room, .gift-points, .user-profile {
+    padding: 8px;
+    font-size: 15px;
+  }
+  .card-img { width: 34px; height: 48px; }
+}
+.error { color: #c00; margin: 8px 0; }
