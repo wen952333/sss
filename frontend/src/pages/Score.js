@@ -14,12 +14,15 @@ export default function Score({ user }) {
   }
 
   return (
-    <div>
-      <h2>我的积分：{user.score}</h2>
+    <div className="score-section">
+      <h2>我的积分：<span style={{color:"#6366f1"}}>{user.score}</span></h2>
       <input placeholder="对方手机号" value={toPhone} onChange={e => setToPhone(e.target.value)} maxLength={11} />
       <input placeholder="赠送积分" value={amount} onChange={e => setAmount(e.target.value)} type="number" />
-      <button onClick={handleSend}>赠送</button>
-      <div style={{ color: "red" }}>{msg}</div>
+      <button onClick={handleSend}>赠送积分</button>
+      <div style={{ color: "crimson", minHeight: 18 }}>{msg}</div>
+      <div style={{fontSize:13, color:"#64748b", marginTop:8}}>
+        可通过手机号查找好友并赠送积分，赠送后即时到账。
+      </div>
     </div>
   );
 }
