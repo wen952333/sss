@@ -1,0 +1,51 @@
+.player-area {
+  background-color: white;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  transition: all 0.3s;
+}
+
+.player-area.current {
+  border: 2px solid #4a6cf7;
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.player-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.player-info h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.current-label {
+  background-color: #4a6cf7;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.player-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.more-cards {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f1f5f9;
+  border-radius: 5px;
+  width: 40px;
+  height: 60px;
+  font-size: 14px;
+  font-weight: bold;
+}
