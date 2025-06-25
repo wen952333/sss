@@ -1,4 +1,14 @@
 <?php
+// 处理CORS预检请求
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+  header("Access-Control-Allow-Origin: https://ss.wenge.ip-ddns.com");
+  header("Access-Control-Allow-Credentials: true");
+  header("Access-Control-Allow-Headers: Content-Type");
+  header("Access-Control-Allow-Methods: POST, OPTIONS");
+  http_response_code(204);
+  exit;
+}
+
 header("Content-Type: application/json");
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   header("Allow: POST");
