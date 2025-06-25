@@ -15,8 +15,8 @@
   border-radius: 14px;
   box-shadow: 0 4px 20px #0001;
   padding: 12px 12px 9px 12px;
-  min-width: 160px;
-  min-height: 230px;
+  min-width: 180px;
+  min-height: 260px;
   border: 2px solid #e0e0e0;
   margin: 6px;
   display: flex;
@@ -43,8 +43,17 @@
 }
 .showdown-row {
   display: flex;
+  align-items: center;
   gap: 4px;
-  margin: 6px 0;
+  margin: 8px 0;
+}
+.showdown-row-label {
+  color: #197d2d;
+  font-size: 13px;
+  margin-right: 4px;
+  min-width: 50px;
+  text-align: right;
+  font-weight: bold;
 }
 .showdown-card {
   width: 34px;
