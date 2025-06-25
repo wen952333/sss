@@ -23,3 +23,13 @@
 .footer-links a:hover {
   color: #4a6cf7;
 }
+/* 保留原有样式，只修改链接部分 */
+.footer-links span {
+  color: #ddd;
+  margin-left: 20px;
+  cursor: pointer;
+}
+
+.footer-links span:hover {
+  color: #4a6cf7;
+}
