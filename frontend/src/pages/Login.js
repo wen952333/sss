@@ -24,17 +24,17 @@ export default function Login({ onLogin }) {
 
   return (
     <form onSubmit={handleSubmit} className="login-form">
-      <h2>{isRegister ? "注册" : "登录"}</h2>
-      <input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} maxLength={11} />
+      <h2>{isRegister ? "注册账号" : "用户登录"}</h2>
+      <input type="tel" placeholder="手机号（11位）" value={phone} onChange={e => setPhone(e.target.value)} maxLength={11} />
       {isRegister && (
         <input type="text" placeholder="昵称" value={nickname} onChange={e => setNickname(e.target.value)} maxLength={10} />
       )}
-      <input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} />
+      <input type="password" placeholder="密码（6-18位）" value={password} onChange={e => setPassword(e.target.value)} />
       <button type="submit">{isRegister ? "注册" : "登录"}</button>
       <div onClick={() => setIsRegister(!isRegister)} className="toggle-link">
         {isRegister ? "已有账号？登录" : "没有账号？注册"}
       </div>
-      <div style={{ color: "red" }}>{msg}</div>
+      <div style={{ color: "crimson", minHeight: 18, textAlign:"center" }}>{msg}</div>
     </form>
   );
 }
