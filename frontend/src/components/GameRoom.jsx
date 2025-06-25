@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiRequest } from "../api";
 import { getCardImage } from "../utils/cardMapper";
+import "./GameRoom.css"; // 建议新建专用样式文件，见下方
 
 export default function GameRoom({ user, room, leaveRoom }) {
   const [game, setGame] = useState(null);
@@ -17,8 +18,7 @@ export default function GameRoom({ user, room, leaveRoom }) {
         setGame(res.game);
         setMyCards(res.game.cards || []);
         setSubmitted(!!res.game.cards && res.game.cards.length === 13);
-      }
-      else setError(res.message);
+      } else setError(res.message);
     };
     fetchGame();
     timer = setInterval(fetchGame, 2000);
@@ -51,36 +51,66 @@ export default function GameRoom({ user, room, leaveRoom }) {
   if (!game) return <div>加载中...</div>;
 
   return (
-    <div className="game-room">
-      <h3>房间：{room.name} <button onClick={leaveRoom}>退出</button></h3>
-      <div className="player-list">
-        {game.players.map((p, idx) => (
-          <div key={p.phone} style={{margin: 2, fontWeight: p.phone===user.phone?'bold':'normal'}}>
-            {p.nickname}（{p.phone.slice(-4)}） {p.round_score ? `[本轮${p.round_score}分]` : ""}
-            {idx === 0 ? " [房主]" : ""}
-          </div>
-        ))}
+    <div className="game-room-table">
+      <div className="gr-header">
+        <span>房间：{room.name}</span>
+        <button className="gr-leave-btn" onClick={leaveRoom}>退出</button>
       </div>
-      <div>
+
+      {/* 牌桌布局 */}
+      <div className="gr-table">
+        {game.players.map((p, idx) => {
+          const isMe = p.phone === user.phone;
+          const isZhuang = idx === 0;
+          return (
+            <div
+              key={p.phone}
+              className={`gr-seat gr-seat-${idx + 1} ${isMe ? "gr-me" : ""}`}
+            >
+              <div className="gr-avatar">
+                <span role="img" aria-label="avatar">🧑</span>
+                {isZhuang && <span className="gr-zhuang">庄</span>}
+              </div>
+              <div className="gr-nickname">{p.nickname}</div>
+              <div className="gr-sub">{p.phone.slice(-4)} | {p.score}分</div>
+              <div className="gr-status">
+                {game.status === 1
+                  ? p.cards
+                    ? <span className="gr-ready">已出牌</span>
+                    : <span className="gr-wait">等待</span>
+                  : (game.status === 2 && typeof p.round_score === "number")
+                  ? <span className="gr-score">本局{p.round_score}分</span>
+                  : null}
+              </div>
+              {/* 只展示自己的手牌 */}
+              {isMe && myCards.length > 0 && (
+                <div className="gr-cards">
+                  {myCards.map(card => (
+                    <img key={card} src={getCardImage(card)} alt={card} className="gr-card" />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 操作区 */}
+      <div className="gr-actions">
         {game.status === 0 && isHost && (
-          <button onClick={handleStart}>发牌开始游戏</button>
+          <button className="gr-btn" onClick={handleStart}>发牌开始游戏</button>
         )}
         {game.status === 1 && myCards.length === 13 && !submitted && (
-          <button onClick={handleSubmit}>提交我的出牌</button>
+          <button className="gr-btn" onClick={handleSubmit}>提交我的出牌</button>
         )}
         {game.status === 1 && isHost && (
-          <button onClick={handleSettle}>结算本局</button>
+          <button className="gr-btn" onClick={handleSettle}>结算本局</button>
         )}
         {game.status === 2 && (
-          <div style={{color:"green"}}>本局已结束，积分已结算</div>
+          <div className="gr-info">本局已结束，积分已结算</div>
         )}
+        {error && <div className="gr-error">{error}</div>}
       </div>
-      <div className="cards">
-        {myCards.map(card => (
-          <img key={card} src={getCardImage(card)} alt={card} className="card-img" />
-        ))}
-      </div>
-      {error && <div className="error">{error}</div>}
     </div>
   );
 }
