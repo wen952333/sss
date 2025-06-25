@@ -1,0 +1,339 @@
+/* 基础样式 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+  color: #fff;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.app-container {
+  max-width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.app-header {
+  text-align: center;
+  padding: 15px 0;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.user-info {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #ffcc00;
+}
+
+.game-container {
+  flex: 1;
+  background: rgba(0, 20, 40, 0.8);
+  border-radius: 15px;
+  padding: 15px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  overflow-y: auto;
+}
+
+/* 卡片样式 */
+.card {
+  position: relative;
+  display: inline-block;
+  margin: 3px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.card.selected {
+  transform: translateY(-10px);
+  box-shadow: 0 0 15px #ffcc00;
+}
+
+.card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.card-corner {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.card-rank {
+  color: #333;
+}
+
+.card-suit {
+  color: #c00;
+}
+
+/* 尺寸类 */
+.card-small {
+  width: 40px;
+  height: 60px;
+}
+
+.card-medium {
+  width: 50px;
+  height: 75px;
+}
+
+.card-large {
+  width: 70px;
+  height: 105px;
+}
+
+/* 游戏区域 */
+.game-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+.table-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
+}
+
+.pot-area {
+  background: rgba(0, 100, 0, 0.6);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 1.2rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.opponents-area {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  margin-bottom: 15px;
+}
+
+.player-seat {
+  background: rgba(50, 50, 150, 0.7);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 5px;
+  min-width: 120px;
+  text-align: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.player-info {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.player-status {
+  color: #ffcc00;
+  font-size: 0.9rem;
+}
+
+.player-area {
+  background: rgba(30, 60, 120, 0.7);
+  border-radius: 15px;
+  padding: 15px;
+  margin-top: auto;
+  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.3);
+}
+
+.player-hand {
+  margin-bottom: 15px;
+}
+
+.cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+button {
+  background: linear-gradient(to right, #ff8c00, #ffcc00);
+  color: #1a1a2e;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+button:disabled {
+  background: #666;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 排列区域 */
+.arrange-area {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.arrange-section {
+  margin: 10px 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.arrange-section h4 {
+  text-align: center;
+  margin-bottom: 8px;
+  color: #ffcc00;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+  .card-small {
+    width: 30px;
+    height: 45px;
+  }
+  
+  .card-medium {
+    width: 40px;
+    height: 60px;
+  }
+  
+  .card-large {
+    width: 50px;
+    height: 75px;
+  }
+  
+  .player-seat {
+    min-width: 100px;
+    padding: 8px;
+    font-size: 0.9rem;
+  }
+  
+  button {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-container {
+    max-width: 768px;
+    margin: 0 auto;
+  }
+}
+
+/* 大厅样式 */
+.game-lobby {
+  text-align: center;
+  padding: 20px;
+}
+
+.lobby-form {
+  max-width: 400px;
+  margin: 20px auto;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.lobby-form input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 25px;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.lobby-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.available-games {
+  margin-top: 20px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.game-item {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.game-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.game-finished {
+  text-align: center;
+  padding: 30px;
+}
+
+.winner {
+  background: rgba(255, 215, 0, 0.2);
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 10px;
+  font-size: 1.2rem;
+}
+
+/* 页脚 */
+.app-footer {
+  text-align: center;
+  padding: 15px 0;
+  margin-top: 15px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
