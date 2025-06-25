@@ -29,7 +29,7 @@ $db->exec("CREATE TABLE IF NOT EXISTS points_log (
 )");
 
 function json($arr) { echo json_encode($arr); exit; }
-
+function get_uid() { return $_SESSION['uid'] ?? 0; }
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
 
@@ -37,20 +37,24 @@ switch ($action) {
   case 'register':
     $stmt = $db->prepare("INSERT INTO users (phone, nickname, password) VALUES (?, ?, ?)");
     try {
-      $stmt->execute([$input['phone'], $input['nickname'], password_hash($input['password'], PASSWORD_DEFAULT)]);
+      $stmt->execute([
+        $input['phone'],
+        $input['nickname'],
+        password_hash($input['password'], PASSWORD_DEFAULT)
+      ]);
       $_SESSION['uid'] = $db->lastInsertId();
       json(['success'=>true, 'user'=>['phone'=>$input['phone'], 'nickname'=>$input['nickname']]]);
     } catch (Exception $e) {
-      json(['success'=>false, 'message'=>'已注册或参数错误']);
+      json(['success'=>false, 'message'=>'手机号已注册或参数错误']);
     }
     break;
   case 'login':
-    $stmt = $db->prepare("SELECT id,phone,nickname,password,points FROM users WHERE phone=?");
+    $stmt = $db->prepare("SELECT * FROM users WHERE phone=?");
     $stmt->execute([$input['phone']]);
     $u = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($u && password_verify($input['password'], $u['password'])) {
       $_SESSION['uid'] = $u['id'];
-      json(['success'=>true, 'user'=>['phone'=>$u['phone'], 'nickname'=>$u['nickname'], 'points'=>$u['points']]]);
+      json(['success'=>true, 'user'=>['id'=>$u['id'],'phone'=>$u['phone'], 'nickname'=>$u['nickname'], 'points'=>$u['points']]]);
     }
     json(['success'=>false, 'message'=>'账号或密码错误']);
     break;
@@ -63,7 +67,7 @@ switch ($action) {
     break;
   case 'create_room':
     $name = $input['name'] ?: ('房间'.rand(1000,9999));
-    $owner = $_SESSION['uid'] ?? 0;
+    $owner = get_uid();
     $players = json_encode([$owner]);
     $stmt = $db->prepare("INSERT INTO rooms (name, owner, players, status) VALUES (?, ?, ?, 'waiting')");
     $stmt->execute([$name, $owner, $players]);
@@ -71,7 +75,7 @@ switch ($action) {
     break;
   case 'join_room':
     $room_id = intval($input['room_id']);
-    $uid = $_SESSION['uid'] ?? 0;
+    $uid = get_uid();
     $room = $db->query("SELECT players FROM rooms WHERE id=$room_id")->fetch(PDO::FETCH_ASSOC);
     $players = json_decode($room['players'] ?? '[]', true);
     if (!in_array($uid, $players)) $players[] = $uid;
@@ -90,11 +94,28 @@ switch ($action) {
     json(['success'=>false]);
     break;
   case 'start_game':
-    // 省略发牌与状态初始化（可自行扩展）
-    json(['success'=>true]);
+    // 简单洗牌和分牌（未实现十三水所有规则，仅为示例）
+    $room_id = intval($input['room_id']);
+    $room = $db->query("SELECT players FROM rooms WHERE id=$room_id")->fetch(PDO::FETCH_ASSOC);
+    $players = json_decode($room['players'] ?? '[]', true);
+    $cards = [];
+    foreach (['spades','hearts','diamonds','clubs'] as $suit) {
+      foreach (['ace','2','3','4','5','6','7','8','9','10','jack','queen','king'] as $value) {
+        $cards[] = ['suit'=>$suit, 'value'=>$value];
+      }
+    }
+    shuffle($cards);
+    $cardsByUser = [];
+    foreach ($players as $i=>$pid) {
+      $cardsByUser[$pid] = array_splice($cards,0,13);
+    }
+    $state = ['cards'=>$cardsByUser];
+    $stmt = $db->prepare("UPDATE rooms SET state=?, status='playing' WHERE id=?");
+    $stmt->execute([json_encode($state), $room_id]);
+    json(['success'=>true, 'message'=>'已发牌']);
     break;
   case 'gift_points':
-    $from_uid = $_SESSION['uid'] ?? 0;
+    $from_uid = get_uid();
     $to_phone = $input['to_phone'];
     $amount = intval($input['amount']);
     $to_user = $db->query("SELECT id FROM users WHERE phone='$to_phone'")->fetch(PDO::FETCH_ASSOC);
@@ -105,7 +126,7 @@ switch ($action) {
     json(['success'=>true, 'message'=>'赠送成功']);
     break;
   case 'my_points':
-    $uid = $_SESSION['uid'] ?? 0;
+    $uid = get_uid();
     $u = $db->query("SELECT points FROM users WHERE id=$uid")->fetch(PDO::FETCH_ASSOC);
     json(['success'=>true, 'points'=>$u['points']]);
     break;
