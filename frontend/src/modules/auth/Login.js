@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { apiPost } from "../../api";
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onShowRegister }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
@@ -23,6 +23,13 @@ export default function Login({ onLogin }) {
       <input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} maxLength={11} />
       <input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} />
       <button type="submit">登录</button>
+      <div
+        className="toggle-link"
+        onClick={onShowRegister}
+        style={{ textAlign: "right", marginTop: 8, cursor: "pointer", color:"#6366f1" }}
+      >
+        没有账号？注册
+      </div>
       <div style={{ color: "crimson", minHeight: 18, textAlign:"center" }}>{msg}</div>
     </form>
   );
