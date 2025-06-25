@@ -1,0 +1,107 @@
+.arrange-panel {
+  background: #215a2c;
+  border-radius: 16px;
+  padding: 18px 8px 14px 8px;
+  max-width: 400px;
+  margin: 0 auto 18px auto;
+  color: #fff;
+  box-shadow: 0 6px 28px #0005;
+  border: 3px solid #fff5;
+}
+.arrange-section {
+  margin-bottom: 18px;
+}
+.arrange-pool-title {
+  font-size: 17px;
+  margin-bottom: 4px;
+  font-weight: bold;
+  color: #f0ffa5;
+}
+.arrange-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 48px;
+  background: #18481c;
+  padding: 8px 6px;
+  border-radius: 7px;
+  margin-bottom: 10px;
+}
+.arrange-group {
+  margin-top: 10px;
+}
+.arrange-group-title {
+  color: #9fffa2;
+  font-size: 16px;
+  margin-bottom: 3px;
+  font-weight: bold;
+}
+.arrange-cards {
+  display: flex;
+  gap: 5px;
+  min-height: 48px;
+  background: #18481c;
+  padding: 7px 6px;
+  border-radius: 7px;
+}
+.arrange-card {
+  width: 34px;
+  height: 48px;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 5px #0003;
+  cursor: pointer;
+  transition: box-shadow 0.16s, transform 0.13s;
+}
+.arrange-card:hover {
+  box-shadow: 0 6px 16px #ffb40088;
+  transform: scale(1.12);
+  z-index: 10;
+}
+.arrange-card.empty {
+  background: #cfd8dc;
+  box-shadow: none;
+  border: 1.5px dashed #888a;
+  cursor: default;
+}
+.arrange-actions {
+  display: flex;
+  gap: 15px;
+  margin: 16px 0 8px 0;
+  justify-content: center;
+}
+.arrange-btn {
+  padding: 10px 26px;
+  font-size: 17px;
+  border-radius: 7px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  background: #eaeaea;
+  color: #154618;
+  transition: background .14s;
+}
+.arrange-btn.ready {
+  background: #b2ffb5;
+  color: #176b17;
+}
+.arrange-btn.auto {
+  background: #d2eaff;
+  color: #186b74;
+}
+.arrange-btn:disabled {
+  background: #888a;
+  color: #fff;
+  cursor: not-allowed;
+}
+.arrange-error {
+  color: #ff6f6f;
+  margin: 7px 0 0 0;
+  font-size: 15px;
+}
+.arrange-tip {
+  color: #dfefb2;
+  font-size: 13px;
+  margin-top: 7px;
+  text-align: center;
+}
