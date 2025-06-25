@@ -23,12 +23,15 @@ export default function Login({ onLogin, onShowRegister }) {
       <input type="tel" placeholder="手机号" value={phone} onChange={e => setPhone(e.target.value)} maxLength={11} />
       <input type="password" placeholder="密码" value={password} onChange={e => setPassword(e.target.value)} />
       <button type="submit">登录</button>
-      <div
-        className="toggle-link"
-        onClick={onShowRegister}
-        style={{ textAlign: "right", marginTop: 8, cursor: "pointer", color:"#6366f1" }}
-      >
-        没有账号？注册
+      <div style={{display: "flex", justifyContent: "space-between", fontSize: 14, marginTop: 8}}>
+        <div />
+        <span
+          className="toggle-link"
+          onClick={onShowRegister}
+          style={{ cursor: "pointer", color:"#6366f1" }}
+        >
+          没有账号？注册
+        </span>
       </div>
       <div style={{ color: "crimson", minHeight: 18, textAlign:"center" }}>{msg}</div>
     </form>
