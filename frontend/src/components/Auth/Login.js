@@ -9,7 +9,7 @@ export default function Login({ onLogin, onSwitch }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const res = await apiRequest("login", { phone, password });
-    if (res.success) onLogin(res.user);
+    if (res.success) onLogin(res);
     else setMsg(res.message);
   };
 
