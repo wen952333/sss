@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import RoomList from '../components/RoomList'; // 确保这行存在
-import CreateRoom from '../components/CreateRoom'; // 确保这行存在
-import UserStats from '../components/UserStats'; // 确保这行存在
+import RoomList from '../components/RoomList';
+import CreateRoom from '../components/CreateRoom';
 import { getRooms, createRoom } from '../services/gameService';
 import '../styles/Dashboard.css';
 
@@ -27,7 +26,7 @@ const Dashboard = () => {
     };
 
     fetchRooms();
-    const interval = setInterval(fetchRooms, 5000); // 每5秒轮询一次
+    const interval = setInterval(fetchRooms, 5000);
     
     return () => clearInterval(interval);
   }, []);
@@ -45,19 +44,21 @@ const Dashboard = () => {
     navigate(`/room/${roomId}`);
   };
 
-  if (!user) return null;
+  if (!user) {
+    // 未登录时重定向到登录页
+    navigate('/auth');
+    return null;
+  }
 
   return (
     <div className="dashboard">
-      <div className="user-header">
-        <div className="user-info">
-          <h2>欢迎, {user.nickname}</h2>
-          <p>积分: {user.points}</p>
-        </div>
-      </div>
-      
       <div className="dashboard-content">
-        <UserStats points={user.points} />
+        <div className="user-header">
+          <div className="user-info">
+            <h2>欢迎, {user.nickname}</h2>
+            <p>积分: {user.points}</p>
+          </div>
+        </div>
         
         <div className="actions">
           <button 
@@ -72,8 +73,10 @@ const Dashboard = () => {
           <h3>游戏房间</h3>
           {loading ? (
             <p>加载中...</p>
-          ) : (
+          ) : rooms.length > 0 ? (
             <RoomList rooms={rooms} onJoinRoom={handleJoinRoom} />
+          ) : (
+            <p>暂无房间，请创建一个新房间</p>
           )}
         </div>
       </div>
