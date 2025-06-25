@@ -99,6 +99,17 @@
   font-weight: bold;
 }
 
+/* 拖拽时的手牌区域 */
+.gr-cards.draggable {
+  display: flex;
+  gap: 5px;
+  min-height: 60px;
+  margin-top: 12px;
+  padding-bottom: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
 .gr-cards {
   margin-top: 9px;
   display: flex;
@@ -106,14 +117,16 @@
   gap: 4px;
   justify-content: flex-start;
 }
+
 .gr-card {
-  width: 38px;
-  height: 54px;
-  border-radius: 6px;
+  width: 42px;
+  height: 60px;
+  border-radius: 7px;
   background: #fff;
   box-shadow: 0 2px 10px #4442;
   margin-right: 2px;
   transition: box-shadow 0.2s, transform 0.2s;
+  cursor: grab;
   transform: rotate(-3deg) scale(1);
 }
 .gr-card:hover {
@@ -121,6 +134,12 @@
   transform: scale(1.15) rotate(1deg);
   z-index: 9;
 }
+.gr-card.dragging {
+  box-shadow: 0 8px 32px #ffb40088, 0 0 0 3px #ffb400;
+  transform: scale(1.15) rotate(1deg);
+  z-index: 20;
+}
+
 .gr-actions {
   margin-top: 18px;
   text-align: center;
