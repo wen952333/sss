@@ -1,8 +1,15 @@
 <?php
+header("Content-Type: application/json");
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  header("Allow: POST");
+  http_response_code(405);
+  echo json_encode(['success'=>false, 'message'=>'Method Not Allowed']);
+  exit;
+}
+
 require_once 'db.php';
 require_once 'game.php';
 session_start();
-header("Content-Type: application/json");
 
 // 简易token机制（生产建议JWT或session）
 function get_user() {
