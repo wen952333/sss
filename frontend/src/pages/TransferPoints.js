@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { searchUserByMobile, transferPoints } from '../services/pointsService';
@@ -43,15 +43,22 @@ const TransferPoints = () => {
       return;
     }
     
+    const transferAmount = parseInt(amount);
+    
+    if (transferAmount > user.points) {
+      setMessage('您的积分不足');
+      return;
+    }
+    
     try {
       setLoading(true);
-      const result = await transferPoints(foundUser.id, parseInt(amount));
+      const result = await transferPoints(foundUser.id, transferAmount);
       if (result.success) {
         setMessage(`成功向 ${foundUser.nickname} 转账 ${amount} 积分`);
         // 更新本地用户积分
         const updatedUser = {
           ...user,
-          points: user.points - parseInt(amount)
+          points: user.points - transferAmount
         };
         localStorage.setItem('thirteenWaterUser', JSON.stringify(updatedUser));
         setFoundUser(null);
@@ -89,15 +96,15 @@ const TransferPoints = () => {
               onClick={handleSearch}
               disabled={loading}
             >
-              搜索
+              {loading ? '搜索中...' : '搜索'}
             </button>
           </div>
         </div>
         
         {foundUser && (
           <div className="user-found">
-            <p>找到用户: {foundUser.nickname}</p>
-            <p>当前积分: {foundUser.points}</p>
+            <p>用户昵称: {foundUser.nickname}</p>
+            <p>手机号: {foundUser.mobile}</p>
           </div>
         )}
         
