@@ -23,6 +23,7 @@ export default function Login({ onLogin, onSwitch }) {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         required
+        autoComplete="username"
       />
       <input
         className="input"
@@ -31,6 +32,7 @@ export default function Login({ onLogin, onSwitch }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
+        autoComplete="current-password"
       />
       <button className="btn w-full mt-3" type="submit">
         登录
