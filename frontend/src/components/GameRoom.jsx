@@ -16,7 +16,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
       const res = await apiRequest("get_room", { room_id: room.id });
       if (res.success) {
         setGame(res.game);
-        // 只有未提交时才允许手动理牌
         if (!submitted && res.game.cards) setMyCards(res.game.cards);
         setSubmitted(!!res.game.cards && res.game.cards.length === 13);
       } else setError(res.message);
@@ -24,7 +23,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
     fetchGame();
     timer = setInterval(fetchGame, 2000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [room.id, submitted]);
 
   const isHost = game && game.players && game.players[0].phone === user.phone;
@@ -46,7 +44,11 @@ export default function GameRoom({ user, room, leaveRoom }) {
     if (!res.success) setError(res.message);
   };
 
-  // 拖拽排序
+  const handleLeave = async () => {
+    await apiRequest("leave_room", { room_id: room.id });
+    leaveRoom();
+  };
+
   function onDragEnd(result) {
     if (!result.destination) return;
     const newCards = Array.from(myCards);
@@ -61,10 +63,8 @@ export default function GameRoom({ user, room, leaveRoom }) {
     <div className="game-room-table">
       <div className="gr-header">
         <span>房间：{room.name}</span>
-        <button className="gr-leave-btn" onClick={leaveRoom}>退出</button>
+        <button className="gr-leave-btn" onClick={handleLeave}>退出</button>
       </div>
-
-      {/* 牌桌布局 */}
       <div className="gr-table">
         {game.players.map((p, idx) => {
           const isMe = p.phone === user.phone;
@@ -87,7 +87,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
                   ? <span className="gr-score">本局{p.round_score}分</span>
                   : null}
               </div>
-              {/* 只展示自己的手牌 */}
               {isMe && myCards.length > 0 && game.status === 1 && !submitted && (
                 <DragDropContext onDragEnd={onDragEnd}>
                   <Droppable droppableId="hand" direction="horizontal">
@@ -118,7 +117,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
                   </Droppable>
                 </DragDropContext>
               )}
-              {/* 出牌后只展示静态手牌 */}
               {isMe && (game.status !== 1 || submitted) && myCards.length > 0 && (
                 <div className="gr-cards">
                   {myCards.map(card => (
@@ -130,8 +128,6 @@ export default function GameRoom({ user, room, leaveRoom }) {
           );
         })}
       </div>
-
-      {/* 操作区 */}
       <div className="gr-actions">
         {game.status === 0 && isHost && (
           <button className="gr-btn" onClick={handleStart}>发牌开始游戏</button>
