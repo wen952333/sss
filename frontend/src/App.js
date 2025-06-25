@@ -17,6 +17,7 @@ export default function App() {
   }
 
   if (!user) {
+    // 登录注册切换
     return showRegister
       ? <Register onRegister={setUser} onShowLogin={() => setShowRegister(false)} />
       : <Login onLogin={setUser} onShowRegister={() => setShowRegister(true)} />;
