@@ -16,6 +16,14 @@ export default function Play() {
   const [allPlayed, setAllPlayed] = useState(false);
   const navigate = useNavigate();
 
+  // 登录校验：未登录强制跳转到登录页
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   useEffect(() => {
     fetchMyCards();
   }, []);
@@ -31,7 +39,7 @@ export default function Play() {
       setAllPlayed(data.allPlayed);
     } else if (data.code === 401) {
       alert('身份验证失败');
-      navigate('/');
+      navigate('/login');
     }
   }
 
