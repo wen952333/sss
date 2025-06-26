@@ -1,10 +1,17 @@
 <?php
-const SECRET = '十三水的密钥';
+const SECRET = 'shisanshui_secret';
+
 function createToken($payload) {
-  return base64_encode(json_encode($payload) . '|' . SECRET);
+    // $payload为数组，先转json再拼接密钥
+    return base64_encode(json_encode($payload) . '|' . SECRET);
 }
+
 function verifyToken($token) {
-  $parts = explode('|', base64_decode($token));
-  if (count($parts) !== 2 || $parts[1] !== SECRET) return false;
-  return json_decode($parts[0], true);
+    $decoded = base64_decode($token);
+    if (!$decoded) return false;
+    $parts = explode('|', $decoded);
+    if (count($parts) !== 2 || $parts[1] !== SECRET) return false;
+    $payload = json_decode($parts[0], true);
+    if (!$payload) return false;
+    return $payload;
 }
