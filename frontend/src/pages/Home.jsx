@@ -136,10 +136,6 @@ export default function Home() {
     }
   }
 
-  const demoCards = [
-    'ace_of_spades', '10_of_clubs', 'queen_of_hearts', 'king_of_diamonds', 'jack_of_spades'
-  ];
-
   return (
     <div className="home-container home-doubleheight">
       {/* 顶部操作区 */}
@@ -221,16 +217,6 @@ export default function Home() {
         </div>
       )}
 
-      <div className="poker-decor">
-        {demoCards.map(card => (
-          <img
-            key={card}
-            src={`/cards/${card}.svg`}
-            className="poker-card-mini"
-            alt={card}
-          />
-        ))}
-      </div>
       <div className="home-title">十三水</div>
 
       <div className="home-announcement-area">
