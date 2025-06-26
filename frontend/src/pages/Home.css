@@ -16,6 +16,42 @@ body {
   transform: translateY(-54%);
 }
 
+/* 顶部按钮样式 */
+.top-action-btn {
+  padding: 4px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.05em;
+  font-weight: bold;
+  margin: 2px;
+  cursor: pointer;
+  background: #f5f5f5;
+  color: #222;
+  box-shadow: 0 1px 5px #eee;
+  transition: background 0.2s;
+}
+.top-action-btn:hover {
+  background: #e0e6ed;
+}
+
+.profile-modal-bg {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(60, 70, 90, 0.15);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 6px 40px #a3b8d86a;
+  padding: 28px 28px 22px 28px;
+  min-width: 320px;
+  max-width: 92vw;
+}
+
 .home-title {
   font-family: "FZLanTingHeiS-DB-GB", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   font-size: 2.3rem;
