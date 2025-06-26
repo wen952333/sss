@@ -9,6 +9,14 @@ export default function Room() {
   const [me, setMe] = useState('');
   const navigate = useNavigate();
 
+  // 登录校验：未登录强制跳转到登录页
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   useEffect(() => {
     fetchRoomInfo();
     const interval = setInterval(fetchRoomInfo, 3000);
@@ -29,7 +37,7 @@ export default function Room() {
     } else if (data.code === 401) {
       // 未授权
       alert('身份验证失败');
-      navigate('/');
+      navigate('/login');
     }
   }
 
