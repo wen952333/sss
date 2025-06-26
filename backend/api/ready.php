@@ -16,7 +16,7 @@ if (!$user || $user['roomId'] !== $roomId) {
 }
 
 $pdo = getDb();
-$stmt = $pdo->prepare("UPDATE players SET ready=1 WHERE room_id=? AND name=?");
+$stmt = $pdo->prepare("UPDATE players SET submitted=1 WHERE room_id=? AND name=?");
 $stmt->execute([$roomId, $user['name']]);
 
 echo json_encode(['success'=>true]);
