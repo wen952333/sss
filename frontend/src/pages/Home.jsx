@@ -217,8 +217,10 @@ export default function Home() {
         </div>
       )}
 
+      {/* 主标题 */}
       <div className="home-title">十三水</div>
 
+      {/* 公告区 */}
       <div className="home-announcement-area">
         <div className="home-announcement-title">最新公告</div>
         {announcements.length === 0
@@ -236,6 +238,7 @@ export default function Home() {
         }
       </div>
 
+      {/* 房间列表 */}
       <div style={{margin: '18px 0 20px 0', textAlign: 'left'}}>
         <div style={{fontWeight: 700, marginBottom: 8, color: '#454c5a'}}>房间列表</div>
         {rooms.length === 0 && <div style={{color: '#a8b1c7'}}>暂无房间</div>}
