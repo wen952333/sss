@@ -7,7 +7,7 @@ export default function Home() {
   const [roomId, setRoomId] = useState('');
   const navigate = useNavigate();
 
-  // 登录校验：未登录强制跳转
+  // 登录校验：未登录强制跳转到登录页
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
