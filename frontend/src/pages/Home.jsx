@@ -39,13 +39,30 @@ export default function Home() {
     }
   }
 
+  // 头部装饰小扑克牌，可以换成你自己的SVG
+  const demoCards = [
+    'ace_of_spades', '10_of_clubs', 'queen_of_hearts', 'king_of_diamonds', 'jack_of_spades'
+  ];
+
   return (
     <div className="home-container">
-      <h1>十三水</h1>
+      <div className="poker-decor">
+        {demoCards.map(card => (
+          <img
+            key={card}
+            src={`/cards/${card}.svg`}
+            className="poker-card-mini"
+            alt={card}
+          />
+        ))}
+      </div>
+      <div className="home-title">十三水</div>
+      <div className="home-subtitle">在线实时对战 · 多人房间</div>
       <input
         className="input"
         placeholder="昵称"
         value={name}
+        maxLength={10}
         onChange={e => setName(e.target.value)}
       />
       <button className="button" onClick={handleCreateRoom}>
@@ -56,12 +73,14 @@ export default function Home() {
           className="input"
           placeholder="房间ID"
           value={roomId}
+          maxLength={8}
           onChange={e => setRoomId(e.target.value)}
         />
-        <button className="button" onClick={handleJoinRoom}>
+        <button className="button" style={{ width: 120 }} onClick={handleJoinRoom}>
           加入房间
         </button>
       </div>
+      <div className="tips">输入昵称即可快速创建房间或加入好友房间</div>
     </div>
   );
 }
