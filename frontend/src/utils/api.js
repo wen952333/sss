@@ -1,7 +1,7 @@
 // frontend/src/utils/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'https://9526.ip-ddns.com/api.php'; // <--- TEMPORARY CHANGE
+const API_BASE_URL = '/api.php'; // 用代理
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
