@@ -2,23 +2,10 @@
 function getDb() {
   static $pdo;
   if ($pdo) return $pdo;
-  $pdo = new PDO('sqlite:../db/game.db');
-  initDb($pdo);
+  $pdo = new PDO(
+    'mysql:host=localhost;dbname=shisanshui;charset=utf8mb4', // 数据库名shisanshui举例
+    '你的用户名',
+    '你的密码'
+  );
   return $pdo;
-}
-
-function initDb($pdo) {
-  $pdo->exec("CREATE TABLE IF NOT EXISTS rooms (
-    room_id TEXT PRIMARY KEY,
-    status TEXT
-  )");
-  $pdo->exec("CREATE TABLE IF NOT EXISTS players (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id TEXT,
-    name TEXT,
-    is_owner INTEGER DEFAULT 0,
-    cards TEXT,
-    submitted INTEGER DEFAULT 0,
-    result TEXT
-  )");
 }
