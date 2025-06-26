@@ -1,7 +1,7 @@
 // frontend/src/utils/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'https://9526.ip-ddns.com/super_simple_cors_test.php'; // <--- TEMPORARY CHANGE
+const API_BASE_URL = 'https://9526.ip-ddns.com/api.php'; // <--- TEMPORARY CHANGE
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
