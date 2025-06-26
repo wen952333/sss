@@ -39,7 +39,7 @@ export default function Home() {
     }
   }
 
-  // 头部装饰小扑克牌，可以换成你自己的SVG
+  // 头部装饰小扑克牌
   const demoCards = [
     'ace_of_spades', '10_of_clubs', 'queen_of_hearts', 'king_of_diamonds', 'jack_of_spades'
   ];
@@ -76,7 +76,7 @@ export default function Home() {
           maxLength={8}
           onChange={e => setRoomId(e.target.value)}
         />
-        <button className="button" style={{ width: 120 }} onClick={handleJoinRoom}>
+        <button className="button" onClick={handleJoinRoom}>
           加入房间
         </button>
       </div>
