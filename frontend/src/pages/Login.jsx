@@ -21,7 +21,6 @@ export default function Login() {
     if (data.success) {
       localStorage.setItem('token', data.token);
       localStorage.setItem('nickname', data.nickname);
-      alert('登录成功');
       navigate('/');
     } else {
       alert(data.message || '登录失败');
@@ -46,7 +45,8 @@ export default function Login() {
       />
       <button className="button" onClick={handleLogin}>登录</button>
       <div className="tips">
-        没有账号？<span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/register')}>去注册</span>
+        没有账号？
+        <span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/register')}>去注册</span>
       </div>
     </div>
   );
