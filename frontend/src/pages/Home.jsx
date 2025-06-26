@@ -6,7 +6,7 @@ export default function Home() {
   const [rooms, setRooms] = useState([]);
   const navigate = useNavigate();
 
-  // 登录校验：未登录强制跳转到登录页
+  // 登录校验
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -22,7 +22,6 @@ export default function Home() {
   }, []);
 
   async function fetchRooms() {
-    // 需要后端支持 /api/rooms.php，返回所有可加入的房间
     const res = await fetch('https://9526.ip-ddns.com/api/rooms.php');
     const data = await res.json();
     if (data.success) {
@@ -30,7 +29,7 @@ export default function Home() {
     }
   }
 
-  // 创建房间并直接进入
+  // 创建房间并直接进入牌桌
   async function handleCreateRoom() {
     const nickname = localStorage.getItem('nickname') || '游客';
     const res = await fetch('https://9526.ip-ddns.com/api/create_room.php', {
@@ -41,7 +40,7 @@ export default function Home() {
     const data = await res.json();
     if (data.success) {
       localStorage.setItem('token', data.token);
-      navigate(`/room/${data.roomId}`);
+      navigate(`/play/${data.roomId}`); // 直接跳play
     } else {
       alert(data.message || '创建失败');
     }
@@ -58,7 +57,7 @@ export default function Home() {
     const data = await res.json();
     if (data.success) {
       localStorage.setItem('token', data.token);
-      navigate(`/room/${roomId}`);
+      navigate(`/play/${roomId}`); // 直接跳play
     } else {
       alert(data.message || '加入失败');
     }
