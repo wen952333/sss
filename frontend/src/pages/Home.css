@@ -36,8 +36,9 @@ body {
 
 .input {
   width: 100%;
+  box-sizing: border-box;
   padding: 0.8em 1.1em;
-  margin: 16px 0 18px 0;
+  margin: 16px 0 0 0;
   border-radius: 14px;
   border: 1.5px solid #dee4ef;
   font-size: 1.18rem;
@@ -56,7 +57,7 @@ body {
   color: #fff;
   border: none;
   border-radius: 14px;
-  margin: 12px 0;
+  margin: 16px 0 0 0;
   padding: 0.82em 2em;
   width: 100%;
   font-weight: bold;
@@ -74,19 +75,29 @@ body {
 .join-area {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 16px;
+  margin-bottom: 0;
   align-items: center;
 }
 
 .join-area .input {
   margin: 0;
   flex: 1;
+  min-width: 0;
+}
+
+.join-area .button {
+  margin: 0;
+  width: 110px;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .tips {
   color: #a8b1c7;
   font-size: 0.98rem;
-  margin-top: 14px;
+  margin-top: 22px;
+  margin-bottom: -8px;
 }
 
 .poker-decor {
