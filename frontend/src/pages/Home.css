@@ -1,17 +1,109 @@
-.home-container {
-  max-width: 350px;
-  margin: 60px auto 0 auto;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px #326eca1a;
-  padding: 28px 24px 24px 24px;
-  text-align: center;
+body {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cfd9df 100%);
+  min-height: 100vh;
 }
+
+.home-container {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 40px 26px 32px 26px;
+  background: rgba(255,255,255,0.96);
+  border-radius: 24px;
+  box-shadow: 0 8px 40px #a3b8d86a, 0 1.5px 5px #d1d9e6bb;
+  text-align: center;
+  position: relative;
+  top: 50vh;
+  transform: translateY(-54%);
+}
+
+.home-title {
+  font-family: "FZLanTingHeiS-DB-GB", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 2.3rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  margin-bottom: 8px;
+  color: #262d3a;
+  line-height: 1.2;
+}
+
+.home-subtitle {
+  font-size: 1.04rem;
+  color: #7c8ba0;
+  margin-bottom: 24px;
+  font-weight: 400;
+  letter-spacing: .04em;
+}
+
+.input {
+  width: 100%;
+  padding: 0.8em 1.1em;
+  margin: 16px 0 18px 0;
+  border-radius: 14px;
+  border: 1.5px solid #dee4ef;
+  font-size: 1.18rem;
+  background: #f6f7fb;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #4c8dff;
+  background: #fff;
+}
+
+.button {
+  background: linear-gradient(90deg, #5c9bff 0%, #4b7eff 100%);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  margin: 12px 0;
+  padding: 0.82em 2em;
+  width: 100%;
+  font-weight: bold;
+  font-size: 1.16rem;
+  box-shadow: 0 2px 12px #c0d4ff54;
+  transition: all .18s cubic-bezier(.39,.58,.57,1.01);
+  cursor: pointer;
+  letter-spacing: .08em;
+}
+
+.button:active {
+  background: linear-gradient(90deg, #3c68b8 0%, #3a5ecb 100%);
+}
+
 .join-area {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-top: 8px;
+  align-items: center;
 }
-.input {
+
+.join-area .input {
+  margin: 0;
   flex: 1;
+}
+
+.tips {
+  color: #a8b1c7;
+  font-size: 0.98rem;
+  margin-top: 14px;
+}
+
+.poker-decor {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  margin-top: -16px;
+}
+
+.poker-card-mini {
+  width: 32px;
+  height: 45px;
+  border-radius: 6px;
+  box-shadow: 0 1.5px 8px #d5dbe856;
+  background: #f6f8fb;
+  object-fit: contain;
+  filter: drop-shadow(0 1.5px 3px #c3cbe9aa);
+  border: 1px solid #f0f2f6;
 }
