@@ -16,11 +16,15 @@ $room = $pdo->query("SELECT * FROM rooms WHERE room_id='$roomId'")->fetch();
 $rows = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll();
 $players = [];
 foreach ($rows as $row) {
-  $players[] = ['name'=>$row['name'], 'isOwner'=>$row['is_owner'] ? true : false];
+  $players[] = [
+    'name' => $row['name'],
+    'isOwner' => $row['is_owner'] ? true : false,
+    'submitted' => isset($row['submitted']) ? (bool)$row['submitted'] : false
+  ];
 }
 echo json_encode([
-  'success'=>true,
-  'players'=>$players,
-  'status'=>$room['status'],
-  'me'=>$user['name']
+  'success' => true,
+  'players' => $players,
+  'status' => $room['status'],
+  'me' => $user['name']
 ]);
