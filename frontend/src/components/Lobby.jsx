@@ -1,4 +1,4 @@
-// frontend/src/components/Lobby.js
+// frontend/src/components/Lobby.jsx
 import React, { useState } from 'react';
 import { createGame, joinGame } from '../utils/api';
 
@@ -44,7 +44,7 @@ const Lobby = ({ onGameJoinedOrCreated }) => {
     try {
       const data = await joinGame(gameIdToJoin, playerName);
       if (data.success) {
-        onGameJoinedOrCreated(data.gameState.id, data.playerId, data.gameState); // gameId is in gameState.id
+        onGameJoinedOrCreated(data.gameState.id, data.playerId, data.gameState);
       } else {
         setError(data.message || '加入房间失败');
       }
