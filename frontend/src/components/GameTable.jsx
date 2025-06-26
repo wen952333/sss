@@ -1,7 +1,7 @@
-// frontend/src/components/GameTable.js
+// frontend/src/components/GameTable.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import PlayerHand from './PlayerHand';
-import HandDisplay from './HandDisplay'; // For opponents
+import PlayerHand from './PlayerHand.jsx';   // <--- 修改导入后缀
+import HandDisplay from './HandDisplay.jsx'; // <--- 修改导入后缀
 import { getGameState, startGameApi, nextRoundApi, getHandTypeName } from '../utils/api';
 
 const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGame }) => {
@@ -16,7 +16,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
 
   const fetchGameState = useCallback(async () => {
     if (!gameId) return;
-    // setIsLoading(true); // Can make UI jumpy with polling
     try {
       const data = await getGameState(gameId);
       if (data.success) {
@@ -24,20 +23,19 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
         setError('');
       } else {
         setError(data.message || '获取游戏状态失败');
-        if (data.message === 'Game not found.') { // Or similar error indicating game ended
-            onLeaveGame(); // Go back to lobby
+        if (data.message === 'Game not found.') {
+            onLeaveGame();
         }
       }
     } catch (err) {
       setError('获取游戏状态时发生网络错误: ' + err.message);
     }
-    // setIsLoading(false);
   }, [gameId, onLeaveGame]);
 
   useEffect(() => {
-    fetchGameState(); // Initial fetch
-    const intervalId = setInterval(fetchGameState, 3000); // Poll every 3 seconds
-    return () => clearInterval(intervalId); // Cleanup on unmount
+    fetchGameState();
+    const intervalId = setInterval(fetchGameState, 3000);
+    return () => clearInterval(intervalId);
   }, [fetchGameState]);
 
 
@@ -74,7 +72,7 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
   };
 
   const handleHandSubmitted = (newGameState) => {
-    setGameState(newGameState); // Update state immediately after submission
+    setGameState(newGameState);
   };
 
   if (!gameState) {
@@ -91,7 +89,7 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
             margin: '0 5px',
             padding: '3px 7px',
             borderRadius: '4px',
-            backgroundColor: p.hasSubmitted ? '#2e7d32' : '#757575', // Green if submitted, gray otherwise
+            backgroundColor: p.hasSubmitted ? '#2e7d32' : '#757575',
             color: 'white',
             border: p.id === playerId ? '2px solid yellow' : 'none'
           }}>
@@ -110,20 +108,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
     return (
         <div className="results-display">
             <h3>本局结果</h3>
-            {/* Detailed comparisons (optional, can be verbose) */}
-            {/* <h4>比牌详情:</h4>
-            {comparisons && Object.entries(comparisons).map(([key, result]) => (
-                <div key={key}>
-                    <strong>{key}:</strong>
-                    {result.misarranged ? ` ${result.misarranged} 倒水!` : (
-                        <ul>
-                            <li>前墩: {result.front === 'tie' ? '平' : gameState.players.find(p => p.id === result.front)?.name + ' 胜'}</li>
-                            <li>中墩: {result.middle === 'tie' ? '平' : gameState.players.find(p => p.id === result.middle)?.name + ' 胜'}</li>
-                            <li>后墩: {result.back === 'tie' ? '平' : gameState.players.find(p => p.id === result.back)?.name + ' 胜'}</li>
-                        </ul>
-                    )}
-                </div>
-            ))} */}
             <h4>本局得分:</h4>
             <table>
                 <thead>
@@ -144,7 +128,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
     );
   };
 
-
   return (
     <div className="game-table">
       <h2>房间号: {gameId} <button onClick={onLeaveGame} style={{fontSize: '0.7em', padding: '5px'}}>离开房间</button></h2>
@@ -158,7 +141,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
         </button>
       )}
 
-      {/* Current Player's Hand Area */}
       {currentPlayer && gameState.status === 'arranging' && (
         <PlayerHand
           gameId={gameId}
@@ -173,8 +155,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
          <p>你的牌已提交，等待其他玩家...</p>
       )}
 
-
-      {/* Display all players' hands when comparing or finished */}
       {(gameState.status === 'comparing' || gameState.status === 'finished_round') && (
         <div className="all-players-hands-display">
           <h3>比牌结果:</h3>
@@ -197,7 +177,6 @@ const GameTable = ({ initialGameId, initialPlayerId, initialGameState, onLeaveGa
         </div>
       )}
       
-      {/* Other Players' Minimized View (during arranging phase) */}
       {gameState.status === 'arranging' && otherPlayers.length > 0 && (
           <div className="other-players-summary">
             <h4>其他玩家:</h4>
