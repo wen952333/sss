@@ -32,5 +32,7 @@ echo json_encode([
   'success' => true,
   'players' => $players,
   'status' => $room['status'],
-  'me' => $user['name']
+  'me' => $user['name'],
+  'type' => $room['type'],
+  'score' => intval($room['score'])
 ]);
