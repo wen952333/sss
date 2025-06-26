@@ -1,4 +1,5 @@
 <?php
+require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
 header('Content-Type: application/json');
