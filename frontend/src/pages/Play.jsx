@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import './Play.css'; // 你可以新建 Play.css 按需求调整
+import './Play.css';
 
 export default function Play() {
   const { roomId } = useParams();
@@ -18,10 +18,8 @@ export default function Play() {
     if (!token) {
       navigate('/login');
     }
-    // 这里补充拉个人信息的逻辑
     const nickname = localStorage.getItem('nickname');
-    // 假设有接口拉分数
-    setMyInfo({ name: nickname, points: 990 }); // TODO: 换成真实分数
+    setMyInfo({ name: nickname, points: 990 }); // TODO: 替换为真实分数
   }, [navigate]);
 
   // 拉房间玩家
@@ -37,12 +35,12 @@ export default function Play() {
     const data = await res.json();
     if (data.success) {
       setPlayers(data.players);
-      // 你可以根据自己需求处理更多房间信息
+      // 可根据需求处理更多房间信息
     }
   }
 
+  // 只回到主页面，不清除token
   function handleExitRoom() {
-    localStorage.removeItem('token');
     navigate('/');
   }
 
