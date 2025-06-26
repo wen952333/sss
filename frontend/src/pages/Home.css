@@ -18,7 +18,7 @@ body {
 }
 
 .home-doubleheight {
-  min-height: 1200px;
+  min-height: 600px; /* 降低一半 */
 }
 
 .home-title {
