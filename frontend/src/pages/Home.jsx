@@ -12,6 +12,7 @@ export default function Home() {
   const [giveAmount, setGiveAmount] = useState('');
   const [giveMsg, setGiveMsg] = useState('');
   const [searchMsg, setSearchMsg] = useState('');
+  const [announcements, setAnnouncements] = useState([]);
   const navigate = useNavigate();
 
   // 登录校验
@@ -27,6 +28,13 @@ export default function Home() {
   useEffect(() => {
     fetchRooms();
     const timer = setInterval(fetchRooms, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 拉取公告
+  useEffect(() => {
+    fetchAnnouncements();
+    const timer = setInterval(fetchAnnouncements, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -49,6 +57,14 @@ export default function Home() {
     const data = await res.json();
     if (data.success) {
       setMyPoints(data.user.points || 0);
+    }
+  }
+
+  async function fetchAnnouncements() {
+    const res = await fetch('https://9526.ip-ddns.com/api/get_announcements.php');
+    const data = await res.json();
+    if (data.success) {
+      setAnnouncements(data.announcements);
     }
   }
 
@@ -142,7 +158,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="home-container">
+    <div className="home-container home-doubleheight">
       {/* 顶部操作区 */}
       <div style={{
         position: 'absolute',
@@ -171,7 +187,7 @@ export default function Home() {
         >个人中心</button>
       </div>
 
-      {/* 个人中心弹窗 */}
+      {/* 个人中心弹窗（略，保持原样） */}
       {showProfile && (
         <div className="profile-modal-bg">
           <div className="profile-modal">
@@ -233,7 +249,24 @@ export default function Home() {
         ))}
       </div>
       <div className="home-title">十三水</div>
-      <div className="home-subtitle">在线实时对战 · 多人房间</div>
+
+      {/* 公告区替换原副标题 */}
+      <div className="home-announcement-area">
+        <div className="home-announcement-title">最新公告</div>
+        {announcements.length === 0
+          ? <div style={{ color: '#a8b1c7', fontSize: 15 }}>暂无公告</div>
+          : (
+            <ul style={{ padding: 0, margin: 0 }}>
+              {announcements.map(a => (
+                <li key={a.id} style={{ color: '#47506a', fontSize: 15, marginBottom: 6 }}>
+                  <span style={{color:'#999', fontSize:12, marginRight:8}}>{a.created_at?.slice(5, 16) || ''}</span>
+                  {a.content}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
 
       <div style={{margin: '18px 0 20px 0', textAlign: 'left'}}>
         <div style={{fontWeight: 700, marginBottom: 8, color: '#454c5a'}}>房间列表</div>
