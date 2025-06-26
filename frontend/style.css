@@ -1,0 +1,58 @@
+body {
+  background: linear-gradient(135deg, #f8fafc 0%, #cfe2ff 100%);
+  font-family: 'Segoe UI', 'PingFang SC', Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+.form-container, .game-container {
+  background: #fff;
+  margin: 5vh auto;
+  padding: 2em 2em 1.5em 2em;
+  border-radius: 12px;
+  width: 320px;
+  box-shadow: 0 4px 24px #0001;
+  text-align: center;
+}
+input {
+  margin: 1em 0 0.5em 0;
+  padding: 0.75em;
+  width: 90%;
+  border: 1px solid #b9c5d8;
+  border-radius: 6px;
+  font-size: 1em;
+  outline: none;
+  transition: box-shadow 0.2s;
+}
+input:focus {
+  box-shadow: 0 0 0 2px #007bff22;
+}
+button {
+  width: 95%;
+  padding: 0.8em;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1em;
+  cursor: pointer;
+  margin: 1em 0 0.5em 0;
+  transition: background 0.2s;
+}
+button:hover {
+  background: #0056b3;
+}
+a {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 0.95em;
+}
+a:hover { text-decoration: underline; }
+.navbar {
+  background: #007bff;
+  color: #fff;
+  padding: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#room-msg { color: #007bff; margin: 1em 0; }
