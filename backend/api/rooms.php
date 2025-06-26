@@ -4,9 +4,9 @@ require_once '../db/db.php';
 
 header('Content-Type: application/json');
 
-// 查询所有等待中的房间及人数
+// 查询所有等待中的房间及人数、类型、分数
 $pdo = getDb();
-$rooms = $pdo->query("SELECT room_id FROM rooms WHERE status='waiting' ORDER BY room_id DESC")->fetchAll(PDO::FETCH_ASSOC);
+$rooms = $pdo->query("SELECT room_id, type, score FROM rooms WHERE status='waiting' ORDER BY room_id DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 $result = [];
 foreach ($rooms as $room) {
@@ -15,6 +15,8 @@ foreach ($rooms as $room) {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $result[] = [
         'room_id' => $room['room_id'],
+        'type' => $room['type'],
+        'score' => intval($room['score']),
         'player_count' => intval($row['cnt']),
     ];
 }
