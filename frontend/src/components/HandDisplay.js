@@ -1,23 +1,20 @@
-// frontend/src/components/HandDisplay.js
+// frontend/src/components/HandDisplay.jsx
 import React from 'react';
-import Card from './Card';
+import Card from './Card.jsx'; // <--- 修改导入后缀
 import { getHandTypeName } from '../utils/api';
 
 const HandDisplay = ({ label, cards, evaluation, onClick }) => {
-  // evaluation might be like: { type: 'PAIR', name: 'Pair', rank_values: [...], display_cards: [...] }
-  // or for misarranged hands: { isMisarranged: true, specialType: 'MISARRANGED' }
   let handTypeInfo = '';
   if (evaluation) {
     if (evaluation.isMisarranged) {
         handTypeInfo = getHandTypeName('MISARRANGED', evaluation);
-    } else if (evaluation.specialType) { // For 13-card specials shown at player level
+    } else if (evaluation.specialType) {
         handTypeInfo = getHandTypeName(evaluation.specialType, evaluation);
     }
      else if (evaluation.type) {
         handTypeInfo = getHandTypeName(evaluation.type, evaluation);
     }
   }
-
 
   return (
     <div className="hand-area" onClick={onClick} style={onClick ? {cursor: 'pointer'} : {}}>
