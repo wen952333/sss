@@ -1,4 +1,4 @@
-// frontend/src/components/Card.js
+// frontend/src/components/Card.jsx
 import React from 'react';
 import { getCardImageUrl } from '../utils/api';
 
