@@ -46,6 +46,17 @@ export default function Home() {
 
   return (
     <div className="home-container">
+      {/* 顶部登录注册入口 */}
+      <div style={{position:'absolute',top:18,right:28, fontSize: '1rem'}}>
+        <span
+          style={{color:'#4f8cff',cursor:'pointer',marginRight:20}}
+          onClick={()=>navigate('/login')}
+        >登录</span>
+        <span
+          style={{color:'#4f8cff',cursor:'pointer'}}
+          onClick={()=>navigate('/register')}
+        >注册</span>
+      </div>
       <div className="poker-decor">
         {demoCards.map(card => (
           <img
@@ -80,7 +91,13 @@ export default function Home() {
           加入房间
         </button>
       </div>
-      <div className="tips">输入昵称即可快速创建房间或加入好友房间</div>
+      <div className="tips">
+        输入昵称即可快速创建房间或加入好友房间
+        <br />
+        <span style={{color:'#4f8cff', cursor:'pointer'}} onClick={()=>navigate('/login')}>登录</span>
+        &nbsp;|&nbsp;
+        <span style={{color:'#4f8cff', cursor:'pointer'}} onClick={()=>navigate('/register')}>注册</span>
+      </div>
     </div>
   );
 }
