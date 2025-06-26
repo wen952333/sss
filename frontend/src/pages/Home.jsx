@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
@@ -6,6 +6,14 @@ export default function Home() {
   const [name, setName] = useState('');
   const [roomId, setRoomId] = useState('');
   const navigate = useNavigate();
+
+  // 登录校验：未登录强制跳转
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
 
   async function handleCreateRoom() {
     if (!name) return alert('请输入昵称');
@@ -39,24 +47,12 @@ export default function Home() {
     }
   }
 
-  // 头部装饰小扑克牌
   const demoCards = [
     'ace_of_spades', '10_of_clubs', 'queen_of_hearts', 'king_of_diamonds', 'jack_of_spades'
   ];
 
   return (
     <div className="home-container">
-      {/* 顶部登录注册入口 */}
-      <div style={{position:'absolute',top:18,right:28, fontSize: '1rem'}}>
-        <span
-          style={{color:'#4f8cff',cursor:'pointer',marginRight:20}}
-          onClick={()=>navigate('/login')}
-        >登录</span>
-        <span
-          style={{color:'#4f8cff',cursor:'pointer'}}
-          onClick={()=>navigate('/register')}
-        >注册</span>
-      </div>
       <div className="poker-decor">
         {demoCards.map(card => (
           <img
@@ -93,10 +89,6 @@ export default function Home() {
       </div>
       <div className="tips">
         输入昵称即可快速创建房间或加入好友房间
-        <br />
-        <span style={{color:'#4f8cff', cursor:'pointer'}} onClick={()=>navigate('/login')}>登录</span>
-        &nbsp;|&nbsp;
-        <span style={{color:'#4f8cff', cursor:'pointer'}} onClick={()=>navigate('/register')}>注册</span>
       </div>
     </div>
   );
