@@ -1,0 +1,33 @@
+.play-container {
+  max-width: 420px;
+  margin: 28px auto 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px #326eca1a;
+  padding: 22px 12px 24px 12px;
+  text-align: center;
+}
+.cards-area {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.card-img {
+  width: 46px;
+  height: 66px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px #bec7dd3a;
+  background: #fff;
+  object-fit: contain;
+}
+.result-container {
+  max-width: 350px;
+  margin: 60px auto 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px #326eca1a;
+  padding: 28px 24px 24px 24px;
+  text-align: center;
+}
