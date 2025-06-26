@@ -5,22 +5,21 @@ import './Play.css';
 export default function Play() {
   const { roomId } = useParams();
   const [players, setPlayers] = useState([]);
-  const [myInfo, setMyInfo] = useState({ name: '', points: 0 });
+  const [myPoints, setMyPoints] = useState(0);
   const [ready, setReady] = useState(false);
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
   const navigate = useNavigate();
 
-  // 登录校验
+  // 登录校验和查分
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login');
+      return;
     }
-    const nickname = localStorage.getItem('nickname');
-    // 获取本地积分（如需后端积分，请在此异步请求并 setMyInfo）
-    setMyInfo({ name: nickname, points: Number(localStorage.getItem('points')) || 990 }); // 建议改成真实积分
+    fetchMyPoints();
   }, [navigate]);
 
   // 拉房间玩家
@@ -29,6 +28,22 @@ export default function Play() {
     const timer = setInterval(fetchPlayers, 3000);
     return () => clearInterval(timer);
   }, [roomId]);
+
+  async function fetchMyPoints() {
+    const phone = localStorage.getItem('phone');
+    if (!phone) return;
+    const res = await fetch('https://9526.ip-ddns.com/api/find_user.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setMyPoints(data.user.points || 0);
+    } else {
+      setMyPoints(0);
+    }
+  }
 
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
@@ -126,7 +141,7 @@ export default function Play() {
         padding: 22,
         minHeight: 650
       }}>
-        {/* 顶部按钮和标题 */}
+        {/* 顶部按钮和积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
           <button
             style={{
@@ -151,8 +166,7 @@ export default function Play() {
             fontSize: 21,
             letterSpacing: 2
           }}>
-            {/* 直接显示积分 */}
-            积分：{myInfo.points}
+            积分：{myPoints}
           </div>
         </div>
 
@@ -174,7 +188,6 @@ export default function Play() {
             marginBottom: 6,
             color: '#aaa'
           }}>
-            {/* 这里是头道的牌 */}
             {head.length === 0 ? '头道' : head.join(', ')}
           </div>
         </div>
@@ -192,7 +205,6 @@ export default function Play() {
             marginBottom: 6,
             color: '#aaa'
           }}>
-            {/* 这里是中道的牌 */}
             {middle.length === 0 ? '中道' : middle.join(', ')}
           </div>
         </div>
@@ -210,7 +222,6 @@ export default function Play() {
             marginBottom: 6,
             color: '#aaa'
           }}>
-            {/* 这里是尾道的牌 */}
             {tail.length === 0 ? '尾道' : tail.join(', ')}
           </div>
         </div>
