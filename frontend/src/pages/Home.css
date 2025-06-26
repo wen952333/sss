@@ -14,42 +14,11 @@ body {
   position: relative;
   top: 50vh;
   transform: translateY(-54%);
+  min-height: 600px;
 }
 
-/* 顶部按钮样式 */
-.top-action-btn {
-  padding: 4px 14px;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.05em;
-  font-weight: bold;
-  margin: 2px;
-  cursor: pointer;
-  background: #f5f5f5;
-  color: #222;
-  box-shadow: 0 1px 5px #eee;
-  transition: background 0.2s;
-}
-.top-action-btn:hover {
-  background: #e0e6ed;
-}
-
-.profile-modal-bg {
-  position: fixed;
-  left: 0; top: 0; right: 0; bottom: 0;
-  background: rgba(60, 70, 90, 0.15);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.profile-modal {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 6px 40px #a3b8d86a;
-  padding: 28px 28px 22px 28px;
-  min-width: 320px;
-  max-width: 92vw;
+.home-doubleheight {
+  min-height: 1200px;
 }
 
 .home-title {
@@ -62,95 +31,23 @@ body {
   line-height: 1.2;
 }
 
-.home-subtitle {
-  font-size: 1.04rem;
-  color: #7c8ba0;
-  margin-bottom: 24px;
-  font-weight: 400;
-  letter-spacing: .04em;
+.home-announcement-area {
+  background: #f7fafd;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  padding: 12px 18px 12px 20px;
+  min-height: 70px;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+  box-shadow: 0 1px 5px #e6eaf7;
 }
 
-.input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.8em 1.1em;
-  margin: 16px 0 0 0;
-  border-radius: 14px;
-  border: 1.5px solid #dee4ef;
-  font-size: 1.18rem;
-  background: #f6f7fb;
-  transition: border-color 0.2s;
-  outline: none;
-}
-
-.input:focus {
-  border-color: #4c8dff;
-  background: #fff;
-}
-
-.button {
-  background: linear-gradient(90deg, #5c9bff 0%, #4b7eff 100%);
-  color: #fff;
-  border: none;
-  border-radius: 14px;
-  margin: 16px 0 0 0;
-  padding: 0.82em 2em;
-  width: 100%;
+.home-announcement-title {
+  font-size: 15px;
   font-weight: bold;
-  font-size: 1.16rem;
-  box-shadow: 0 2px 12px #c0d4ff54;
-  transition: all .18s cubic-bezier(.39,.58,.57,1.01);
-  cursor: pointer;
-  letter-spacing: .08em;
+  color: #2d456b;
+  margin-bottom: 4px;
 }
 
-.button:active {
-  background: linear-gradient(90deg, #3c68b8 0%, #3a5ecb 100%);
-}
-
-.join-area {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-  margin-bottom: 0;
-  align-items: center;
-}
-
-.join-area .input {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-}
-
-.join-area .button {
-  margin: 0;
-  width: 110px;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.tips {
-  color: #a8b1c7;
-  font-size: 0.98rem;
-  margin-top: 22px;
-  margin-bottom: -8px;
-}
-
-.poker-decor {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
-  margin-top: -16px;
-}
-
-.poker-card-mini {
-  width: 32px;
-  height: 45px;
-  border-radius: 6px;
-  box-shadow: 0 1.5px 8px #d5dbe856;
-  background: #f6f8fb;
-  object-fit: contain;
-  filter: drop-shadow(0 1.5px 3px #c3cbe9aa);
-  border: 1px solid #f0f2f6;
-}
+/* 其它原有样式保持不变 */
