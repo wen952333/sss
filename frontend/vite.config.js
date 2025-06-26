@@ -7,5 +7,6 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
   },
-  base: './',
+  // Cloudflare Pages建议base用'/'，这样 assets 路径不会错
+  base: '/',
 });
