@@ -1,25 +1,21 @@
 // frontend/src/App.jsx
 import React, { useState, useEffect } from 'react';
-import Lobby from './components/Lobby'; // 确保 Lobby.js 在 frontend/src/components/ 目录下
-import GameTable from './components/GameTable'; // 确保 GameTable.js 在 frontend/src/components/ 目录下
-// import './App.css'; // App.css 将由 main.jsx 导入，或者你也可以在这里导入，但不要重复
+import Lobby from './components/Lobby.jsx';         // <--- 修改导入后缀
+import GameTable from './components/GameTable.jsx'; // <--- 修改导入后缀
+// App.css is imported in main.jsx
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('lobby'); // 'lobby', 'game'
+  const [currentPage, setCurrentPage] = useState('lobby');
   const [gameId, setGameId] = useState(null);
   const [playerId, setPlayerId] = useState(null);
   const [initialGameState, setInitialGameState] = useState(null);
 
   useEffect(() => {
-    // Attempt to retrieve game session from localStorage on load
     const savedGameId = localStorage.getItem('十三水_gameId');
     const savedPlayerId = localStorage.getItem('十三水_playerId');
-    if (savedGameId && savedPlayerId) {
-      // Potentially try to rejoin or fetch game state here to resume
-      // For simplicity, we'll just pre-fill and let user click join/create
-      // Or directly navigate if we're sure session is valid
-      // For now, this is just to show we can save/load these IDs
-    }
+    // Basic re-join attempt logic could be added here later if desired
+    // For now, it just pre-fills IDs if user refreshes while in a game,
+    // but they'd still effectively rejoin via Lobby unless we add more complex state recovery.
   }, []);
 
   const handleGameJoinedOrCreated = (newGameId, newPlayerId, gameState) => {
@@ -27,13 +23,12 @@ function App() {
     setPlayerId(newPlayerId);
     setInitialGameState(gameState);
     localStorage.setItem('十三水_gameId', newGameId);
-    localStorage.setItem('十三水_playerId', newPlayerId); // PlayerID is set in api.js
+    localStorage.setItem('十三水_playerId', newPlayerId);
     setCurrentPage('game');
   };
 
   const handleLeaveGame = () => {
     localStorage.removeItem('十三水_gameId');
-    // We keep playerId as it's user-specific, not game-specific
     setGameId(null);
     setInitialGameState(null);
     setCurrentPage('lobby');
