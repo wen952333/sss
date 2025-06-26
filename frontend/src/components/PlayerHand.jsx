@@ -1,19 +1,18 @@
-// frontend/src/components/PlayerHand.js
+// frontend/src/components/PlayerHand.jsx
 import React, { useState, useEffect } from 'react';
-import Card from './Card';
-import HandDisplay from './HandDisplay';
-import { submitHandApi } from '../utils/api';
+import Card from './Card.jsx';             // <--- 修改导入后缀
+import HandDisplay from './HandDisplay.jsx'; // <--- 修改导入后缀
+import { submitHandApi, getHandTypeName } from '../utils/api'; // Added getHandTypeName from previous logic
 
 const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToArrange, isLoading }) => {
   const [unassignedCards, setUnassignedCards] = useState([]);
-  const [frontHand, setFrontHand] = useState([]); // Array of card strings
+  const [frontHand, setFrontHand] = useState([]);
   const [middleHand, setMiddleHand] = useState([]);
   const [backHand, setBackHand] = useState([]);
-  const [selectedCard, setSelectedCard] = useState(null); // The card string that is selected
+  const [selectedCard, setSelectedCard] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // When initialCards change (e.g., new round), reset everything
     setUnassignedCards(initialCards || []);
     setFrontHand([]);
     setMiddleHand([]);
@@ -24,16 +23,14 @@ const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToA
 
   const handleCardClick = (cardString) => {
     if (selectedCard === cardString) {
-      setSelectedCard(null); // Deselect
+      setSelectedCard(null);
     } else {
-      // Ensure card is in unassigned list before selecting
       if (unassignedCards.includes(cardString)) {
          setSelectedCard(cardString);
       } else {
-        // If card is already placed, allow to move it back to unassigned
         if (frontHand.includes(cardString)) {
             setFrontHand(prev => prev.filter(c => c !== cardString));
-            setUnassignedCards(prev => [...prev, cardString].sort());
+            setUnassignedCards(prev => [...prev, cardString].sort()); // sort for consistent order
             setSelectedCard(null);
         } else if (middleHand.includes(cardString)) {
             setMiddleHand(prev => prev.filter(c => c !== cardString));
@@ -49,7 +46,7 @@ const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToA
   };
 
   const handleHandAreaClick = (areaName) => {
-    if (!selectedCard) return; // No card selected
+    if (!selectedCard) return;
 
     if (areaName === 'front' && frontHand.length < 3) {
       setFrontHand(prev => [...prev, selectedCard]);
@@ -92,7 +89,7 @@ const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToA
     }
   };
 
-  if (!isMyTurnToArrange || !player || player.hasSubmitted) { // Not this player's turn or already submitted
+  if (!isMyTurnToArrange || !player || player.hasSubmitted) {
     return (
         <div className="player-hand-submitted">
             <h4>{player?.name || '玩家'} {player?.hasSubmitted ? "已提交牌型" : "等待理牌"}</h4>
@@ -101,8 +98,8 @@ const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToA
                     <HandDisplay label="前墩" cards={player.arrangedHands.front} evaluation={player.evaluatedHands?.front} />
                     <HandDisplay label="中墩" cards={player.arrangedHands.middle} evaluation={player.evaluatedHands?.middle} />
                     <HandDisplay label="后墩" cards={player.arrangedHands.back} evaluation={player.evaluatedHands?.back} />
-                    {player.evaluatedHands?.isMisarranged && <p className="error-message">倒水！</p>}
-                    {player.evaluatedHands?.specialType && <p className="info-message">特殊牌型: {getHandTypeName(player.evaluatedHands.specialType)}</p>}
+                    {player.evaluatedHands?.isMisarranged && <p className="error-message">{getHandTypeName("MISARRANGED", player.evaluatedHands)}</p>}
+                    {player.evaluatedHands?.specialType && <p className="info-message">特殊牌型: {getHandTypeName(player.evaluatedHands.specialType, player.evaluatedHands)}</p>}
                 </>
             )}
         </div>
@@ -116,12 +113,12 @@ const PlayerHand = ({ gameId, player, initialCards, onHandSubmitted, isMyTurnToA
       
       <h4>你的手牌 (未分配: {unassignedCards.length}张):</h4>
       <div className="player-cards-container">
-        {unassignedCards.sort().map(cardStr => ( // Sort for consistent display
+        {unassignedCards.sort().map(cardStr => (
           <Card 
             key={cardStr} 
             cardString={cardStr} 
-            onClick={() => handleCardClick(cardString)}
-            isSelected={selectedCard === cardString}
+            onClick={() => handleCardClick(cardStr)}
+            isSelected={selectedCard === cardStr}
           />
         ))}
       </div>
