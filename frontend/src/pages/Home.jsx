@@ -76,24 +76,7 @@ export default function Home() {
     navigate('/login');
   }
 
-  // 创建房间并直接进入牌桌
-  async function handleCreateRoom() {
-    const nickname = localStorage.getItem('nickname') || '游客';
-    const res = await fetch('https://9526.ip-ddns.com/api/create_room.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nickname }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      localStorage.setItem('token', data.token);
-      navigate(`/play/${data.roomId}`); // 直接跳play
-    } else {
-      alert(data.message || '创建失败');
-    }
-  }
-
-  // 点击房间号加入房间
+  // 加入房间
   async function handleJoinRoom(roomId) {
     const nickname = localStorage.getItem('nickname') || '游客';
     const res = await fetch('https://9526.ip-ddns.com/api/join_room.php', {
@@ -104,7 +87,7 @@ export default function Home() {
     const data = await res.json();
     if (data.success) {
       localStorage.setItem('token', data.token);
-      navigate(`/play/${roomId}`); // 直接跳play
+      navigate(`/play/${roomId}`);
     } else {
       alert(data.message || '加入失败');
     }
@@ -187,7 +170,7 @@ export default function Home() {
         >个人中心</button>
       </div>
 
-      {/* 个人中心弹窗（略，保持原样） */}
+      {/* 个人中心弹窗 */}
       {showProfile && (
         <div className="profile-modal-bg">
           <div className="profile-modal">
@@ -250,7 +233,6 @@ export default function Home() {
       </div>
       <div className="home-title">十三水</div>
 
-      {/* 公告区替换原副标题 */}
       <div className="home-announcement-area">
         <div className="home-announcement-title">最新公告</div>
         {announcements.length === 0
@@ -285,10 +267,6 @@ export default function Home() {
           ))}
         </ul>
       </div>
-
-      <button className="button" onClick={handleCreateRoom}>
-        创建房间
-      </button>
     </div>
   );
 }
