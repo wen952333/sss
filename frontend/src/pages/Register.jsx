@@ -30,6 +30,7 @@ export default function Register() {
       if (loginData.success) {
         localStorage.setItem('token', loginData.token);
         localStorage.setItem('nickname', loginData.nickname);
+        localStorage.setItem('phone', phone); // 关键：存手机号
         navigate('/');
       } else {
         alert(loginData.message || '自动登录失败，请手动登录');
