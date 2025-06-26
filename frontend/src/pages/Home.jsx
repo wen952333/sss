@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
 export default function Home() {
-  const [name, setName] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [rooms, setRooms] = useState([]);
   const navigate = useNavigate();
 
   // 登录校验：未登录强制跳转到登录页
@@ -15,12 +14,29 @@ export default function Home() {
     }
   }, [navigate]);
 
+  // 拉取房间列表
+  useEffect(() => {
+    fetchRooms();
+    const timer = setInterval(fetchRooms, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  async function fetchRooms() {
+    // 需要后端支持 /api/rooms.php，返回所有可加入的房间
+    const res = await fetch('https://9526.ip-ddns.com/api/rooms.php');
+    const data = await res.json();
+    if (data.success) {
+      setRooms(data.rooms);
+    }
+  }
+
+  // 创建房间并直接进入
   async function handleCreateRoom() {
-    if (!name) return alert('请输入昵称');
+    const nickname = localStorage.getItem('nickname') || '游客';
     const res = await fetch('https://9526.ip-ddns.com/api/create_room.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: nickname }),
     });
     const data = await res.json();
     if (data.success) {
@@ -31,12 +47,13 @@ export default function Home() {
     }
   }
 
-  async function handleJoinRoom() {
-    if (!name || !roomId) return alert('请填写昵称和房间ID');
+  // 点击房间号加入房间
+  async function handleJoinRoom(roomId) {
+    const nickname = localStorage.getItem('nickname') || '游客';
     const res = await fetch('https://9526.ip-ddns.com/api/join_room.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, roomId }),
+      body: JSON.stringify({ name: nickname, roomId }),
     });
     const data = await res.json();
     if (data.success) {
@@ -65,31 +82,27 @@ export default function Home() {
       </div>
       <div className="home-title">十三水</div>
       <div className="home-subtitle">在线实时对战 · 多人房间</div>
-      <input
-        className="input"
-        placeholder="昵称"
-        value={name}
-        maxLength={10}
-        onChange={e => setName(e.target.value)}
-      />
+
+      <div style={{margin: '18px 0 20px 0', textAlign: 'left'}}>
+        <div style={{fontWeight: 700, marginBottom: 8, color: '#454c5a'}}>房间列表</div>
+        {rooms.length === 0 && <div style={{color: '#a8b1c7'}}>暂无房间</div>}
+        <ul style={{padding: 0, margin: 0}}>
+          {rooms.map(room => (
+            <li
+              key={room.room_id}
+              style={{listStyle: 'none', marginBottom: 8, cursor: 'pointer', background: '#f6f7fb', borderRadius: 7, padding: '8px 14px'}}
+              onClick={() => handleJoinRoom(room.room_id)}
+            >
+              房间 {room.room_id} &nbsp;
+              <span style={{color: '#7c8ba0', fontSize: '0.96em'}}>({room.player_count || 1}人)</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <button className="button" onClick={handleCreateRoom}>
         创建房间
       </button>
-      <div className="join-area">
-        <input
-          className="input"
-          placeholder="房间ID"
-          value={roomId}
-          maxLength={8}
-          onChange={e => setRoomId(e.target.value)}
-        />
-        <button className="button" onClick={handleJoinRoom}>
-          加入房间
-        </button>
-      </div>
-      <div className="tips">
-        输入昵称即可快速创建房间或加入好友房间
-      </div>
     </div>
   );
 }
