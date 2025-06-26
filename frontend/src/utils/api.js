@@ -1,7 +1,7 @@
 // frontend/src/utils/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'https://9526.ip-ddns.com/api.php'; // 你的后端API地址
+const API_BASE_URL = 'https://9526.ip-ddns.com/api_debug.php';
 
 const apiClient = axios.create({
     baseURL: API_BASE_URL,
