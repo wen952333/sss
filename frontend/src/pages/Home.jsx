@@ -4,6 +4,14 @@ import './Home.css';
 
 export default function Home() {
   const [rooms, setRooms] = useState([]);
+  const [showProfile, setShowProfile] = useState(false);
+  const [myPoints, setMyPoints] = useState(0);
+  const [searchPhone, setSearchPhone] = useState('');
+  const [searchResult, setSearchResult] = useState(null);
+  const [givePhone, setGivePhone] = useState('');
+  const [giveAmount, setGiveAmount] = useState('');
+  const [giveMsg, setGiveMsg] = useState('');
+  const [searchMsg, setSearchMsg] = useState('');
   const navigate = useNavigate();
 
   // 登录校验
@@ -12,6 +20,7 @@ export default function Home() {
     if (!token) {
       navigate('/login');
     }
+    fetchMyPoints();
   }, [navigate]);
 
   // 拉取房间列表
@@ -27,6 +36,28 @@ export default function Home() {
     if (data.success) {
       setRooms(data.rooms);
     }
+  }
+
+  async function fetchMyPoints() {
+    const phone = localStorage.getItem('phone');
+    if (!phone) return;
+    const res = await fetch('https://9526.ip-ddns.com/api/find_user.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setMyPoints(data.user.points || 0);
+    }
+  }
+
+  // 退出登录
+  function handleLogout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('nickname');
+    localStorage.removeItem('phone');
+    navigate('/login');
   }
 
   // 创建房间并直接进入牌桌
@@ -63,12 +94,134 @@ export default function Home() {
     }
   }
 
+  // 查找玩家
+  async function handleSearchUser() {
+    setSearchMsg('');
+    setSearchResult(null);
+    if (!searchPhone) {
+      setSearchMsg('请输入手机号');
+      return;
+    }
+    const res = await fetch('https://9526.ip-ddns.com/api/find_user.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: searchPhone }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setSearchResult(data.user);
+    } else {
+      setSearchMsg(data.message || '查找失败');
+    }
+  }
+
+  // 赠送积分
+  async function handleGivePoints() {
+    setGiveMsg('');
+    if (!givePhone || !giveAmount) {
+      setGiveMsg('请输入手机号和赠送积分');
+      return;
+    }
+    const from_phone = localStorage.getItem('phone');
+    const res = await fetch('https://9526.ip-ddns.com/api/give_points.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from_phone, to_phone: givePhone, amount: giveAmount }),
+    });
+    const data = await res.json();
+    setGiveMsg(data.message || (data.success ? '赠送成功' : '赠送失败'));
+    if (data.success) {
+      fetchMyPoints();
+      setGivePhone('');
+      setGiveAmount('');
+    }
+  }
+
   const demoCards = [
     'ace_of_spades', '10_of_clubs', 'queen_of_hearts', 'king_of_diamonds', 'jack_of_spades'
   ];
 
   return (
     <div className="home-container">
+      {/* 顶部操作区 */}
+      <div style={{
+        position: 'absolute',
+        left: 16,
+        top: 14,
+        zIndex: 100,
+      }}>
+        <button
+          className="top-action-btn"
+          onClick={handleLogout}
+          style={{ background: '#f44', color: '#fff' }}
+        >退出登录</button>
+      </div>
+      <div style={{
+        position: 'absolute',
+        right: 16,
+        top: 14,
+        zIndex: 100,
+      }}>
+        <button
+          className="top-action-btn"
+          onClick={() => {
+            setShowProfile(true);
+            fetchMyPoints();
+          }}
+        >个人中心</button>
+      </div>
+
+      {/* 个人中心弹窗 */}
+      {showProfile && (
+        <div className="profile-modal-bg">
+          <div className="profile-modal">
+            <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 14, textAlign: 'center' }}>个人中心</div>
+            <div style={{ marginBottom: 10, fontSize: 16 }}>
+              昵称：{localStorage.getItem('nickname')}<br />
+              手机号：{localStorage.getItem('phone')}
+            </div>
+            <div style={{ fontSize: 17, color: '#2e87f9', fontWeight: 600, marginBottom: 10 }}>
+              当前积分：{myPoints}
+            </div>
+            <div style={{ borderTop: '1px solid #eee', margin: '14px 0', paddingTop: 10 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>查找玩家</div>
+              <input
+                className="input"
+                placeholder="输入手机号"
+                value={searchPhone}
+                onChange={e => setSearchPhone(e.target.value)}
+              />
+              <button className="button" onClick={handleSearchUser}>查找</button>
+              {searchMsg && <div style={{ color: 'red', fontSize: 13 }}>{searchMsg}</div>}
+              {searchResult && (
+                <div style={{ marginTop: 7, color: '#1da343' }}>
+                  昵称：{searchResult.nickname}，积分：{searchResult.points}
+                </div>
+              )}
+            </div>
+            <div style={{ borderTop: '1px solid #eee', margin: '14px 0', paddingTop: 10 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>赠送积分</div>
+              <input
+                className="input"
+                placeholder="对方手机号"
+                value={givePhone}
+                onChange={e => setGivePhone(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder="赠送积分数量"
+                type="number"
+                value={giveAmount}
+                onChange={e => setGiveAmount(e.target.value)}
+              />
+              <button className="button" onClick={handleGivePoints}>赠送</button>
+              {giveMsg && <div style={{ color: giveMsg === '赠送成功' ? 'green' : 'red', fontSize: 13 }}>{giveMsg}</div>}
+            </div>
+            <button className="button" onClick={() => setShowProfile(false)} style={{ background: '#aaa', marginTop: 10 }}>关闭</button>
+          </div>
+        </div>
+      )}
+
       <div className="poker-decor">
         {demoCards.map(card => (
           <img
