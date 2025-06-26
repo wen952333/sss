@@ -21,6 +21,7 @@ export default function Login() {
     if (data.success) {
       localStorage.setItem('token', data.token);
       localStorage.setItem('nickname', data.nickname);
+      localStorage.setItem('phone', phone); // 关键：存手机号
       navigate('/');
     } else {
       alert(data.message || '登录失败');
