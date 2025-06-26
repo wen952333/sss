@@ -1,0 +1,17 @@
+.home-container {
+  max-width: 350px;
+  margin: 60px auto 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px #326eca1a;
+  padding: 28px 24px 24px 24px;
+  text-align: center;
+}
+.join-area {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.input {
+  flex: 1;
+}
