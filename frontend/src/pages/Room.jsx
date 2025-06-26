@@ -7,9 +7,10 @@ export default function Room() {
   const [players, setPlayers] = useState([]);
   const [status, setStatus] = useState('waiting');
   const [me, setMe] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
-  // 登录校验：未登录强制跳转到登录页
+  // 登录校验
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -35,13 +36,22 @@ export default function Room() {
         navigate(`/play/${roomId}`);
       }
     } else if (data.code === 401) {
-      // 未授权
       alert('身份验证失败');
       navigate('/login');
     }
   }
 
+  // 判断是否房主
+  const isOwner = players[0]?.isOwner && players[0]?.name === me;
+  // 是否全部准备好
+  const allReady = players.length === 4 && players.every(p => p.submitted);
+
   async function handleStart() {
+    setErrorMsg('');
+    if (!allReady) {
+      setErrorMsg('请等待所有玩家都准备好再开始游戏');
+      return;
+    }
     const token = localStorage.getItem('token');
     const res = await fetch('https://9526.ip-ddns.com/api/start.php', {
       method: 'POST',
@@ -50,7 +60,7 @@ export default function Room() {
     });
     const data = await res.json();
     if (!data.success) {
-      alert(data.message || '无法开始游戏');
+      setErrorMsg(data.message || '无法开始游戏');
     }
   }
 
@@ -64,16 +74,23 @@ export default function Room() {
             <li key={p.name} className={p.name === me ? 'me' : ''}>
               {p.name}
               {p.isOwner && <span className="owner-tag">房主</span>}
+              {p.submitted ? <span style={{color:'#23e67a',marginLeft:8}}>已准备</span> : <span style={{color:'#888',marginLeft:8}}>未准备</span>}
             </li>
           ))}
         </ul>
       </div>
-      {players[0]?.isOwner && (
-        <button className="button" onClick={handleStart}>
+      {isOwner && (
+        <button
+          className="button"
+          onClick={handleStart}
+          disabled={!allReady}
+          style={!allReady ? { background: '#ccc', cursor: 'not-allowed' } : {}}
+        >
           开始游戏
         </button>
       )}
-      <div className="tip">等待房主开始游戏...</div>
+      {errorMsg && <div style={{ color: 'red', marginTop: 10 }}>{errorMsg}</div>}
+      <div className="tip">{isOwner ? '全部玩家准备后可开始游戏' : '等待房主开始游戏...'}</div>
     </div>
   );
 }
