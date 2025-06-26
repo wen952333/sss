@@ -19,7 +19,8 @@ export default function Play() {
       navigate('/login');
     }
     const nickname = localStorage.getItem('nickname');
-    setMyInfo({ name: nickname, points: 990 }); // TODO: 替换为真实分数
+    // 获取本地积分（如需后端积分，请在此异步请求并 setMyInfo）
+    setMyInfo({ name: nickname, points: Number(localStorage.getItem('points')) || 990 }); // 建议改成真实积分
   }, [navigate]);
 
   // 拉房间玩家
@@ -115,24 +116,6 @@ export default function Play() {
       minHeight: '100vh',
       fontFamily: 'inherit'
     }}>
-      {/* 顶栏 */}
-      <div style={{
-        background: '#222',
-        color: '#fff',
-        padding: '10px 22px',
-        fontSize: 17,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div>
-          欢迎, {myInfo.name} (积分: {myInfo.points})
-        </div>
-        <div style={{ cursor: 'pointer', color: '#fff', fontWeight: 700 }}>
-          个人中心
-        </div>
-      </div>
-
       {/* 内容区 */}
       <div style={{
         maxWidth: 420,
@@ -168,7 +151,8 @@ export default function Play() {
             fontSize: 21,
             letterSpacing: 2
           }}>
-            十三水牌桌 <span style={{ fontWeight: 600, fontSize: 16 }}>（房间）</span>
+            {/* 直接显示积分 */}
+            积分：{myInfo.points}
           </div>
         </div>
 
