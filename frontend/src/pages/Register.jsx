@@ -20,8 +20,21 @@ export default function Register() {
     });
     const data = await res.json();
     if (data.success) {
-      alert('注册成功，请登录');
-      navigate('/login');
+      // 注册成功后自动登录
+      const loginRes = await fetch('https://9526.ip-ddns.com/api/login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password }),
+      });
+      const loginData = await loginRes.json();
+      if (loginData.success) {
+        localStorage.setItem('token', loginData.token);
+        localStorage.setItem('nickname', loginData.nickname);
+        navigate('/');
+      } else {
+        alert(loginData.message || '自动登录失败，请手动登录');
+        navigate('/login');
+      }
     } else {
       alert(data.message || '注册失败');
     }
@@ -51,7 +64,8 @@ export default function Register() {
       />
       <button className="button" onClick={handleRegister}>注册</button>
       <div className="tips">
-        已有账号？<span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/login')}>去登录</span>
+        已有账号？
+        <span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/login')}>去登录</span>
       </div>
     </div>
   );
