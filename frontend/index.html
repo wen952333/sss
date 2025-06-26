@@ -2,12 +2,20 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" /> <!-- You can change this icon -->
+    <!-- 
+      你可以在 public 目录下放一个 favicon.ico 或 vite.svg, 
+      然后在这里引用它，例如:
+      <link rel="icon" type="image/svg+xml" href="/vite.svg" /> 
+      或者
+      <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+      确保这些文件存在于 `frontend/public/` 目录下。
+    -->
+    <link rel="icon" type="image/svg+xml" href="/cards/ace_of_spades.svg" /> <!-- 示例：用一张牌做图标 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>十三水 多人游戏</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script> <!-- or index.jsx if that's your entry -->
+    <script type="module" src="/src/main.jsx"></script> <!-- 这个路径是正确的 -->
   </body>
 </html>
