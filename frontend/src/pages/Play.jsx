@@ -6,7 +6,7 @@ export default function Play() {
   const { roomId } = useParams();
   const [players, setPlayers] = useState([]);
   const [myPoints, setMyPoints] = useState(0);
-  const [ready, setReady] = useState(false);
+  const [myName, setMyName] = useState('');
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
@@ -15,10 +15,12 @@ export default function Play() {
   // 登录校验和查分
   useEffect(() => {
     const token = localStorage.getItem('token');
+    const nickname = localStorage.getItem('nickname');
     if (!token) {
       navigate('/login');
       return;
     }
+    setMyName(nickname);
     fetchMyPoints();
   }, [navigate]);
 
@@ -51,17 +53,29 @@ export default function Play() {
     const data = await res.json();
     if (data.success) {
       setPlayers(data.players);
-      // 可根据需求处理更多房间信息
     }
   }
 
-  // 只回到主页面，不清除token
-  function handleExitRoom() {
+  // 退出房间，调用后端清理玩家
+  async function handleExitRoom() {
+    const token = localStorage.getItem('token');
+    await fetch('https://9526.ip-ddns.com/api/leave_room.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, token }),
+    });
     navigate('/');
   }
 
-  function handleReady() {
-    setReady(true);
+  // 只让自己准备
+  async function handleReady() {
+    const token = localStorage.getItem('token');
+    await fetch('https://9526.ip-ddns.com/api/ready.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, token }),
+    });
+    // 等待定时 fetchPlayers 拉新状态
   }
 
   function handleAutoSplit() {
@@ -72,7 +86,7 @@ export default function Play() {
     // TODO: 开始比牌逻辑（房主可操作）
   }
 
-  // 渲染玩家座位
+  // 渲染玩家座位，显示每个玩家自己的准备状态
   function renderSeats() {
     let seats = [];
     for (let i = 0; i < 4; i++) {
@@ -81,7 +95,7 @@ export default function Play() {
         seats.push(
           <div
             key={i}
-            className={`play-seat ${i === 0 ? 'active' : ''}`}
+            className={`play-seat`}
             style={{
               border: '2px solid #23e67a',
               borderRadius: 10,
@@ -96,7 +110,7 @@ export default function Play() {
           >
             <div style={{ fontWeight: 700, fontSize: 18 }}>{player.name}</div>
             <div style={{ marginTop: 4, fontSize: 14 }}>
-              {ready ? '已准备' : '未准备'}
+              {player.submitted ? '已准备' : '未准备'}
             </div>
           </div>
         );
@@ -231,16 +245,15 @@ export default function Play() {
           <button
             style={{
               flex: 1,
-              background: ready ? '#1e663d' : '#23e67a',
-              color: ready ? '#aaa' : '#fff',
+              background: '#23e67a',
+              color: '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 7,
               padding: '10px 0',
               fontSize: 18,
-              cursor: ready ? 'not-allowed' : 'pointer'
+              cursor: 'pointer'
             }}
-            disabled={ready}
             onClick={handleReady}
           >
             准备
