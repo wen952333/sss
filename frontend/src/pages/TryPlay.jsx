@@ -183,14 +183,15 @@ export default function TryPlay() {
   }
 
   // 堆叠显示卡片
-  function renderPaiDunCards(arr, area) {
+  function renderPaiDunCards(arr, area, cardSize) {
+    // cardSize: {width, height}
     const paddingX = 16;
-    const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70; // 70留给说明文字
-    let overlap = Math.floor(CARD_WIDTH / 3);
+    const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70;
+    let overlap = Math.floor((cardSize?.width ?? CARD_WIDTH) / 3);
     if (arr.length > 1) {
-      const totalWidth = CARD_WIDTH + (arr.length - 1) * overlap;
+      const totalWidth = (cardSize?.width ?? CARD_WIDTH) + (arr.length - 1) * overlap;
       if (totalWidth > maxWidth) {
-        overlap = Math.floor((maxWidth - CARD_WIDTH) / (arr.length - 1));
+        overlap = Math.floor((maxWidth - (cardSize?.width ?? CARD_WIDTH)) / (arr.length - 1));
       }
     }
     let lefts = [];
@@ -201,7 +202,7 @@ export default function TryPlay() {
     return (
       <div style={{
         position: 'relative',
-        height: PAI_DUN_HEIGHT,
+        height: cardSize?.height ?? PAI_DUN_HEIGHT,
         width: '100%',
         minWidth: 0,
         boxSizing: 'border-box',
@@ -218,10 +219,10 @@ export default function TryPlay() {
               style={{
                 position: 'absolute',
                 left: lefts[idx],
-                top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
+                top: ((cardSize?.height ?? PAI_DUN_HEIGHT) - (cardSize?.height ?? CARD_HEIGHT)) / 2,
                 zIndex: idx,
-                width: CARD_WIDTH,
-                height: CARD_HEIGHT,
+                width: cardSize?.width ?? CARD_WIDTH,
+                height: cardSize?.height ?? CARD_HEIGHT,
                 borderRadius: 5,
                 border: isSelected
                   ? '2.5px solid #ff4444'
@@ -242,7 +243,6 @@ export default function TryPlay() {
     );
   }
 
-  // 绿色光影牌墩，左右边距与外框统一，内部说明文字绝对定位右侧，移动端不溢出
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
@@ -259,7 +259,7 @@ export default function TryPlay() {
           alignItems: 'center',
           boxSizing: 'border-box',
           paddingLeft: 16,
-          paddingRight: 70, // 留出空间给右侧说明
+          paddingRight: 70,
         }}
         onClick={() => { if (isReady) moveTo(area); }}
       >
@@ -309,41 +309,51 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗
+  // 比牌弹窗：整体高度、扑克牌高度宽度都缩小10%
   function renderResultModal() {
     if (!showResult) return null;
+    // 缩放参数
+    const scale = 0.9;
+    const cardW = CARD_WIDTH * scale;
+    const cardH = CARD_HEIGHT * scale;
+    const paiDunH = PAI_DUN_HEIGHT * scale;
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-  background: '#fff',
-  borderRadius: 15,
-  padding: 24,
-  minWidth: 400,
-  minHeight: 270, // 原来是300，降低10%
-  height: '90%',  // 若有 height，可同步降低
-  boxShadow: '0 8px 40px #0002',
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gridTemplateRows: '1fr 1fr',
-  gap: 16,
-  position: 'relative'
-}}>
+          background: '#fff',
+          borderRadius: 15,
+          padding: 24,
+          minWidth: 400,
+          minHeight: 270, // 原300，缩小10%
+          boxShadow: '0 8px 40px #0002',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: '1fr 1fr',
+          gap: 16,
+          position: 'relative'
+        }}>
           {[0, 1, 2, 3].map(i => (
             <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
                 {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderPaiDunCards(head, 'none') : renderPaiDunCards(aiPlayers[i - 1].head, 'none')}
+                {i === 0
+                  ? renderPaiDunCards(head, 'none', { width: cardW, height: cardH })
+                  : renderPaiDunCards(aiPlayers[i - 1].head, 'none', { width: cardW, height: cardH })}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderPaiDunCards(middle, 'none') : renderPaiDunCards(aiPlayers[i - 1].middle, 'none')}
+                {i === 0
+                  ? renderPaiDunCards(middle, 'none', { width: cardW, height: cardH })
+                  : renderPaiDunCards(aiPlayers[i - 1].middle, 'none', { width: cardW, height: cardH })}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                {i === 0 ? renderPaiDunCards(tail, 'none') : renderPaiDunCards(aiPlayers[i - 1].tail, 'none')}
+                {i === 0
+                  ? renderPaiDunCards(tail, 'none', { width: cardW, height: cardH })
+                  : renderPaiDunCards(aiPlayers[i - 1].tail, 'none', { width: cardW, height: cardH })}
               </div>
             </div>
           ))}
