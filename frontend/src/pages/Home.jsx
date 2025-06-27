@@ -142,7 +142,7 @@ export default function Home() {
     <div className="home-container home-doubleheight" style={{position:'relative'}}>
       {/* 顶部按钮 */}
       <div style={{ position: 'absolute', left: 16, top: 14, zIndex: 100 }}>
-        <button className="top-action-btn" onClick={handleLogout} style={{ background: '#f44', color: '#fff' }}>退出登录</button>
+        <button className="top-action-btn" onClick={handleLogout}>退出登录</button>
       </div>
       <div style={{ position: 'absolute', right: 16, top: 14, zIndex: 100 }}>
         <button className="top-action-btn" onClick={() => { setShowProfile(true); fetchMyPoints(); }}>个人中心</button>
