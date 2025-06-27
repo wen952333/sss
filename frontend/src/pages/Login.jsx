@@ -33,14 +33,12 @@ export default function Login() {
       <div className="home-title">用户登录</div>
       <input
         className="input"
-        style={{ width: '100%', marginBottom: 0 }}
         placeholder="手机号"
         value={phone}
         onChange={e => setPhone(e.target.value)}
       />
       <input
         className="input"
-        style={{ width: '100%', marginBottom: 0 }}
         placeholder="密码"
         type="password"
         value={password}
@@ -48,7 +46,7 @@ export default function Login() {
       />
       <button
         className="button"
-        style={{ width: '100%', marginTop: 18, marginBottom: 0 }}
+        style={{ marginTop: 18 }}
         onClick={handleLogin}
       >登录</button>
       <div className="tips">
