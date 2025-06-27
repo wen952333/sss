@@ -8,27 +8,35 @@ body {
 input, button {
   font-size: 1.15rem;
 }
+/* 保证输入框和按钮宽度一致且不溢出 */
+.input, .button {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
 
-/* 通用按钮样式 */
+/* 通用绿色主按钮样式（发光） */
 .button {
-  background-color: #4f8cff;
+  background: linear-gradient(90deg,#23e67a 80%,#43ffb8 100%);
   color: #fff;
   border: none;
   border-radius: 8px;
   margin: 12px 0;
   padding: 0.75em 2em;
-  width: 100%;
   font-weight: bold;
-  box-shadow: 0 2px 8px #23e67a66, 0 0 0 2px #23e67a33;
-  transition: all .2s;
+  box-shadow: 0 0 0 3px #23e67a55, 0 2px 20px #23e67a99;
+  transition: all .22s;
 }
 .button:active {
-  background-color: #3766bb;
+  background: #13c05a;
+}
+.button:hover, .button:focus {
+  background: linear-gradient(90deg,#35ff9e 80%,#7fffd4 100%);
+  box-shadow: 0 0 0 5px #35ff9e66, 0 4px 24px #35ff9e99;
 }
 
 /* 通用输入框绿色+光影 */
 .input {
-  width: 100%;
   padding: 0.65em 1em;
   margin: 10px 0;
   border-radius: 8px;
