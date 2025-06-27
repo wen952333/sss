@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Play.css';
 
@@ -55,12 +55,7 @@ export default function TryPlay() {
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
-  const [points, setPoints] = useState(100);
-
-  // 撒花特效等可以用 useEffect 控制
-  useEffect(() => {
-    setPoints(100); // 试玩默认积分
-  }, []);
+  const [points] = useState(100);
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -147,17 +142,19 @@ export default function TryPlay() {
     return (
       <div
         key={name}
-        className={`play-seat`}
+        className="play-seat"
         style={{
-          border: `2.5px solid ${isMe ? '#23e67a' : '#3ba0e7'}`,
+          border: `2px solid ${isMe ? '#63f1a5' : '#7db2e7'}`,
           borderRadius: 10,
           marginRight: 8,
           width: '22%',
           minWidth: 70,
           color,
-          background: isMe ? '#115f37' : '#194e3a',
+          background: isMe ? '#1c6e41' : '#2a556e',
           textAlign: 'center',
-          padding: '10px 0'
+          padding: '10px 0',
+          boxShadow: 'none',
+          transition: 'background 0.2s'
         }}
       >
         <div style={{ fontWeight: 700, fontSize: 17 }}>{name}</div>
@@ -168,7 +165,6 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩卡片
   function renderPaiDunCards(arr, area) {
     const fullWidth = PAI_DUN_WIDTH - 16;
     const cardFull = CARD_WIDTH + CARD_GAP;
@@ -216,15 +212,14 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 15, width: '100%' }}>
         <div
           style={{
-            background: '#1e663d',
+            background: '#176b3c',
             borderRadius: 10,
-            border: '2px dashed #23e67a',
+            border: '2px dashed #c4ffe3',
             width: '100%',
             minWidth: PAI_DUN_WIDTH,
             minHeight: PAI_DUN_HEIGHT,
@@ -236,11 +231,11 @@ export default function TryPlay() {
             position: 'relative',
             paddingRight: 0,
             paddingLeft: 0,
-            flex: 1
+            flex: 1,
+            transition: 'background 0.2s, border-color 0.2s'
           }}
           onClick={() => { if (isReady) moveTo(area); }}
         >
-          {/* 卡片部分 */}
           {arr.length === 0 &&
             <div style={{
               width: '100%',
@@ -248,14 +243,13 @@ export default function TryPlay() {
               display: 'flex',
               alignItems: 'center',
               paddingLeft: 14,
-              color: '#aaa',
+              color: '#c3d6c6',
               fontSize: 17,
             }}>
               请放置
             </div>
           }
           {renderPaiDunCards(arr, area)}
-          {/* 说明文字，绝对定位在右侧 */}
           <div
             style={{
               position: 'absolute',
@@ -280,7 +274,6 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗（同前）
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -325,7 +318,6 @@ export default function TryPlay() {
     );
   }
 
-  // ========== 页面主体 ==========
   return (
     <div style={{
       background: '#164b2e',
@@ -333,16 +325,18 @@ export default function TryPlay() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: 420,
+        maxWidth: 440,
         margin: '30px auto',
-        background: '#144126',
-        borderRadius: 18,
-        boxShadow: '0 8px 40px #0f2717bb',
-        padding: 24,
+        background: '#185a30',
+        borderRadius: 22,
+        boxShadow: '0 8px 44px #0f2717bb, 0 0 0 4px #ffb14d88',
+        padding: 26,
         minHeight: 820,
+        border: '2.5px solid #ffb14d',
         position: 'relative',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        transition: 'box-shadow 0.2s, border-color 0.2s'
       }}>
         {/* 头部：退出房间+积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
@@ -367,31 +361,28 @@ export default function TryPlay() {
             textAlign: 'right',
             color: '#ffb14d',
             fontWeight: 900,
-            fontSize: 19,
+            fontSize: 21,
             letterSpacing: 2,
             marginRight: 8
           }}>
             积分：{points}
           </div>
         </div>
-
         {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18 }}>
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
-
         {/* 牌墩区域 */}
-        {renderPaiDun(head, '头道', 'head', '#e0ffe3')}
-        {renderPaiDun(middle, '中道', 'middle', '#e0eaff')}
+        {renderPaiDun(head, '头道', 'head', '#b4ffd3')}
+        {renderPaiDun(middle, '中道', 'middle', '#b4eaff')}
         {renderPaiDun(tail, '尾道', 'tail', '#ffe6e0')}
-
         {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
           <button
             style={{
               flex: 1,
-              background: isReady ? '#9e9e9e' : '#bbbbbb',
+              background: isReady ? '#b0b0b0' : '#bbbbbb',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
@@ -437,7 +428,6 @@ export default function TryPlay() {
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
           {msg}
         </div>
-        {/* 比牌弹窗 */}
         {renderResultModal()}
       </div>
     </div>
