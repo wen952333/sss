@@ -1,7 +1,7 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Arial', sans-serif;
-  background: #164b2e; /* 全局背景色改为深绿色 */
+  background: #164b2e; /* 牌桌深绿色 */
   min-height: 100vh;
 }
 input, button {
@@ -16,7 +16,7 @@ input, button {
   padding: 0.75em 2em;
   width: 100%;
   font-weight: bold;
-  box-shadow: 0 2px 8px #c0d4ff6c;
+  box-shadow: 0 2px 8px #23e67a33;
   transition: all .2s;
 }
 .button:active {
@@ -27,21 +27,134 @@ input, button {
   padding: 0.65em 1em;
   margin: 10px 0;
   border-radius: 6px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #218c5a;
   font-size: 1.15rem;
-  box-sizing: border-box;
-  /* 保证和按钮一样宽 */
+  background: #185a30;
+  color: #e0ffe3;
+}
+.input::placeholder {
+  color: #7ecfab;
+  opacity: 1;
 }
 .tip {
-  color: #666;
+  color: #a8e6c1;
   margin-top: 18px;
   text-align: center;
 }
+
+.home-container {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 40px 26px 32px 26px;
+  background: #185a30; /* 绿色 */
+  border-radius: 24px;
+  box-shadow: 0 8px 40px #1a462a6a, 0 1.5px 5px #1a462a80;
+  text-align: center;
+  position: relative;
+  top: 50vh;
+  transform: translateY(-54%);
+  min-height: 600px;
+}
+
+.home-doubleheight {
+  min-height: 600px;
+}
+
+.home-title {
+  font-family: "FZLanTingHeiS-DB-GB", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 2.3rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  margin-bottom: 8px;
+  color: #e0ffe3;
+  line-height: 1.2;
+}
+
+.home-announcement-area {
+  background: #176b3c;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  padding: 12px 18px 12px 20px;
+  min-height: 70px;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+  box-shadow: 0 1px 5px #1a462a30;
+}
+
+.home-announcement-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #a6ffd4;
+  margin-bottom: 4px;
+}
+
+ul, li {
+  background: none !important;
+}
+
+li {
+  color: #e0ffe3 !important;
+}
+
+.top-action-btn {
+  background: #2d8c5a;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 18px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 1px 6px #23e67a33;
+  transition: background .18s;
+}
+.top-action-btn:hover {
+  background: #23e67a;
+}
+
+.tips {
+  color: #e0ffe3;
+  margin-top: 16px;
+}
+
+/* 试玩按钮绿色 */
+button[style*="试玩"] {
+  background: #23e67a !important;
+  color: #fff !important;
+  box-shadow: 0 2px 14px #23e67a55 !important;
+}
+
+/* 个人中心弹窗绿色 */
+.profile-modal-bg {
+  position: fixed;
+  left: 0;top: 0;width: 100vw;height: 100vh;
+  background: rgba(20,90,48,0.84);
+  z-index: 2000;
+}
+.profile-modal {
+  background: #176b3c;
+  color: #e0ffe3;
+  border-radius: 18px;
+  box-shadow: 0 4px 32px #1a462a99;
+  padding: 32px 24px 16px 24px;
+  position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  min-width: 320px;
+}
+
+/* 房间列表li */
+li[style], .home-announcement-area ul li {
+  background: #218c5a !important;
+  color: #e0ffe3 !important;
+}
+
 @media (max-width: 600px) {
   .home-container, .room-container, .play-container, .result-container {
     margin: 0;
     border-radius: 0;
     min-height: 100vh;
     padding: 24px 0;
+    background: #185a30 !important;
   }
 }
