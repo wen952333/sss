@@ -1,34 +1,7 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Arial', sans-serif;
-  background: #164b2e;
-  min-height: 100vh;
-}
-
-input, button {
-  font-size: 1.15rem;
-}
-
-/* 通用按钮样式 */
-.button {
-  background-color: #4f8cff;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  margin: 12px 0;
-  padding: 0.75em 2em;
-  width: 100%;
-  font-weight: bold;
-  box-shadow: 0 2px 8px #23e67a66, 0 0 0 2px #23e67a33;
-  transition: all .2s;
-}
-.button:active {
-  background-color: #3766bb;
-}
-
-/* 通用输入框绿色+光影 */
 .input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 0.65em 1em;
   margin: 10px 0;
   border-radius: 8px;
@@ -40,65 +13,25 @@ input, button {
   transition: border .2s, box-shadow .2s;
 }
 
-.input:focus {
-  outline: none;
-  border: 2px solid #48ffb0;
-  box-shadow: 0 0 0 3px #23e67a99, 0 2px 12px #23e67a55;
-}
-
-.input::placeholder {
-  color: #83cfa1;
-  opacity: 1;
-}
-
-.tip, .tips {
-  color: #a8e6c1;
-  margin-top: 18px;
-  text-align: center;
-}
-
-/* 绿色主卡片容器 + 光影 */
-.home-container,
-.room-container,
-.play-container,
-.result-container,
-.profile-modal {
-  background: #185a30 !important;
-  border-radius: 24px;
-  box-shadow: 0 0 28px 5px #23e67a50, 0 8px 40px #1a462a6a !important;
-  color: #e0ffe3;
-}
-
-.home-title,
-h2, h3 {
-  color: #e0ffe3 !important;
-}
-
-.home-announcement-area {
-  background: #176b3c !important;
-  color: #e0ffe3 !important;
-  border-radius: 10px;
-  box-shadow: 0 1px 5px #23e67a1a;
-}
-
-.home-announcement-title {
-  color: #a6ffd4 !important;
-}
-
-ul, li {
-  background: none !important;
-  color: #e0ffe3 !important;
-}
-
-/* 房间列表li、玩家列表li绿色 */
-li[style], .home-announcement-area ul li, .players-list li, .players-list li.me {
-  background: #218c5a !important;
-  color: #e0ffe3 !important;
+.button {
+  width: 100%;
+  min-width: 0;
+  background-color: #4f8cff;
+  color: #fff;
+  border: none;
   border-radius: 8px;
+  margin: 12px 0;
+  padding: 0.75em 2em;
+  font-weight: bold;
+  box-shadow: 0 2px 8px #23e67a66, 0 0 0 2px #23e67a33;
+  transition: all .2s;
+}
+.button:active {
+  background-color: #3766bb;
 }
 
 .top-action-btn {
-  background: #2d8c5a !important;
+  background: #23e67a !important;
   color: #fff !important;
   border: none;
   border-radius: 7px;
@@ -110,28 +43,5 @@ li[style], .home-announcement-area ul li, .players-list li, .players-list li.me 
   transition: background .18s;
 }
 .top-action-btn:hover {
-  background: #23e67a !important;
-}
-
-/* 个人中心弹窗绿色 */
-.profile-modal-bg {
-  position: fixed;
-  left: 0;top: 0;width: 100vw;height: 100vh;
-  background: rgba(20,90,48,0.84);
-  z-index: 2000;
-}
-.profile-modal {
-  background: #176b3c !important;
-  color: #e0ffe3 !important;
-  border-radius: 18px !important;
-}
-
-@media (max-width: 600px) {
-  .home-container, .room-container, .play-container, .result-container {
-    margin: 0;
-    border-radius: 0;
-    min-height: 100vh;
-    padding: 24px 0;
-    background: #185a30 !important;
-  }
+  background: #35ff9e !important;
 }
