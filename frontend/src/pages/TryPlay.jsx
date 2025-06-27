@@ -6,13 +6,10 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-// 牌墩高度基础值
-const BASE_PAI_DUN_HEIGHT = 102; // 上一版基础
-const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 增加30%
-const CARD_WIDTH = 46;
-const CARD_HEIGHT = 66;
+// 新牌墩高度，较前置基础再增30%
+const BASE_PAI_DUN_HEIGHT = 102;
+const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 约133
 const CARD_GAP = 8;
-const PAI_DUN_WIDTH = 340;
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -106,25 +103,22 @@ export default function TryPlay() {
   }
 
   function renderPlayerSeat(name, idx, isMe) {
-    const color = isMe ? '#23e67a' : '#fff';
     return (
       <div
         key={name}
         className="play-seat"
         style={{
-          border: `2px solid ${isMe ? '#ffe08b' : '#ffe08b'}`,
-          borderRadius: 14,
-          marginRight: 10,
+          border: '2.5px solid #ffb14d',
+          borderRadius: 10,
+          marginRight: 8,
           width: '22%',
           minWidth: 70,
-          color,
+          color: isMe ? '#23e67a' : '#fff',
           background: isMe ? '#1c6e41' : '#2a556e',
           textAlign: 'center',
-          padding: '12px 0 10px 0',
-          boxShadow: '0 2px 9px #0001',
+          padding: '12px 0',
           fontWeight: 700,
           fontSize: 17,
-          transition: 'background 0.2s'
         }}
       >
         <div>{name}</div>
@@ -135,22 +129,26 @@ export default function TryPlay() {
     );
   }
 
-  // 堆叠显示卡片
+  // 牌墩卡片，宽度100%，高度占牌墩94%，圆角较小
   function renderPaiDunCards(arr, area) {
-    const fullWidth = PAI_DUN_WIDTH - 16;
-    const cardFull = CARD_WIDTH + CARD_GAP;
+    // 容器宽度100%，高度PAI_DUN_HEIGHT
+    // 卡片高度
+    const cardHeight = Math.round(PAI_DUN_HEIGHT * 0.94);
+    const cardWidth = Math.round((CARD_WIDTH / CARD_HEIGHT) * cardHeight);
+    const cardFull = cardWidth + CARD_GAP;
+    const fullWidth = '100%'; // 占满
     let overlap = CARD_GAP;
     let lefts = [];
-    let startX = 8;
-    if (arr.length * cardFull > fullWidth) {
-      overlap = (fullWidth - CARD_WIDTH) / (arr.length - 1);
+    let startX = 12;
+    if (arr.length * cardFull > 360 - 24) { // 假定整体内容宽度360px
+      overlap = ((360 - 24) - cardWidth) / (arr.length - 1);
       if (overlap < 18) overlap = 18;
     }
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
-      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, minWidth: PAI_DUN_WIDTH }}>
+      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, width: fullWidth }}>
         {arr.map((card, idx) => (
           <img
             key={card}
@@ -160,18 +158,18 @@ export default function TryPlay() {
             style={{
               position: 'absolute',
               left: lefts[idx],
-              top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
+              top: (PAI_DUN_HEIGHT - cardHeight) / 2,
               zIndex: idx,
               background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
               boxShadow: selected.area === area && selected.cards.includes(card)
                 ? '0 0 16px #23e67a88'
                 : '0 2px 8px #0002',
               cursor: isReady ? 'pointer' : 'not-allowed',
-              width: CARD_WIDTH,
-              height: CARD_HEIGHT,
+              width: cardWidth,
+              height: cardHeight,
               border: 'none',
               outline: 'none',
-              borderRadius: 8,
+              borderRadius: 5, // 圆角收窄
               transition: 'background 0.12s',
               userSelect: 'none'
             }}
@@ -183,7 +181,7 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩整体金色边框，内部无虚线，和整体外框连成一体
+  // 牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
@@ -193,13 +191,11 @@ export default function TryPlay() {
           marginBottom: 20,
           width: '100%',
           border: '2.5px solid #ffb14d',
-          borderRadius: 17,
+          borderRadius: 14,
           background: '#176b3c',
-          boxSizing: 'border-box',
           minHeight: PAI_DUN_HEIGHT,
           height: PAI_DUN_HEIGHT,
-          position: 'relative',
-          transition: 'background 0.2s, border-color 0.2s'
+          position: 'relative'
         }}
         onClick={() => { if (isReady) moveTo(area); }}
       >
@@ -243,7 +239,6 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗（略）
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -288,7 +283,6 @@ export default function TryPlay() {
     );
   }
 
-  // 主体
   return (
     <div style={{
       background: '#164b2e',
@@ -296,18 +290,18 @@ export default function TryPlay() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: 440,
+        maxWidth: 420,
         margin: '30px auto',
         background: '#185a30',
         borderRadius: 22,
         boxShadow: '0 8px 44px #0f2717bb, 0 0 0 4px #ffb14d88',
         padding: 26,
-        minHeight: 920,
         border: '2.5px solid #ffb14d',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'box-shadow 0.2s, border-color 0.2s'
+        transition: 'box-shadow 0.2s, border-color 0.2s',
+        minHeight: 'auto'
       }}>
         {/* 头部：退出房间+积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
@@ -347,12 +341,12 @@ export default function TryPlay() {
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
-        {/* 牌墩区域 - 连接整体边框 */}
+        {/* 牌墩区域 */}
         {renderPaiDun(head, '头道', 'head', '#ffe08b')}
         {renderPaiDun(middle, '中道', 'middle', '#ffe08b')}
         {renderPaiDun(tail, '尾道', 'tail', '#ffe08b')}
         {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 12, marginTop: 14 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
           <button
             style={{
               flex: 1,
@@ -405,7 +399,7 @@ export default function TryPlay() {
             disabled={!isReady}
           >开始比牌</button>
         </div>
-        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
+        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
           {msg}
         </div>
         {renderResultModal()}
@@ -414,7 +408,7 @@ export default function TryPlay() {
   );
 }
 
-// 工具函数
+// 辅助工具
 function getShuffledDeck() {
   const deck = [];
   for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
