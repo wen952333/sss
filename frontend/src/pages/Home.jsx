@@ -207,7 +207,7 @@ export default function Home() {
               onClick={() => handleJoinRoom(room.room_id)}
             >
               房间 {room.room_id} &nbsp;
-              <span style={{ color: '#7c8ba0', fontSize: '0.96em' }}>({room.player_count || 1}人)</span>
+              <span style={{ color: '#7c8ba0', fontSize: '0.96em' }}>({room.player_count}人)</span>
               <span style={{ color: '#3886ff', marginLeft: 8, fontSize: '0.98em' }}>点击进入</span>
             </li>
           ))}
