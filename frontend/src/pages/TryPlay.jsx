@@ -86,7 +86,7 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
-    setAllSplits([]);
+    setAllSplits([]); // 重置智能分牌缓存
     setSplitIndex(0);
   }
 
