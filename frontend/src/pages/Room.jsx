@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './Room.css';
 
@@ -10,6 +10,10 @@ export default function Room() {
   const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
+  // 自动发牌相关
+  const readyCount = useRef(0);
+  const hasStarted = useRef(false);
+
   // 登录校验
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -20,8 +24,9 @@ export default function Room() {
 
   useEffect(() => {
     fetchRoomInfo();
-    const interval = setInterval(fetchRoomInfo, 3000);
+    const interval = setInterval(fetchRoomInfo, 2000); // 2秒一次
     return () => clearInterval(interval);
+    // eslint-disable-next-line
   }, []);
 
   async function fetchRoomInfo() {
@@ -33,7 +38,19 @@ export default function Room() {
       setStatus(data.status);
       setMe(data.me);
       if (data.status === 'started') {
+        hasStarted.current = true;
         navigate(`/play/${roomId}`);
+      }
+      // 检查是否全部准备
+      const allReady = data.players.length === 4 && data.players.every(p => p.submitted);
+      if (allReady && !hasStarted.current) {
+        readyCount.current += 1;
+        if (readyCount.current >= 2) {
+          handleStart();
+          readyCount.current = 0;
+        }
+      } else {
+        readyCount.current = 0;
       }
     } else if (data.code === 401) {
       alert('身份验证失败');
@@ -41,17 +58,9 @@ export default function Room() {
     }
   }
 
-  // 判断是否房主
-  const isOwner = players[0]?.isOwner && players[0]?.name === me;
-  // 是否全部准备好
-  const allReady = players.length === 4 && players.every(p => p.submitted);
-
+  // 现在任何人都可以自动发牌（自动调用）
   async function handleStart() {
     setErrorMsg('');
-    if (!allReady) {
-      setErrorMsg('请等待所有玩家都准备好再开始游戏');
-      return;
-    }
     const token = localStorage.getItem('token');
     const res = await fetch('https://9526.ip-ddns.com/api/start.php', {
       method: 'POST',
@@ -79,18 +88,8 @@ export default function Room() {
           ))}
         </ul>
       </div>
-      {isOwner && (
-        <button
-          className="button"
-          onClick={handleStart}
-          disabled={!allReady}
-          style={!allReady ? { background: '#ccc', cursor: 'not-allowed' } : {}}
-        >
-          开始游戏
-        </button>
-      )}
       {errorMsg && <div style={{ color: 'red', marginTop: 10 }}>{errorMsg}</div>}
-      <div className="tip">{isOwner ? '全部玩家准备后可开始游戏' : '等待房主开始游戏...'}</div>
+      <div className="tip">全部玩家准备后会自动发牌，无需房主操作</div>
     </div>
   );
 }
