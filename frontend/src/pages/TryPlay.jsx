@@ -1,19 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
-
-// 高度参数
-const CARD_WIDTH = 46;
-const CARD_HEIGHT = 66;
-const CARD_GAP = 8;
-const PAI_DUN_WIDTH = 340;
-const PAI_DUN_HEIGHT = Math.round(68 * 1.5); // 102
-const CARD_HEIGHT_ENLARGED = Math.round(CARD_HEIGHT * 1.5); // 99
-const CARD_WIDTH_ENLARGED = Math.round(CARD_WIDTH * 1.5); // 69
 
 function getShuffledDeck() {
   const deck = [];
@@ -42,6 +33,12 @@ function calcScores(allPlayers) {
   return scores;
 }
 
+const CARD_WIDTH = 46;
+const CARD_HEIGHT = 66;
+const CARD_GAP = 8;
+const PAI_DUN_WIDTH = 340;
+const PAI_DUN_HEIGHT = 102; // 68*1.5
+
 export default function TryPlay() {
   const navigate = useNavigate();
   const [head, setHead] = useState([]);
@@ -58,6 +55,12 @@ export default function TryPlay() {
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
+  const [points, setPoints] = useState(100);
+
+  // 撒花特效等可以用 useEffect 控制
+  useEffect(() => {
+    setPoints(100); // 试玩默认积分
+  }, []);
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -94,12 +97,10 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  // 支持多选
   function handleCardClick(card, area, e) {
     e.stopPropagation();
     setSelected(prev => {
       if (prev.area !== area) return { area, cards: [card] };
-      // 多选（Ctrl/Shift 或直接点，多次点都能多选/反选）
       const isSelected = prev.cards.includes(card);
       let nextCards;
       if (isSelected) {
@@ -148,35 +149,34 @@ export default function TryPlay() {
         key={name}
         className={`play-seat`}
         style={{
-          border: `2px solid ${isMe ? '#23e67a' : '#3ba0e7'}`,
+          border: `2.5px solid ${isMe ? '#23e67a' : '#3ba0e7'}`,
           borderRadius: 10,
           marginRight: 8,
-          width: '25%',
-          minWidth: 80,
+          width: '22%',
+          minWidth: 70,
           color,
           background: isMe ? '#115f37' : '#194e3a',
           textAlign: 'center',
-          padding: '12px 0'
+          padding: '10px 0'
         }}
       >
-        <div style={{ fontWeight: 700, fontSize: 18 }}>{name}</div>
-        <div style={{ marginTop: 4, fontSize: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 17 }}>{name}</div>
+        <div style={{ marginTop: 3, fontSize: 13 }}>
           {isMe ? '你' : 'AI'}
         </div>
       </div>
     );
   }
 
-  // 渲染卡片
+  // 牌墩卡片
   function renderPaiDunCards(arr, area) {
-    const fullWidth = PAI_DUN_WIDTH - 16; // 内边距
-    const cardFull = CARD_WIDTH_ENLARGED + CARD_GAP;
+    const fullWidth = PAI_DUN_WIDTH - 16;
+    const cardFull = CARD_WIDTH + CARD_GAP;
     let overlap = CARD_GAP;
     let lefts = [];
     let startX = 8;
-    // 判断是否需要堆叠
     if (arr.length * cardFull > fullWidth) {
-      overlap = (fullWidth - CARD_WIDTH_ENLARGED) / (arr.length - 1);
+      overlap = (fullWidth - CARD_WIDTH) / (arr.length - 1);
       if (overlap < 18) overlap = 18;
     }
     for (let i = 0; i < arr.length; ++i) {
@@ -193,16 +193,16 @@ export default function TryPlay() {
             style={{
               position: 'absolute',
               left: lefts[idx],
-              top: (PAI_DUN_HEIGHT - CARD_HEIGHT_ENLARGED) / 2,
+              top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
               zIndex: idx,
               background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
               boxShadow: selected.area === area && selected.cards.includes(card)
                 ? '0 0 14px #23e67a66'
                 : '0 2px 8px #bec7dd3a',
               cursor: isReady ? 'pointer' : 'not-allowed',
-              width: CARD_WIDTH_ENLARGED,
-              height: CARD_HEIGHT_ENLARGED,
-              border: 'none', // 彻底无边框
+              width: CARD_WIDTH,
+              height: CARD_HEIGHT,
+              border: 'none',
               outline: 'none',
               borderRadius: 8,
               transition: 'background 0.12s',
@@ -219,15 +219,7 @@ export default function TryPlay() {
   // 牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          marginBottom: 18,
-          position: 'relative',
-          width: '100%',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 15, width: '100%' }}>
         <div
           style={{
             background: '#1e663d',
@@ -288,7 +280,7 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗
+  // 比牌弹窗（同前）
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -333,6 +325,7 @@ export default function TryPlay() {
     );
   }
 
+  // ========== 页面主体 ==========
   return (
     <div style={{
       background: '#164b2e',
@@ -343,27 +336,45 @@ export default function TryPlay() {
         maxWidth: 420,
         margin: '30px auto',
         background: '#144126',
-        borderRadius: 12,
-        boxShadow: '0 4px 32px #0f2717bb',
-        padding: 22,
-        minHeight: 850,
-        position: 'relative'
+        borderRadius: 18,
+        boxShadow: '0 8px 40px #0f2717bb',
+        padding: 24,
+        minHeight: 820,
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        <button
-          style={{
-            background: '#fff',
-            color: '#234',
-            fontWeight: 'bold',
-            border: 'none',
-            borderRadius: 7,
-            padding: '5px 16px',
-            cursor: 'pointer',
-            marginBottom: 14
-          }}
-          onClick={() => navigate('/')}
-        >
-          &lt; 返回大厅
-        </button>
+        {/* 头部：退出房间+积分 */}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+          <button
+            style={{
+              background: '#fff',
+              color: '#234',
+              fontWeight: 'bold',
+              border: 'none',
+              borderRadius: 7,
+              padding: '5px 16px',
+              cursor: 'pointer',
+              marginRight: 16,
+              fontSize: 16
+            }}
+            onClick={() => navigate('/')}
+          >
+            &lt; 退出房间
+          </button>
+          <div style={{
+            flex: 1,
+            textAlign: 'right',
+            color: '#ffb14d',
+            fontWeight: 900,
+            fontSize: 19,
+            letterSpacing: 2,
+            marginRight: 8
+          }}>
+            积分：{points}
+          </div>
+        </div>
+
         {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18 }}>
           {renderPlayerSeat('你', 0, true)}
@@ -426,8 +437,9 @@ export default function TryPlay() {
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
           {msg}
         </div>
+        {/* 比牌弹窗 */}
+        {renderResultModal()}
       </div>
-      {renderResultModal()}
     </div>
   );
 }
