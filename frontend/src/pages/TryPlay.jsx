@@ -6,37 +6,13 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-function getShuffledDeck() {
-  const deck = [];
-  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
-}
-function calcScores(allPlayers) {
-  const scores = allPlayers.map(() => 0);
-  ['head', 'middle', 'tail'].forEach(area => {
-    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
-    for (let i=0; i<4; ++i) scores[i] += ranks[i];
-  });
-  return scores;
-}
-
-// 牌墩高度与卡片尺寸设置
+const OUTER_WIDTH = 420;
+const PAI_DUN_WIDTH = OUTER_WIDTH - 2 * 0 - 0; // 占满整体
 const BASE_PAI_DUN_HEIGHT = 102;
-const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 约133
+const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 133
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94); // 牌高度为牌墩的94%
 const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66); // 保持原宽高比
-const CARD_GAP = 8;
+const CARD_GAP_DEFAULT = Math.floor(CARD_WIDTH / 3); // 默认堆叠间距
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -90,12 +66,20 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  function handleCardClick(card, area) {
-    setSelected(sel => {
-      if (sel.area !== area) return { area, cards: [card] };
-      return sel.cards.includes(card)
-        ? { area, cards: sel.cards.filter(c => c !== card) }
-        : { area, cards: [...sel.cards, card] };
+  // 多选
+  function handleCardClick(card, area, e) {
+    e.stopPropagation();
+    setSelected(prev => {
+      // 切换堆多选区
+      if (prev.area !== area) return { area, cards: [card] };
+      const isSelected = prev.cards.includes(card);
+      let nextCards;
+      if (isSelected) {
+        nextCards = prev.cards.filter(c => c !== card);
+      } else {
+        nextCards = [...prev.cards, card];
+      }
+      return { area, cards: nextCards };
     });
   }
 
@@ -129,13 +113,16 @@ export default function TryPlay() {
     setMsg('');
   }
 
+  // 绿色光影外框
+  const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a55';
+
   function renderPlayerSeat(name, idx, isMe) {
     return (
       <div
         key={name}
         className="play-seat"
         style={{
-          border: '2.5px solid #ffb14d',
+          border: '2.5px solid transparent',
           borderRadius: 10,
           marginRight: 8,
           width: '22%',
@@ -146,6 +133,7 @@ export default function TryPlay() {
           padding: '12px 0',
           fontWeight: 700,
           fontSize: 17,
+          boxShadow: greenShadow
         }}
       >
         <div>{name}</div>
@@ -156,69 +144,77 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩卡片，宽度100%，高度占牌墩94%，圆角较小
+  // 堆叠显示卡片（始终堆叠，间距为CARD_WIDTH/3，超宽时自动缩小间距）
   function renderPaiDunCards(arr, area) {
-    const cardFull = CARD_WIDTH + CARD_GAP;
-    const availableWidth = 420 - 2 * 0 - 24; // 420=最大内容宽，-24为两边内边距
-    let overlap = CARD_GAP;
-    let lefts = [];
-    let startX = 12;
-    if (arr.length * cardFull > availableWidth) {
-      overlap = (availableWidth - CARD_WIDTH) / (arr.length - 1);
-      if (overlap < 18) overlap = 18;
+    const maxWidth = PAI_DUN_WIDTH - 16;
+    let overlap = Math.floor(CARD_WIDTH / 3);
+    if (arr.length > 1) {
+      const totalWidth = CARD_WIDTH + (arr.length - 1) * overlap;
+      if (totalWidth > maxWidth) {
+        overlap = Math.floor((maxWidth - CARD_WIDTH) / (arr.length - 1));
+      }
     }
+    let lefts = [];
+    let startX = 8;
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
       <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, width: '100%' }}>
-        {arr.map((card, idx) => (
-          <img
-            key={card}
-            src={`/cards/${card}.svg`}
-            alt={card}
-            className="card-img"
-            style={{
-              position: 'absolute',
-              left: lefts[idx],
-              top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
-              zIndex: idx,
-              background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
-              boxShadow: selected.area === area && selected.cards.includes(card)
-                ? '0 0 16px #23e67a88'
-                : '0 2px 8px #0002',
-              cursor: isReady ? 'pointer' : 'not-allowed',
-              width: CARD_WIDTH,
-              height: CARD_HEIGHT,
-              border: 'none',
-              outline: 'none',
-              borderRadius: 5, // 圆角收窄
-              transition: 'background 0.12s',
-              userSelect: 'none'
-            }}
-            onClick={() => { if (isReady) handleCardClick(card, area); }}
-            draggable={false}
-          />
-        ))}
+        {arr.map((card, idx) => {
+          const isSelected = selected.area === area && selected.cards.includes(card);
+          return (
+            <img
+              key={card}
+              src={`/cards/${card}.svg`}
+              alt={card}
+              className="card-img"
+              style={{
+                position: 'absolute',
+                left: lefts[idx],
+                top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
+                zIndex: idx,
+                width: CARD_WIDTH,
+                height: CARD_HEIGHT,
+                borderRadius: 5,
+                border: isSelected
+                  ? '2.5px solid #ff4444'
+                  : '2.5px solid #eaeaea',
+                boxShadow: isSelected
+                  ? '0 0 16px 2px #ff4444cc'
+                  : '0 0 14px #23e67a33',
+                cursor: isReady ? 'pointer' : 'not-allowed',
+                background: '#fff',
+                transition: 'border .13s, box-shadow .13s'
+              }}
+              onClick={e => { if (isReady) handleCardClick(card, area, e); }}
+              draggable={false}
+            />
+          );
+        })}
       </div>
     );
   }
 
-  // 牌墩
+  // 绿色光影牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          marginBottom: 20,
           width: '100%',
-          border: '2.5px solid #ffb14d',
+          minWidth: PAI_DUN_WIDTH,
+          border: '2.5px solid transparent',
           borderRadius: 14,
           background: '#176b3c',
           minHeight: PAI_DUN_HEIGHT,
           height: PAI_DUN_HEIGHT,
-          position: 'relative'
+          marginBottom: 20,
+          position: 'relative',
+          boxShadow: greenShadow,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 8px'
         }}
         onClick={() => { if (isReady) moveTo(area); }}
       >
@@ -226,10 +222,9 @@ export default function TryPlay() {
           {arr.length === 0 &&
             <div style={{
               width: '100%',
-              height: PAI_DUN_HEIGHT,
+              height: '100%',
               display: 'flex',
               alignItems: 'center',
-              paddingLeft: 18,
               color: '#c3d6c6',
               fontSize: 18,
               fontWeight: 500,
@@ -253,7 +248,7 @@ export default function TryPlay() {
             pointerEvents: 'none',
             background: 'transparent',
             justifyContent: 'flex-end',
-            paddingRight: 18
+            marginLeft: 16
           }}
         >
           {label}（{arr.length}）
@@ -262,7 +257,6 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -314,23 +308,22 @@ export default function TryPlay() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: 420,
+        maxWidth: OUTER_WIDTH,
         margin: '30px auto',
         background: '#185a30',
         borderRadius: 22,
-        boxShadow: '0 8px 44px #0f2717bb, 0 0 0 4px #ffb14d88',
+        boxShadow: greenShadow,
         padding: 26,
-        border: '2.5px solid #ffb14d',
+        border: '2.5px solid transparent',
         position: 'relative',
         display: 'flex',
-        flexDirection: 'column',
-        minHeight: 'auto'
+        flexDirection: 'column'
       }}>
         {/* 头部：退出房间+积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
           <button
             style={{
-              background: 'linear-gradient(90deg,#fff 60%,#ffe6ca 100%)',
+              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
               color: '#234',
               fontWeight: 'bold',
               border: 'none',
@@ -339,7 +332,7 @@ export default function TryPlay() {
               cursor: 'pointer',
               marginRight: 18,
               fontSize: 17,
-              boxShadow: '0 1.5px 6px #ffb14d30'
+              boxShadow: '0 1.5px 6px #23e67a30'
             }}
             onClick={() => navigate('/')}
           >
@@ -348,12 +341,12 @@ export default function TryPlay() {
           <div style={{
             flex: 1,
             textAlign: 'right',
-            color: '#ffb14d',
+            color: '#23e67a',
             fontWeight: 900,
             fontSize: 21,
             letterSpacing: 2,
             marginRight: 8,
-            textShadow: '0 2px 7px #ffb14d55'
+            textShadow: '0 2px 7px #23e67a44'
           }}>
             <span role="img" aria-label="coin" style={{ fontSize: 18, marginRight: 4 }}>🪙</span>
             积分：100
@@ -365,9 +358,9 @@ export default function TryPlay() {
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
         {/* 牌墩区域 */}
-        {renderPaiDun(head, '头道', 'head', '#ffe08b')}
-        {renderPaiDun(middle, '中道', 'middle', '#ffe08b')}
-        {renderPaiDun(tail, '尾道', 'tail', '#ffe08b')}
+        {renderPaiDun(head, '头道', 'head', '#23e67a')}
+        {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
+        {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
         {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
           <button
@@ -381,7 +374,7 @@ export default function TryPlay() {
               padding: '13px 0',
               fontSize: 18,
               cursor: isReady ? 'not-allowed' : 'pointer',
-              boxShadow: isReady ? 'none' : '0 2px 9px #aaa2',
+              boxShadow: isReady ? 'none' : '0 2px 9px #23e67a22',
               transition: 'background 0.16s'
             }}
             onClick={handleReady}
@@ -415,18 +408,43 @@ export default function TryPlay() {
               padding: '13px 0',
               fontSize: 18,
               cursor: isReady ? 'pointer' : 'not-allowed',
-              boxShadow: '0 2px 9px #ffb14d44',
+              boxShadow: '0 2px 9px #ffb14d55',
               transition: 'background 0.16s'
             }}
             onClick={handleStartCompare}
             disabled={!isReady}
           >开始比牌</button>
         </div>
-        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
+        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {msg}
         </div>
         {renderResultModal()}
       </div>
     </div>
   );
+}
+
+function getShuffledDeck() {
+  const deck = [];
+  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+function aiSplit(cards) {
+  return {
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+function calcScores(allPlayers) {
+  const scores = allPlayers.map(() => 0);
+  ['head', 'middle', 'tail'].forEach(area => {
+    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
+    for (let i=0; i<4; ++i) scores[i] += ranks[i];
+  });
+  return scores;
 }
