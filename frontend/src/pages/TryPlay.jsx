@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CompareResultModal from './CompareResultModal';
-import { getSmartSplits } from './SmartSplit';
-import './Play.css';
+import CompareResultModal from './CompareResultModal'; // 用你的路径
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-// 牌面尺寸（v18为66高，46宽）
-const CARD_HEIGHT = 66;
+// v18 牌面常量
 const CARD_WIDTH = 46;
+const CARD_HEIGHT = 66;
+const PAI_DUN_HEIGHT = 72;
+const PAI_DUN_WIDTH = 340;
 
 function getShuffledDeck() {
   const deck = [];
@@ -56,10 +56,6 @@ export default function TryPlay() {
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
 
-  // 智能分牌循环索引和缓存
-  const [splitIndex, setSplitIndex] = useState(0);
-  const [allSplits, setAllSplits] = useState([]);
-
   function handleReady() {
     const deck = getShuffledDeck();
     const myHand = deck.slice(0, 13);
@@ -82,21 +78,12 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
-    setAllSplits([]);
-    setSplitIndex(0);
   }
 
-  // 智能分牌：循环5种优选分法
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
-    // 循环取下一个分法
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
+    const split = aiSplit(all);
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
@@ -177,15 +164,13 @@ export default function TryPlay() {
     );
   }
 
-  // 堆叠显示卡片
+  // v18 牌堆叠
   function renderPaiDunCards(arr, area) {
-    // 堆叠算法与v18一致
-    const maxWidth = 340;
     let overlap = Math.floor(CARD_WIDTH / 3);
     if (arr.length > 1) {
       const totalWidth = CARD_WIDTH + (arr.length - 1) * overlap;
-      if (totalWidth > maxWidth) {
-        overlap = Math.floor((maxWidth - CARD_WIDTH) / (arr.length - 1));
+      if (totalWidth > PAI_DUN_WIDTH) {
+        overlap = Math.floor((PAI_DUN_WIDTH - CARD_WIDTH) / (arr.length - 1));
       }
     }
     let lefts = [];
@@ -196,8 +181,8 @@ export default function TryPlay() {
     return (
       <div style={{
         position: 'relative',
-        height: 72,
-        width: '100%',
+        height: PAI_DUN_HEIGHT,
+        width: PAI_DUN_WIDTH,
         minWidth: 0,
         boxSizing: 'border-box',
         overflow: 'visible'
@@ -213,7 +198,7 @@ export default function TryPlay() {
               style={{
                 position: 'absolute',
                 left: lefts[idx],
-                top: 2,
+                top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
                 zIndex: idx,
                 width: CARD_WIDTH,
                 height: CARD_HEIGHT,
@@ -237,7 +222,6 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
@@ -245,15 +229,15 @@ export default function TryPlay() {
           width: '100%',
           borderRadius: 14,
           background: '#176b3c',
-          minHeight: 72,
-          height: 72,
+          minHeight: PAI_DUN_HEIGHT,
+          height: PAI_DUN_HEIGHT,
           marginBottom: 20,
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
           boxSizing: 'border-box',
           paddingLeft: 16,
-          paddingRight: 70, // 留出空间给右侧说明
+          paddingRight: 70,
         }}
         onClick={() => { if (isReady) moveTo(area); }}
       >
@@ -423,7 +407,7 @@ export default function TryPlay() {
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {msg}
         </div>
-        {/* 比牌弹窗：调用CompareResultModal */}
+        {/* 比牌弹窗：只用CompareResultModal，彻底删除老弹窗 */}
         <CompareResultModal
           open={showResult}
           onClose={() => setShowResult(false)}
@@ -435,20 +419,6 @@ export default function TryPlay() {
           scores={scores}
         />
       </div>
-      {/* 移动端自适应，防止溢出 */}
-      <style>{`
-        @media (max-width: 480px) {
-          .play-seat {
-            margin-right: 4px !important;
-            width: 24% !important;
-            min-width: 0 !important;
-          }
-          .card-img {
-            width: ${Math.floor(CARD_WIDTH*0.92)}px !important;
-            height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
