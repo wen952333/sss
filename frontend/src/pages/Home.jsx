@@ -139,7 +139,7 @@ export default function Home() {
   }
 
   return (
-    <div className="home-container home-doubleheight">
+    <div className="home-container home-doubleheight" style={{position:'relative'}}>
       {/* 顶部按钮 */}
       <div style={{ position: 'absolute', left: 16, top: 14, zIndex: 100 }}>
         <button className="top-action-btn" onClick={handleLogout} style={{ background: '#f44', color: '#fff' }}>退出登录</button>
@@ -220,6 +220,30 @@ export default function Home() {
           ))}
         </ul>
       </div>
+
+      {/* 试玩按钮，右下角固定 */}
+      <button
+        style={{
+          position: 'absolute',
+          left: 32,
+          bottom: 30,
+          width: 'calc(100% - 64px)',
+          background: '#4f8cff',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 12,
+          padding: '13px 0',
+          fontWeight: 700,
+          fontSize: 20,
+          letterSpacing: 2,
+          boxShadow: '0 2px 14px #a8b8e7aa',
+          cursor: 'pointer',
+          zIndex: 10,
+        }}
+        onClick={() => navigate('/try')}
+      >
+        试玩
+      </button>
     </div>
   );
 }
