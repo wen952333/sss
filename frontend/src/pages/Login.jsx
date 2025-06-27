@@ -29,22 +29,28 @@ export default function Login() {
   }
 
   return (
-    <div className="home-container">
+    <div className="home-container" style={{ background: "#185a30" }}>
       <div className="home-title">用户登录</div>
       <input
         className="input"
+        style={{ width: '100%', marginBottom: 0 }}
         placeholder="手机号"
         value={phone}
         onChange={e => setPhone(e.target.value)}
       />
       <input
         className="input"
+        style={{ width: '100%', marginBottom: 0 }}
         placeholder="密码"
         type="password"
         value={password}
         onChange={e => setPassword(e.target.value)}
       />
-      <button className="button" onClick={handleLogin}>登录</button>
+      <button
+        className="button"
+        style={{ width: '100%', marginTop: 18, marginBottom: 0 }}
+        onClick={handleLogin}
+      >登录</button>
       <div className="tips">
         没有账号？
         <span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/register')}>去注册</span>
