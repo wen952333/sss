@@ -4,6 +4,7 @@ import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+const AI_NAMES = ['小明', '小红', '小刚'];
 
 function getShuffledDeck() {
   const deck = [];
@@ -19,41 +20,66 @@ function getShuffledDeck() {
   return deck;
 }
 
-// 模拟一个简单的比牌逻辑，实际可根据需求拓展
-function mockCompare(head, middle, tail) {
-  // 随机分数模拟
+// AI分牌：简单分3-5-5
+function aiSplit(cards) {
   return {
-    headScore: Math.floor(Math.random() * 10),
-    middleScore: Math.floor(Math.random() * 10),
-    tailScore: Math.floor(Math.random() * 10),
-    total: 0
-  };
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+
+// 比牌逻辑（简单：每墩随机分1~3分）
+function calcScores(allPlayers) {
+  // 返回每个玩家总分
+  const scores = allPlayers.map(() => 0);
+  // 比每一墩，最强得3分、次强2分、最弱1分、最弱0分（示例，实际可自定义）
+  ['head', 'middle', 'tail'].forEach(area => {
+    // 随机分配分数
+    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
+    for (let i=0; i<4; ++i) {
+      scores[i] += ranks[i];
+    }
+  });
+  return scores;
 }
 
 export default function TryPlay() {
   const navigate = useNavigate();
-  // 13张手牌区
   const [myCards, setMyCards] = useState([]);
-  // 三墩
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
-  // 高亮选择
   const [selected, setSelected] = useState({ area: 'hand', cards: [] });
-  // 状态
   const [msg, setMsg] = useState('');
+  const [aiPlayers, setAiPlayers] = useState([
+    { name: AI_NAMES[0], cards: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[1], cards: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[2], cards: [], head: [], middle: [], tail: [] },
+  ]);
   const [showResult, setShowResult] = useState(false);
-  const [result, setResult] = useState(null);
-  const [simuPoints, setSimuPoints] = useState(100); // 模拟积分
+  const [scores, setScores] = useState([0,0,0,0]);
+  const [hasStarted, setHasStarted] = useState(false);
 
-  // 发牌：13张随机
+  // 发牌
   function handleDeal() {
     const deck = getShuffledDeck();
-    setMyCards(deck.slice(0, 13));
+    const playerHand = deck.slice(0, 13);
+    const aiHands = [
+      deck.slice(13, 26),
+      deck.slice(26, 39),
+      deck.slice(39, 52)
+    ];
+    setMyCards(playerHand);
     setHead([]); setMiddle([]); setTail([]);
     setSelected({ area: 'hand', cards: [] });
-    setMsg('');
+    setAiPlayers(aiPlayers.map((ai, idx) => ({
+      ...ai, cards: aiHands[idx], head: [], middle: [], tail: []
+    })));
     setShowResult(false);
+    setScores([0,0,0,0]);
+    setHasStarted(true);
+    setMsg('');
   }
 
   // 自动分牌
@@ -67,7 +93,7 @@ export default function TryPlay() {
     setMsg('');
   }
 
-  // 牌点击：高亮/取消高亮（手牌区或三墩都可）
+  // 牌点击高亮
   function handleCardClick(card, area) {
     setSelected(sel => {
       if (sel.area !== area) return { area, cards: [card] };
@@ -77,7 +103,7 @@ export default function TryPlay() {
     });
   }
 
-  // 移动牌到指定区域
+  // 移动牌到指定区
   function moveTo(dest) {
     if (!selected.cards.length) return;
     let newHand = [...myCards], newHead = [...head], newMiddle = [...middle], newTail = [...tail];
@@ -101,13 +127,47 @@ export default function TryPlay() {
       setMsg('请按 3-5-5 张分配');
       return;
     }
-    // 模拟比牌
-    const r = mockCompare(head, middle, tail);
-    r.total = r.headScore + r.middleScore + r.tailScore;
-    setResult(r);
-    setSimuPoints(points => points + r.total);
+    // AI自动分牌
+    const newAiPlayers = aiPlayers.map(ai => {
+      const split = aiSplit(ai.cards);
+      return { ...ai, ...split };
+    });
+    setAiPlayers(newAiPlayers);
+    // 计算分数
+    const allPlayers = [
+      { head, middle, tail },
+      ...newAiPlayers
+    ];
+    const resScores = calcScores(allPlayers);
+    setScores(resScores);
     setShowResult(true);
     setMsg('');
+  }
+
+  function renderPlayerSeat(name, idx, isMe) {
+    const color = isMe ? '#23e67a' : '#fff';
+    return (
+      <div
+        key={name}
+        className={`play-seat`}
+        style={{
+          border: `2px solid ${isMe ? '#23e67a' : '#3ba0e7'}`,
+          borderRadius: 10,
+          marginRight: 8,
+          width: '25%',
+          minWidth: 80,
+          color,
+          background: isMe ? '#115f37' : '#194e3a',
+          textAlign: 'center',
+          padding: '12px 0'
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: 18 }}>{name}</div>
+        <div style={{ marginTop: 4, fontSize: 14 }}>
+          {showResult ? `得分：${scores[idx]}` : (isMe ? '你' : 'AI')}
+        </div>
+      </div>
+    );
   }
 
   // 牌区渲染
@@ -127,7 +187,7 @@ export default function TryPlay() {
     );
   }
 
-  // 结果弹窗
+  // 比牌弹窗
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -139,8 +199,8 @@ export default function TryPlay() {
           background: '#fff',
           borderRadius: 15,
           padding: 24,
-          minWidth: 320,
-          minHeight: 240,
+          minWidth: 400,
+          minHeight: 300,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -148,34 +208,22 @@ export default function TryPlay() {
           gap: 16,
           position: 'relative'
         }}>
-          <div style={{ gridColumn: '1/2', gridRow: '1/2', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#23e67a', marginBottom: 8 }}>头道（+{result.headScore}）</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {head.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
+              <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
+                {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
+                {i === 0 ? renderCards(head, 'none') : renderCards(aiPlayers[i - 1].head, 'none')}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
+                {i === 0 ? renderCards(middle, 'none') : renderCards(aiPlayers[i - 1].middle, 'none')}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                {i === 0 ? renderCards(tail, 'none') : renderCards(aiPlayers[i - 1].tail, 'none')}
+              </div>
             </div>
-          </div>
-          <div style={{ gridColumn: '2/3', gridRow: '1/2', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#4f8cff', marginBottom: 8 }}>中道（+{result.middleScore}）</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {middle.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
-            </div>
-          </div>
-          <div style={{ gridColumn: '1/2', gridRow: '2/3', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#ff974f', marginBottom: 8 }}>尾道（+{result.tailScore}）</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {tail.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
-            </div>
-          </div>
-          <div style={{ gridColumn: '2/3', gridRow: '2/3', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#ca1a4b', marginBottom: 8 }}>总分</div>
-            <div style={{ fontSize: 27, color: '#ca1a4b', marginTop: 14 }}>{result.total}</div>
-          </div>
+          ))}
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
           }} onClick={() => setShowResult(false)}>×</button>
@@ -200,7 +248,6 @@ export default function TryPlay() {
         minHeight: 650,
         position: 'relative'
       }}>
-        {/* 退出 */}
         <button
           style={{
             background: '#fff',
@@ -216,16 +263,10 @@ export default function TryPlay() {
         >
           &lt; 返回大厅
         </button>
-        {/* 模拟积分 */}
-        <div style={{
-          textAlign: 'center',
-          color: '#fff',
-          fontWeight: 900,
-          fontSize: 21,
-          letterSpacing: 2,
-          marginBottom: 14
-        }}>
-          模拟积分：{simuPoints}
+        {/* 玩家区 */}
+        <div style={{ display: 'flex', marginBottom: 18 }}>
+          {renderPlayerSeat('你', 0, true)}
+          {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
         {/* 发牌按钮 */}
         <button
@@ -252,7 +293,7 @@ export default function TryPlay() {
           </div>
           <div className="cards-area">{renderCards(myCards, 'hand')}</div>
         </div>
-        {/* 分牌区 */}
+        {/* 三墩 */}
         <div
           style={{ background: '#1e663d', borderRadius: 10, padding: 14, marginBottom: 12, cursor: 'pointer', border: '2px dashed #23e67a' }}
           onClick={() => moveTo('head')}
@@ -315,6 +356,7 @@ export default function TryPlay() {
               cursor: 'pointer'
             }}
             onClick={handleStartCompare}
+            disabled={!hasStarted}
           >开始比牌</button>
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
