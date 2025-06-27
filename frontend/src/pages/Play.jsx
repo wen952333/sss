@@ -8,12 +8,14 @@ export default function Play() {
   const [myPoints, setMyPoints] = useState(0);
   const [myName, setMyName] = useState('');
   const [myCards, setMyCards] = useState([]);
-  const [selected, setSelected] = useState([]); // 当前高亮选中的手牌
+  const [selected, setSelected] = useState([]);
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
   const [submitMsg, setSubmitMsg] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isReady, setIsReady] = useState(false); // 新增
+  const [roomStatus, setRoomStatus] = useState('');
   const navigate = useNavigate();
 
   // 登录校验和查分
@@ -31,14 +33,14 @@ export default function Play() {
   // 房间玩家定时刷新
   useEffect(() => {
     fetchPlayers();
-    const timer = setInterval(fetchPlayers, 3000);
+    const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId]);
 
   // 手牌定时刷新
   useEffect(() => {
     fetchMyCards();
-    const timer = setInterval(fetchMyCards, 1500); // 更快刷新，体验更好
+    const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
@@ -46,7 +48,13 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const res = await fetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     const data = await res.json();
-    if (data.success) setPlayers(data.players);
+    if (data.success) {
+      setPlayers(data.players);
+      setRoomStatus(data.status); // 新增
+      // 找到自己是否已经准备
+      const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+      setIsReady(me && me.submitted);
+    }
   }
 
   async function fetchMyPoints() {
@@ -67,26 +75,15 @@ export default function Play() {
     const res = await fetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
     const data = await res.json();
     if (data.success) {
-      // 1. 未提交时，cards 为 13 张手牌
-      // 2. 提交后，cards 为 13 张已分配（顺序：头道3，中道5，尾道5）
       setSubmitted(!!data.submitted);
-
       // 若刚提交，显示自己分好的三墩
       if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
         setHead(data.cards.slice(0, 3));
         setMiddle(data.cards.slice(3, 8));
         setTail(data.cards.slice(8, 13));
-        setMyCards([]); // 已交牌，手牌区清空
+        setMyCards([]);
       } else if (!data.submitted && Array.isArray(data.cards)) {
-        // 未提交时，cards 就是13张手牌
         setMyCards(data.cards);
-      }
-      // 如果玩家本地分堆已分好，不自动重置（避免定时器覆盖手动分牌进度）
-      // 若手牌数和三墩都为0，说明牌已经交过
-      if (!data.submitted && Array.isArray(data.cards)) {
-        if (myCards.length === 0 && head.length === 0 && middle.length === 0 && tail.length === 0) {
-          setMyCards(data.cards);
-        }
       }
     }
   }
@@ -100,6 +97,17 @@ export default function Play() {
       body: JSON.stringify({ roomId, token }),
     });
     navigate('/');
+  }
+
+  // 准备
+  async function handleReady() {
+    const token = localStorage.getItem('token');
+    await fetch('https://9526.ip-ddns.com/api/ready.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, token }),
+    });
+    setIsReady(true);
   }
 
   // 牌点击：高亮/取消高亮
@@ -119,20 +127,18 @@ export default function Play() {
     } else if (dest === 'tail') {
       destArr = tail; setDest = setTail; maxLen = 5;
     }
-    // 过滤掉已经在目标墩的牌
     const newCards = selected.filter(c => !destArr.includes(c));
     if (destArr.length + newCards.length > maxLen) {
       setSubmitMsg(`该道最多放${maxLen}张牌`);
       return;
     }
-    // 从手牌移除，加入目标
     setDest([...destArr, ...newCards]);
     setMyCards(cards => cards.filter(c => !newCards.includes(c)));
     setSelected([]);
     setSubmitMsg('');
   }
 
-  // 点击“撤回”按钮，把所有墩的牌退回到手牌
+  // 撤回所有分配
   function handleReset() {
     if (submitted) return;
     setMyCards([...myCards, ...head, ...middle, ...tail]);
@@ -143,8 +149,8 @@ export default function Play() {
     setSubmitMsg('');
   }
 
-  // 提交分牌
-  async function handleSubmit() {
+  // 开始比牌（提交分牌）
+  async function handleStartCompare() {
     if (submitted) return;
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setSubmitMsg('请按 3-5-5 张牌分配');
@@ -166,7 +172,20 @@ export default function Play() {
     }
   }
 
-  // 渲染玩家座位，显示每个玩家自己的准备状态
+  // 按钮样式
+  const buttonStyle = {
+    flex: 1,
+    background: '#23e67a',
+    color: '#fff',
+    fontWeight: 700,
+    border: 'none',
+    borderRadius: 7,
+    padding: '10px 0',
+    fontSize: 18,
+    cursor: 'pointer'
+  };
+
+  // 渲染玩家座位
   function renderSeats() {
     let seats = [];
     for (let i = 0; i < 4; i++) {
@@ -219,7 +238,7 @@ export default function Play() {
     return <div style={{ display: 'flex', marginBottom: 18 }}>{seats}</div>;
   }
 
-  // 渲染13张手牌，点击可高亮
+  // 渲染13张手牌
   function renderMyCards() {
     return <div className="cards-area">
       {myCards.map(card =>
@@ -284,7 +303,6 @@ export default function Play() {
       minHeight: '100vh',
       fontFamily: 'inherit'
     }}>
-      {/* 内容区 */}
       <div style={{
         maxWidth: 420,
         margin: '30px auto',
@@ -323,56 +341,34 @@ export default function Play() {
           </div>
         </div>
 
-        {/* 座位 */}
         {renderSeats()}
 
-        {/* 手牌 */}
         <div style={{ margin: '15px 0 10px 0' }}>
           <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
             你的手牌（点击选中，点击下方牌墩移动）
           </div>
           {renderMyCards()}
         </div>
-        {/* 分牌区 */}
         {renderPaiDun(head, '头道', '#e0ffe3', 3, () => moveTo('head'))}
         {renderPaiDun(middle, '中道', '#e0eaff', 5, () => moveTo('middle'))}
         {renderPaiDun(tail, '尾道', '#ffe6e0', 5, () => moveTo('tail'))}
 
-        {/* 按钮区 */}
+        {/* 三个固定按钮 */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           <button
-            style={{
-              flex: 1,
-              background: '#23e67a',
-              color: '#fff',
-              fontWeight: 700,
-              border: 'none',
-              borderRadius: 7,
-              padding: '10px 0',
-              fontSize: 18,
-              cursor: submitted ? 'not-allowed' : 'pointer'
-            }}
-            disabled={submitted}
-            onClick={handleSubmit}
-          >
-            提交分牌
-          </button>
+            style={buttonStyle}
+            disabled={isReady || submitted}
+            onClick={handleReady}
+          >准备</button>
           <button
-            style={{
-              flex: 1,
-              background: '#144126',
-              color: '#fff',
-              border: '1.5px solid #23e67a',
-              borderRadius: 7,
-              padding: '10px 0',
-              fontSize: 18,
-              cursor: submitted ? 'not-allowed' : 'pointer'
-            }}
+            style={buttonStyle}
+            disabled
+          >自动分牌</button>
+          <button
+            style={buttonStyle}
             disabled={submitted}
-            onClick={handleReset}
-          >
-            撤回
-          </button>
+            onClick={handleStartCompare}
+          >开始比牌</button>
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
           {submitMsg}
