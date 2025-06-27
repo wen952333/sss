@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CompareResultModal from '../pages/CompareResultModal';
+import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
