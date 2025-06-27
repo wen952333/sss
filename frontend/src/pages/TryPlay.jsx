@@ -33,12 +33,9 @@ function calcScores(allPlayers) {
   return scores;
 }
 
-// 牌墩宽度和卡片宽度
-const PAI_DUN_WIDTH = 340;
 const CARD_WIDTH = 46; // Play.css .card-img
 const CARD_GAP = 8;
-const CARD_STACK_OFFSET = 24; // 堆叠时每张横向偏移
-const PAI_DUN_HEIGHT = 68; // 固定高度
+const PAI_DUN_HEIGHT = 68;
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -157,109 +154,156 @@ export default function TryPlay() {
     );
   }
 
-  // 平铺还是堆叠卡片（当牌数少时平铺，超出宽度才堆叠）
+  // 牌墩区域宽度动态获取，默认最大420px，跟随父容器
+  function getPaiDunWidth() {
+    // 420 - 左右padding 22 = 376, 再减点安全距离
+    return 360;
+  }
+
+  // 渲染卡片，平铺或堆叠
   function renderPaiDunCards(arr, area) {
-    const fullWidth = PAI_DUN_WIDTH;
+    const paiDunWidth = getPaiDunWidth();
+    const N = arr.length;
+    if (N === 0) {
+      return (
+        <div style={{
+          width: '100%',
+          height: PAI_DUN_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          paddingLeft: 14,
+          color: '#aaa',
+          fontSize: 15,
+        }}>
+          请放置
+        </div>
+      );
+    }
+    // 判断是否堆叠
     const cardFull = CARD_WIDTH + CARD_GAP;
-    let overlap = CARD_GAP;
-    let lefts = [];
-    let startX = 8;
-    // 判断是否需要堆叠
-    if (arr.length * cardFull > fullWidth) {
-      // 堆叠模式：让最后一张刚好不超出
-      overlap = (fullWidth - CARD_WIDTH) / (arr.length - 1);
-      if (overlap < 18) overlap = 18; // 最小重叠，防止太密
+    if (N * cardFull <= paiDunWidth - 60) { // 留60给右侧说明文字
+      // 平铺
+      return (
+        <div style={{
+          height: PAI_DUN_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          gap: CARD_GAP,
+          paddingLeft: 12,
+          paddingRight: 12,
+        }}>
+          {arr.map(card => (
+            <img
+              key={card}
+              src={`/cards/${card}.svg`}
+              alt={card}
+              className="card-img"
+              style={{
+                border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+                boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
+                cursor: isReady ? 'pointer' : 'not-allowed',
+                width: CARD_WIDTH, height: 66,
+                background: '#fff',
+              }}
+              onClick={() => { if (isReady) handleCardClick(card, area); }}
+            />
+          ))}
+        </div>
+      );
+    } else {
+      // 堆叠
+      // 让最后一张刚好不超出
+      const totalWidth = paiDunWidth - 60 - 12; // 右侧文字和左右padding
+      const overlap = (totalWidth - CARD_WIDTH) / (N - 1);
+      const minOverlap = 18;
+      const realOverlap = Math.max(overlap, minOverlap);
+      return (
+        <div style={{
+          position: 'relative',
+          height: PAI_DUN_HEIGHT,
+          width: totalWidth + CARD_WIDTH,
+          marginLeft: 12,
+          marginRight: 12
+        }}>
+          {arr.map((card, idx) => (
+            <img
+              key={card}
+              src={`/cards/${card}.svg`}
+              alt={card}
+              className="card-img"
+              style={{
+                position: 'absolute',
+                left: idx * realOverlap,
+                top: (PAI_DUN_HEIGHT - 66) / 2,
+                zIndex: idx,
+                border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+                boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
+                cursor: isReady ? 'pointer' : 'not-allowed',
+                width: CARD_WIDTH, height: 66,
+                background: '#fff',
+              }}
+              onClick={() => { if (isReady) handleCardClick(card, area); }}
+            />
+          ))}
+        </div>
+      );
     }
-    for (let i = 0; i < arr.length; ++i) {
-      lefts.push(startX + i * overlap);
-    }
-    // 垂直居中
-    return (
-      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, minWidth: PAI_DUN_WIDTH }}>
-        {arr.map((card, idx) => (
-          <img
-            key={card}
-            src={`/cards/${card}.svg`}
-            alt={card}
-            className="card-img"
-            style={{
-              position: 'absolute',
-              left: lefts[idx],
-              top: (PAI_DUN_HEIGHT - 66) / 2, // 66为card-img高度，居中
-              zIndex: idx,
-              border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-              boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
-              cursor: isReady ? 'pointer' : 'not-allowed'
-            }}
-            onClick={() => { if (isReady) handleCardClick(card, area); }}
-          />
-        ))}
-      </div>
-    );
   }
 
   // 牌墩
   function renderPaiDun(arr, label, area, color) {
+    const paiDunWidth = getPaiDunWidth();
     return (
       <div
         style={{
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           marginBottom: 16,
-          position: 'relative'
+          position: 'relative',
+          width: '100%',
         }}
       >
         <div
           style={{
             background: '#1e663d',
             borderRadius: 10,
-            padding: '0 0',
             border: '2px dashed #23e67a',
-            minWidth: PAI_DUN_WIDTH,
-            maxWidth: PAI_DUN_WIDTH,
+            width: '100%',
+            minWidth: paiDunWidth,
             minHeight: PAI_DUN_HEIGHT,
             height: PAI_DUN_HEIGHT,
-            position: 'relative',
-            cursor: isReady ? 'pointer' : 'not-allowed',
-            boxSizing: 'border-box',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-start'
+            boxSizing: 'border-box',
+            cursor: isReady ? 'pointer' : 'not-allowed',
+            position: 'relative',
+            paddingRight: 0, // 右侧不留padding
+            paddingLeft: 0,
+            flex: 1
           }}
           onClick={() => { if (isReady) moveTo(area); }}
         >
-          {/* 说明文字在框内左上角 */}
+          {/* 卡片部分 */}
+          {renderPaiDunCards(arr, area)}
+          {/* 说明文字，绝对定位在右侧 */}
           <div
             style={{
               position: 'absolute',
-              left: 14,
-              top: 8,
+              right: 18,
+              top: 0,
               color,
               fontSize: 16,
               minWidth: 60,
-              height: 24,
+              height: PAI_DUN_HEIGHT,
               whiteSpace: 'nowrap',
-              lineHeight: '24px',
-              zIndex: 2,
-              background: 'transparent', // 透明
+              display: 'flex',
+              alignItems: 'center',
               fontWeight: 600,
-              pointerEvents: 'none'
+              pointerEvents: 'none',
+              background: 'transparent'
             }}
           >
             {label}（{arr.length}）
-          </div>
-          {/* 牌（居中显示） */}
-          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            {arr.length === 0 &&
-              <span style={{
-                display: 'block',
-                color: '#aaa',
-                fontSize: 15,
-                padding: '18px 0 0 0',
-                marginLeft: 70 // 留出说明文字空间
-              }}>请放置</span>
-            }
-            {renderPaiDunCards(arr, area)}
           </div>
         </div>
       </div>
