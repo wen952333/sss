@@ -46,21 +46,18 @@ export default function Register() {
       <div className="home-title">用户注册</div>
       <input
         className="input"
-        style={{ width: '100%', marginBottom: 0 }}
         placeholder="手机号"
         value={phone}
         onChange={e => setPhone(e.target.value)}
       />
       <input
         className="input"
-        style={{ width: '100%', marginBottom: 0 }}
         placeholder="昵称"
         value={nickname}
         onChange={e => setNickname(e.target.value)}
       />
       <input
         className="input"
-        style={{ width: '100%', marginBottom: 0 }}
         placeholder="密码"
         type="password"
         value={password}
@@ -68,7 +65,7 @@ export default function Register() {
       />
       <button
         className="button"
-        style={{ width: '100%', marginTop: 18, marginBottom: 0 }}
+        style={{ marginTop: 18 }}
         onClick={handleRegister}
       >注册</button>
       <div className="tips">
