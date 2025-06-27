@@ -33,11 +33,12 @@ function calcScores(allPlayers) {
   return scores;
 }
 
+// 美化参数
 const CARD_WIDTH = 46;
 const CARD_HEIGHT = 66;
 const CARD_GAP = 8;
 const PAI_DUN_WIDTH = 340;
-const PAI_DUN_HEIGHT = 102; // 68*1.5
+const PAI_DUN_HEIGHT = 102; // 高度加大
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -145,20 +146,22 @@ export default function TryPlay() {
         className="play-seat"
         style={{
           border: `2px solid ${isMe ? '#63f1a5' : '#7db2e7'}`,
-          borderRadius: 10,
-          marginRight: 8,
+          borderRadius: 14,
+          marginRight: 10,
           width: '22%',
           minWidth: 70,
           color,
           background: isMe ? '#1c6e41' : '#2a556e',
           textAlign: 'center',
-          padding: '10px 0',
-          boxShadow: 'none',
+          padding: '12px 0 10px 0',
+          boxShadow: '0 2px 9px #0001',
+          fontWeight: 700,
+          fontSize: 17,
           transition: 'background 0.2s'
         }}
       >
-        <div style={{ fontWeight: 700, fontSize: 17 }}>{name}</div>
-        <div style={{ marginTop: 3, fontSize: 13 }}>
+        <div>{name}</div>
+        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
           {isMe ? '你' : 'AI'}
         </div>
       </div>
@@ -193,8 +196,8 @@ export default function TryPlay() {
               zIndex: idx,
               background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
               boxShadow: selected.area === area && selected.cards.includes(card)
-                ? '0 0 14px #23e67a66'
-                : '0 2px 8px #bec7dd3a',
+                ? '0 0 16px #23e67a88'
+                : '0 2px 8px #0002',
               cursor: isReady ? 'pointer' : 'not-allowed',
               width: CARD_WIDTH,
               height: CARD_HEIGHT,
@@ -213,12 +216,13 @@ export default function TryPlay() {
   }
 
   function renderPaiDun(arr, label, area, color) {
+    // 牌墩背景和边框淡化
     return (
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 15, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, width: '100%' }}>
         <div
           style={{
             background: '#176b3c',
-            borderRadius: 10,
+            borderRadius: 13,
             border: '2px dashed #c4ffe3',
             width: '100%',
             minWidth: PAI_DUN_WIDTH,
@@ -229,8 +233,6 @@ export default function TryPlay() {
             boxSizing: 'border-box',
             cursor: isReady ? 'pointer' : 'not-allowed',
             position: 'relative',
-            paddingRight: 0,
-            paddingLeft: 0,
             flex: 1,
             transition: 'background 0.2s, border-color 0.2s'
           }}
@@ -283,8 +285,8 @@ export default function TryPlay() {
       }}>
         <div style={{
           background: '#fff',
-          borderRadius: 15,
-          padding: 24,
+          borderRadius: 18,
+          padding: 26,
           minWidth: 400,
           minHeight: 300,
           boxShadow: '0 8px 40px #0002',
@@ -295,8 +297,8 @@ export default function TryPlay() {
           position: 'relative'
         }}>
           {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
-              <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
+            <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee', paddingBottom: 8 }}>
+              <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 7, fontSize: 18 }}>
                 {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
@@ -318,6 +320,7 @@ export default function TryPlay() {
     );
   }
 
+  // 主渲染
   return (
     <div style={{
       background: '#164b2e',
@@ -328,9 +331,9 @@ export default function TryPlay() {
         maxWidth: 440,
         margin: '30px auto',
         background: '#185a30',
-        borderRadius: 22,
+        borderRadius: 26,
         boxShadow: '0 8px 44px #0f2717bb, 0 0 0 4px #ffb14d88',
-        padding: 26,
+        padding: 30,
         minHeight: 820,
         border: '2.5px solid #ffb14d',
         position: 'relative',
@@ -339,18 +342,19 @@ export default function TryPlay() {
         transition: 'box-shadow 0.2s, border-color 0.2s'
       }}>
         {/* 头部：退出房间+积分 */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
           <button
             style={{
-              background: '#fff',
+              background: 'linear-gradient(90deg,#fff 60%,#ffe6ca 100%)',
               color: '#234',
               fontWeight: 'bold',
               border: 'none',
-              borderRadius: 7,
-              padding: '5px 16px',
+              borderRadius: 9,
+              padding: '7px 22px',
               cursor: 'pointer',
-              marginRight: 16,
-              fontSize: 16
+              marginRight: 18,
+              fontSize: 17,
+              boxShadow: '0 1.5px 6px #ffb14d30'
             }}
             onClick={() => navigate('/')}
           >
@@ -363,13 +367,15 @@ export default function TryPlay() {
             fontWeight: 900,
             fontSize: 21,
             letterSpacing: 2,
-            marginRight: 8
+            marginRight: 8,
+            textShadow: '0 2px 7px #ffb14d55'
           }}>
+            <span role="img" aria-label="coin" style={{ fontSize: 18, marginRight: 4 }}>🪙</span>
             积分：{points}
           </div>
         </div>
         {/* 玩家区 */}
-        <div style={{ display: 'flex', marginBottom: 18 }}>
+        <div style={{ display: 'flex', marginBottom: 22, gap: 8 }}>
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
@@ -378,18 +384,20 @@ export default function TryPlay() {
         {renderPaiDun(middle, '中道', 'middle', '#b4eaff')}
         {renderPaiDun(tail, '尾道', 'tail', '#ffe6e0')}
         {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, marginTop: 14 }}>
           <button
             style={{
               flex: 1,
-              background: isReady ? '#b0b0b0' : '#bbbbbb',
+              background: isReady ? '#b0b0b0' : '#dddddd',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 7,
-              padding: '10px 0',
+              borderRadius: 10,
+              padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'not-allowed' : 'pointer'
+              cursor: isReady ? 'not-allowed' : 'pointer',
+              boxShadow: isReady ? 'none' : '0 2px 9px #aaa2',
+              transition: 'background 0.16s'
             }}
             onClick={handleReady}
             disabled={isReady}
@@ -401,10 +409,12 @@ export default function TryPlay() {
               color: '#fff',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 7,
-              padding: '10px 0',
+              borderRadius: 10,
+              padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed'
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              boxShadow: '0 2px 9px #23e67a44',
+              transition: 'background 0.16s'
             }}
             onClick={handleAutoSplit}
             disabled={!isReady}
@@ -416,16 +426,18 @@ export default function TryPlay() {
               color: '#222',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 7,
-              padding: '10px 0',
+              borderRadius: 10,
+              padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed'
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              boxShadow: '0 2px 9px #ffb14d44',
+              transition: 'background 0.16s'
             }}
             onClick={handleStartCompare}
             disabled={!isReady}
           >开始比牌</button>
         </div>
-        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
+        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {msg}
         </div>
         {renderResultModal()}
