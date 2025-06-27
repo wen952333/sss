@@ -129,6 +129,15 @@ export default function Home() {
     }
   }
 
+  function roomTypeLabel(type) {
+    if (type === 'double') return '双倍场';
+    if (type === 'normal') return '普通场';
+    // 扩展其它类型
+    if (type === 'vip') return '贵宾场';
+    if (type === 'test') return '测试场';
+    return type || '';
+  }
+
   return (
     <div className="home-container home-doubleheight">
       {/* 顶部按钮 */}
@@ -206,9 +215,7 @@ export default function Home() {
               style={{ listStyle: 'none', marginBottom: 8, cursor: 'pointer', background: '#f6f7fb', borderRadius: 7, padding: '8px 14px' }}
               onClick={() => handleJoinRoom(room.room_id)}
             >
-              房间 {room.room_id} &nbsp;
-              <span style={{ color: '#7c8ba0', fontSize: '0.96em' }}>({room.player_count}人)</span>
-              <span style={{ color: '#3886ff', marginLeft: 8, fontSize: '0.98em' }}>点击进入</span>
+              房间 {room.room_id}（{room.player_count}人）{room.score}分{roomTypeLabel(room.type)} 点此进入
             </li>
           ))}
         </ul>
