@@ -6,7 +6,6 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-// 本地洗牌
 function getShuffledDeck() {
   const deck = [];
   for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
@@ -17,7 +16,6 @@ function getShuffledDeck() {
   return deck;
 }
 
-// 简单AI分牌
 function aiSplit(cards) {
   return {
     head: cards.slice(0, 3),
@@ -26,7 +24,6 @@ function aiSplit(cards) {
   }
 }
 
-// 比牌逻辑（简单：每墩随机分1~3分）
 function calcScores(allPlayers) {
   const scores = allPlayers.map(() => 0);
   ['head', 'middle', 'tail'].forEach(area => {
@@ -36,12 +33,18 @@ function calcScores(allPlayers) {
   return scores;
 }
 
+// 牌墩宽度和卡片宽度
+const PAI_DUN_WIDTH = 340;
+const CARD_WIDTH = 46; // Play.css .card-img
+const CARD_GAP = 8;
+const CARD_STACK_OFFSET = 24; // 堆叠时每张横向偏移
+
 export default function TryPlay() {
   const navigate = useNavigate();
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
-  const [selected, setSelected] = useState({ area: '', cards: [] }); // 只支持三墩内操作
+  const [selected, setSelected] = useState({ area: '', cards: [] });
   const [msg, setMsg] = useState('');
   const [aiPlayers, setAiPlayers] = useState([
     { name: AI_NAMES[0], head: [], middle: [], tail: [] },
@@ -53,9 +56,7 @@ export default function TryPlay() {
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
 
-  // 只要玩家点准备，就洗牌&发牌&分牌到三墩，AI自动准备
   function handleReady() {
-    // 洗牌并分四手
     const deck = getShuffledDeck();
     const myHand = deck.slice(0, 13);
     const aiHands = [
@@ -63,12 +64,10 @@ export default function TryPlay() {
       deck.slice(26, 39),
       deck.slice(39, 52)
     ];
-    // 玩家手牌智能分配到三墩
     const mySplit = aiSplit(myHand);
     setHead(mySplit.head);
     setMiddle(mySplit.middle);
     setTail(mySplit.tail);
-    // AI自动智能分配
     setAiPlayers(aiPlayers.map((ai, idx) => {
       const sp = aiSplit(aiHands[idx]);
       return { ...ai, ...sp };
@@ -81,7 +80,6 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  // 智能分牌：重新分配三墩（只影响自己）
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
@@ -93,7 +91,6 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  // 牌点击高亮
   function handleCardClick(card, area) {
     setSelected(sel => {
       if (sel.area !== area) return { area, cards: [card] };
@@ -103,7 +100,6 @@ export default function TryPlay() {
     });
   }
 
-  // 墩之间移动牌（允许多选，直接移过去）
   function moveTo(dest) {
     if (!selected.cards.length) return;
     let newHead = [...head], newMiddle = [...middle], newTail = [...tail];
@@ -119,13 +115,11 @@ export default function TryPlay() {
     setMsg('');
   }
 
-  // 开始比牌
   function handleStartCompare() {
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setMsg('请按 3-5-5 张分配');
       return;
     }
-    // AI已自动分好牌
     const allPlayers = [
       { head, middle, tail },
       ...aiPlayers
@@ -136,7 +130,6 @@ export default function TryPlay() {
     setMsg('');
   }
 
-  // UI渲染
   function renderPlayerSeat(name, idx, isMe) {
     const color = isMe ? '#23e67a' : '#fff';
     return (
@@ -163,19 +156,101 @@ export default function TryPlay() {
     );
   }
 
-  function renderCards(arr, area) {
-    return arr.map(card =>
-      <img
-        key={card}
-        src={`/cards/${card}.svg`}
-        alt={card}
-        className="card-img"
+  // 堆叠显示卡片
+  function renderPaiDunCards(arr, area) {
+    const fullWidth = PAI_DUN_WIDTH - 16; // 内边距
+    const cardFull = CARD_WIDTH + CARD_GAP;
+    let overlap = CARD_GAP;
+    let lefts = [];
+    let startX = 8;
+    // 判断是否需要堆叠
+    if (arr.length * cardFull > fullWidth) {
+      // 堆叠模式：让最后一张刚好不超出
+      overlap = (fullWidth - CARD_WIDTH) / (arr.length - 1);
+      if (overlap < 18) overlap = 18; // 最小重叠，防止太密
+    }
+    for (let i = 0; i < arr.length; ++i) {
+      lefts.push(startX + i * overlap);
+    }
+    return (
+      <div style={{ position: 'relative', height: 68, minWidth: PAI_DUN_WIDTH }}>
+        {arr.map((card, idx) => (
+          <img
+            key={card}
+            src={`/cards/${card}.svg`}
+            alt={card}
+            className="card-img"
+            style={{
+              position: 'absolute',
+              left: lefts[idx],
+              top: 0,
+              zIndex: idx,
+              border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+              boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
+              cursor: isReady ? 'pointer' : 'not-allowed'
+            }}
+            onClick={() => { if (isReady) handleCardClick(card, area); }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // 牌墩
+  function renderPaiDun(arr, label, area, color) {
+    return (
+      <div
         style={{
-          border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-          boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
+          display: 'flex',
+          alignItems: 'flex-start',
+          marginBottom: 16,
+          position: 'relative'
         }}
-        onClick={() => handleCardClick(card, area)}
-      />
+      >
+        <div
+          style={{
+            background: '#1e663d',
+            borderRadius: 10,
+            padding: '0 0',
+            border: '2px dashed #23e67a',
+            minWidth: PAI_DUN_WIDTH,
+            maxWidth: PAI_DUN_WIDTH,
+            minHeight: 68,
+            position: 'relative',
+            cursor: isReady ? 'pointer' : 'not-allowed',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => { if (isReady) moveTo(area); }}
+        >
+          {/* 牌 */}
+          {arr.length === 0 &&
+            <span style={{
+              display: 'block',
+              color: '#aaa',
+              fontSize: 15,
+              padding: '18px 0 0 16px'
+            }}>请放置</span>
+          }
+          {renderPaiDunCards(arr, area)}
+        </div>
+        {/* 说明文字在右侧，绝对定位在牌墩虚线框右边 */}
+        <div
+          style={{
+            marginLeft: 18,
+            color,
+            fontSize: 16,
+            minWidth: 60,
+            marginTop: 6,
+            height: 34,
+            whiteSpace: 'nowrap',
+            lineHeight: '34px',
+            zIndex: 1, // 说明文字可以被扑克牌覆盖
+            position: 'relative'
+          }}
+        >
+          {label}（{arr.length}）
+        </div>
+      </div>
     );
   }
 
@@ -206,51 +281,19 @@ export default function TryPlay() {
                 {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderCards(head, 'none') : renderCards(aiPlayers[i - 1].head, 'none')}
+                {i === 0 ? renderPaiDunCards(head, 'none') : renderPaiDunCards(aiPlayers[i - 1].head, 'none')}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderCards(middle, 'none') : renderCards(aiPlayers[i - 1].middle, 'none')}
+                {i === 0 ? renderPaiDunCards(middle, 'none') : renderPaiDunCards(aiPlayers[i - 1].middle, 'none')}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                {i === 0 ? renderCards(tail, 'none') : renderCards(aiPlayers[i - 1].tail, 'none')}
+                {i === 0 ? renderPaiDunCards(tail, 'none') : renderPaiDunCards(aiPlayers[i - 1].tail, 'none')}
               </div>
             </div>
           ))}
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
           }} onClick={() => setShowResult(false)}>×</button>
-        </div>
-      </div>
-    );
-  }
-
-  // 三墩渲染
-  function renderPaiDun(arr, label, color, area) {
-    return (
-      <div
-        style={{
-          background: '#1e663d',
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 12,
-          cursor: isReady ? 'pointer' : 'not-allowed',
-          border: '2px dashed #23e67a'
-        }}
-        onClick={() => { if (isReady) moveTo(area); }}
-      >
-        <div style={{ marginBottom: 8, color, fontSize: 16 }}>{label}（{arr.length}）</div>
-        <div style={{
-          background: '#164b2e',
-          borderRadius: 7,
-          minHeight: 36,
-          marginBottom: 6,
-          color: '#fff',
-          display: 'flex',
-          gap: 8,
-        }}>
-          {arr.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> :
-            renderCards(arr, area)
-          }
         </div>
       </div>
     );
@@ -293,17 +336,17 @@ export default function TryPlay() {
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
 
-        {/* 三墩 */}
-        {renderPaiDun(head, '头道', '#e0ffe3', 'head')}
-        {renderPaiDun(middle, '中道', '#e0eaff', 'middle')}
-        {renderPaiDun(tail, '尾道', '#ffe6e0', 'tail')}
+        {/* 牌墩区域 */}
+        {renderPaiDun(head, '头道', 'head', '#e0ffe3')}
+        {renderPaiDun(middle, '中道', 'middle', '#e0eaff')}
+        {renderPaiDun(tail, '尾道', 'tail', '#ffe6e0')}
 
         {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
           <button
             style={{
               flex: 1,
-              background: isReady ? '#9e9e9e' : '#23e67a',
+              background: isReady ? '#9e9e9e' : '#bbbbbb',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
