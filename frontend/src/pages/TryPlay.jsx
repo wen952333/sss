@@ -6,13 +6,13 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
+// 基础参数
 const OUTER_WIDTH = 420;
-const PAI_DUN_WIDTH = OUTER_WIDTH - 2 * 0 - 0; // 占满整体
+const PAI_DUN_WIDTH = OUTER_WIDTH - 0;
 const BASE_PAI_DUN_HEIGHT = 102;
 const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 133
-const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94); // 牌高度为牌墩的94%
+const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
 const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66); // 保持原宽高比
-const CARD_GAP_DEFAULT = Math.floor(CARD_WIDTH / 3); // 默认堆叠间距
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -66,11 +66,10 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  // 多选
+  // 多选核心
   function handleCardClick(card, area, e) {
     e.stopPropagation();
     setSelected(prev => {
-      // 切换堆多选区
       if (prev.area !== area) return { area, cards: [card] };
       const isSelected = prev.cards.includes(card);
       let nextCards;
@@ -113,7 +112,7 @@ export default function TryPlay() {
     setMsg('');
   }
 
-  // 绿色光影外框
+  // 绿色发光边框
   const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a55';
 
   function renderPlayerSeat(name, idx, isMe) {
@@ -424,6 +423,7 @@ export default function TryPlay() {
   );
 }
 
+// 工具函数
 function getShuffledDeck() {
   const deck = [];
   for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
