@@ -6,6 +6,15 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
+// 高度参数
+const CARD_WIDTH = 46;
+const CARD_HEIGHT = 66;
+const CARD_GAP = 8;
+const PAI_DUN_WIDTH = 340;
+const PAI_DUN_HEIGHT = Math.round(68 * 1.5); // 102
+const CARD_HEIGHT_ENLARGED = Math.round(CARD_HEIGHT * 1.5); // 99
+const CARD_WIDTH_ENLARGED = Math.round(CARD_WIDTH * 1.5); // 69
+
 function getShuffledDeck() {
   const deck = [];
   for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
@@ -32,10 +41,6 @@ function calcScores(allPlayers) {
   });
   return scores;
 }
-
-const CARD_WIDTH = 46; // Play.css .card-img
-const CARD_GAP = 8;
-const PAI_DUN_HEIGHT = 68;
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -89,12 +94,20 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  function handleCardClick(card, area) {
-    setSelected(sel => {
-      if (sel.area !== area) return { area, cards: [card] };
-      return sel.cards.includes(card)
-        ? { area, cards: sel.cards.filter(c => c !== card) }
-        : { area, cards: [...sel.cards, card] };
+  // 支持多选
+  function handleCardClick(card, area, e) {
+    e.stopPropagation();
+    setSelected(prev => {
+      if (prev.area !== area) return { area, cards: [card] };
+      // 多选（Ctrl/Shift 或直接点，多次点都能多选/反选）
+      const isSelected = prev.cards.includes(card);
+      let nextCards;
+      if (isSelected) {
+        nextCards = prev.cards.filter(c => c !== card);
+      } else {
+        nextCards = [...prev.cards, card];
+      }
+      return { area, cards: nextCards };
     });
   }
 
@@ -154,111 +167,63 @@ export default function TryPlay() {
     );
   }
 
-  // 牌墩区域宽度动态获取，默认最大420px，跟随父容器
-  function getPaiDunWidth() {
-    // 420 - 左右padding 22 = 376, 再减点安全距离
-    return 360;
-  }
-
-  // 渲染卡片，平铺或堆叠
+  // 渲染卡片
   function renderPaiDunCards(arr, area) {
-    const paiDunWidth = getPaiDunWidth();
-    const N = arr.length;
-    if (N === 0) {
-      return (
-        <div style={{
-          width: '100%',
-          height: PAI_DUN_HEIGHT,
-          display: 'flex',
-          alignItems: 'center',
-          paddingLeft: 14,
-          color: '#aaa',
-          fontSize: 15,
-        }}>
-          请放置
-        </div>
-      );
+    const fullWidth = PAI_DUN_WIDTH - 16; // 内边距
+    const cardFull = CARD_WIDTH_ENLARGED + CARD_GAP;
+    let overlap = CARD_GAP;
+    let lefts = [];
+    let startX = 8;
+    // 判断是否需要堆叠
+    if (arr.length * cardFull > fullWidth) {
+      overlap = (fullWidth - CARD_WIDTH_ENLARGED) / (arr.length - 1);
+      if (overlap < 18) overlap = 18;
     }
-    // 判断是否堆叠
-    const cardFull = CARD_WIDTH + CARD_GAP;
-    if (N * cardFull <= paiDunWidth - 60) { // 留60给右侧说明文字
-      // 平铺
-      return (
-        <div style={{
-          height: PAI_DUN_HEIGHT,
-          display: 'flex',
-          alignItems: 'center',
-          gap: CARD_GAP,
-          paddingLeft: 12,
-          paddingRight: 12,
-        }}>
-          {arr.map(card => (
-            <img
-              key={card}
-              src={`/cards/${card}.svg`}
-              alt={card}
-              className="card-img"
-              style={{
-                border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-                boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
-                cursor: isReady ? 'pointer' : 'not-allowed',
-                width: CARD_WIDTH, height: 66,
-                background: '#fff',
-              }}
-              onClick={() => { if (isReady) handleCardClick(card, area); }}
-            />
-          ))}
-        </div>
-      );
-    } else {
-      // 堆叠
-      // 让最后一张刚好不超出
-      const totalWidth = paiDunWidth - 60 - 12; // 右侧文字和左右padding
-      const overlap = (totalWidth - CARD_WIDTH) / (N - 1);
-      const minOverlap = 18;
-      const realOverlap = Math.max(overlap, minOverlap);
-      return (
-        <div style={{
-          position: 'relative',
-          height: PAI_DUN_HEIGHT,
-          width: totalWidth + CARD_WIDTH,
-          marginLeft: 12,
-          marginRight: 12
-        }}>
-          {arr.map((card, idx) => (
-            <img
-              key={card}
-              src={`/cards/${card}.svg`}
-              alt={card}
-              className="card-img"
-              style={{
-                position: 'absolute',
-                left: idx * realOverlap,
-                top: (PAI_DUN_HEIGHT - 66) / 2,
-                zIndex: idx,
-                border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-                boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
-                cursor: isReady ? 'pointer' : 'not-allowed',
-                width: CARD_WIDTH, height: 66,
-                background: '#fff',
-              }}
-              onClick={() => { if (isReady) handleCardClick(card, area); }}
-            />
-          ))}
-        </div>
-      );
+    for (let i = 0; i < arr.length; ++i) {
+      lefts.push(startX + i * overlap);
     }
+    return (
+      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, minWidth: PAI_DUN_WIDTH }}>
+        {arr.map((card, idx) => (
+          <img
+            key={card}
+            src={`/cards/${card}.svg`}
+            alt={card}
+            className="card-img"
+            style={{
+              position: 'absolute',
+              left: lefts[idx],
+              top: (PAI_DUN_HEIGHT - CARD_HEIGHT_ENLARGED) / 2,
+              zIndex: idx,
+              background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
+              boxShadow: selected.area === area && selected.cards.includes(card)
+                ? '0 0 14px #23e67a66'
+                : '0 2px 8px #bec7dd3a',
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              width: CARD_WIDTH_ENLARGED,
+              height: CARD_HEIGHT_ENLARGED,
+              border: 'none', // 彻底无边框
+              outline: 'none',
+              borderRadius: 8,
+              transition: 'background 0.12s',
+              userSelect: 'none'
+            }}
+            onClick={e => { if (isReady) handleCardClick(card, area, e); }}
+            draggable={false}
+          />
+        ))}
+      </div>
+    );
   }
 
   // 牌墩
   function renderPaiDun(arr, label, area, color) {
-    const paiDunWidth = getPaiDunWidth();
     return (
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          marginBottom: 16,
+          marginBottom: 18,
           position: 'relative',
           width: '100%',
         }}
@@ -269,7 +234,7 @@ export default function TryPlay() {
             borderRadius: 10,
             border: '2px dashed #23e67a',
             width: '100%',
-            minWidth: paiDunWidth,
+            minWidth: PAI_DUN_WIDTH,
             minHeight: PAI_DUN_HEIGHT,
             height: PAI_DUN_HEIGHT,
             display: 'flex',
@@ -277,13 +242,26 @@ export default function TryPlay() {
             boxSizing: 'border-box',
             cursor: isReady ? 'pointer' : 'not-allowed',
             position: 'relative',
-            paddingRight: 0, // 右侧不留padding
+            paddingRight: 0,
             paddingLeft: 0,
             flex: 1
           }}
           onClick={() => { if (isReady) moveTo(area); }}
         >
           {/* 卡片部分 */}
+          {arr.length === 0 &&
+            <div style={{
+              width: '100%',
+              height: PAI_DUN_HEIGHT,
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: 14,
+              color: '#aaa',
+              fontSize: 17,
+            }}>
+              请放置
+            </div>
+          }
           {renderPaiDunCards(arr, area)}
           {/* 说明文字，绝对定位在右侧 */}
           <div
@@ -292,7 +270,7 @@ export default function TryPlay() {
               right: 18,
               top: 0,
               color,
-              fontSize: 16,
+              fontSize: 18,
               minWidth: 60,
               height: PAI_DUN_HEIGHT,
               whiteSpace: 'nowrap',
@@ -368,7 +346,7 @@ export default function TryPlay() {
         borderRadius: 12,
         boxShadow: '0 4px 32px #0f2717bb',
         padding: 22,
-        minHeight: 650,
+        minHeight: 850,
         position: 'relative'
       }}>
         <button
