@@ -8,14 +8,16 @@ export default function Play() {
   const [myPoints, setMyPoints] = useState(0);
   const [myName, setMyName] = useState('');
   const [myCards, setMyCards] = useState([]);
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected] = useState({ area: 'hand', cards: [] }); // {area, cards}
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
   const [submitMsg, setSubmitMsg] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [isReady, setIsReady] = useState(false); // 新增
+  const [isReady, setIsReady] = useState(false);
   const [roomStatus, setRoomStatus] = useState('');
+  const [showResult, setShowResult] = useState(false);
+  const [myResult, setMyResult] = useState(null);
   const navigate = useNavigate();
 
   // 登录校验和查分
@@ -50,8 +52,7 @@ export default function Play() {
     const data = await res.json();
     if (data.success) {
       setPlayers(data.players);
-      setRoomStatus(data.status); // 新增
-      // 找到自己是否已经准备
+      setRoomStatus(data.status);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
       setIsReady(me && me.submitted);
     }
@@ -76,14 +77,20 @@ export default function Play() {
     const data = await res.json();
     if (data.success) {
       setSubmitted(!!data.submitted);
-      // 若刚提交，显示自己分好的三墩
+      setMyResult(data.result || null);
       if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
         setHead(data.cards.slice(0, 3));
         setMiddle(data.cards.slice(3, 8));
         setTail(data.cards.slice(8, 13));
         setMyCards([]);
       } else if (!data.submitted && Array.isArray(data.cards)) {
-        setMyCards(data.cards);
+        // 自动分牌仅在三墩都为空时做一次
+        if (head.length === 0 && middle.length === 0 && tail.length === 0) {
+          setHead(data.cards.slice(0, 3));
+          setMiddle(data.cards.slice(3, 8));
+          setTail(data.cards.slice(8, 13));
+          setMyCards([]); // 全部分过去
+        }
       }
     }
   }
@@ -110,42 +117,58 @@ export default function Play() {
     setIsReady(true);
   }
 
-  // 牌点击：高亮/取消高亮
-  function handleCardClick(card) {
-    if (submitted) return;
-    setSelected(sel => sel.includes(card) ? sel.filter(c => c !== card) : [...sel, card]);
-  }
-
-  // 点击头/中/尾道，把选中的牌移过去
-  function moveTo(dest) {
-    if (submitted) return;
-    let destArr, setDest, maxLen;
-    if (dest === 'head') {
-      destArr = head; setDest = setHead; maxLen = 3;
-    } else if (dest === 'middle') {
-      destArr = middle; setDest = setMiddle; maxLen = 5;
-    } else if (dest === 'tail') {
-      destArr = tail; setDest = setTail; maxLen = 5;
-    }
-    const newCards = selected.filter(c => !destArr.includes(c));
-    if (destArr.length + newCards.length > maxLen) {
-      setSubmitMsg(`该道最多放${maxLen}张牌`);
-      return;
-    }
-    setDest([...destArr, ...newCards]);
-    setMyCards(cards => cards.filter(c => !newCards.includes(c)));
-    setSelected([]);
+  // 自动分牌
+  function handleAutoSplit() {
+    // 合并所有未分配的牌
+    const all = [...myCards, ...head, ...middle, ...tail];
+    setHead(all.slice(0, 3));
+    setMiddle(all.slice(3, 8));
+    setTail(all.slice(8, 13));
+    setMyCards([]);
+    setSelected({ area: 'hand', cards: [] });
     setSubmitMsg('');
   }
 
-  // 撤回所有分配
-  function handleReset() {
+  // 牌点击：高亮/取消高亮（在手牌或三墩中都可选）
+  function handleCardClick(card, area) {
     if (submitted) return;
-    setMyCards([...myCards, ...head, ...middle, ...tail]);
-    setHead([]);
-    setMiddle([]);
-    setTail([]);
-    setSelected([]);
+    setSelected(sel => {
+      if (sel.area !== area) return { area, cards: [card] };
+      return sel.cards.includes(card)
+        ? { area, cards: sel.cards.filter(c => c !== card) }
+        : { area, cards: [...sel.cards, card] };
+    });
+  }
+
+  // 点击任意墩，将高亮选中的牌移入该墩（无数量限制）
+  function moveTo(dest) {
+    if (submitted) return;
+    if (!selected.cards.length) return;
+    // 先从原区移除
+    let newHand = [...myCards];
+    let newHead = [...head];
+    let newMiddle = [...middle];
+    let newTail = [...tail];
+    const from = selected.area;
+    if (from === 'hand') {
+      newHand = newHand.filter(c => !selected.cards.includes(c));
+    } else if (from === 'head') {
+      newHead = newHead.filter(c => !selected.cards.includes(c));
+    } else if (from === 'middle') {
+      newMiddle = newMiddle.filter(c => !selected.cards.includes(c));
+    } else if (from === 'tail') {
+      newTail = newTail.filter(c => !selected.cards.includes(c));
+    }
+    // 放到目标区
+    if (dest === 'hand') newHand = [...newHand, ...selected.cards];
+    if (dest === 'head') newHead = [...newHead, ...selected.cards];
+    if (dest === 'middle') newMiddle = [...newMiddle, ...selected.cards];
+    if (dest === 'tail') newTail = [...newTail, ...selected.cards];
+    setMyCards(newHand);
+    setHead(newHead);
+    setMiddle(newMiddle);
+    setTail(newTail);
+    setSelected({ area: dest, cards: [] });
     setSubmitMsg('');
   }
 
@@ -166,10 +189,74 @@ export default function Play() {
     const data = await res.json();
     if (data.success) {
       setSubmitted(true);
-      setSubmitMsg('提交成功，等待其他玩家...');
+      setShowResult(true);
+      setSubmitMsg('比牌结果如下');
     } else {
       setSubmitMsg('提交失败，请重试');
     }
+  }
+
+  // 比牌弹窗（2x2田字格，3墩堆叠显示）
+  function renderResultModal() {
+    if (!showResult) return null;
+    // 假数据演示结构，实际可用myResult
+    const fields = [
+      { label: '头道', cards: head },
+      { label: '中道', cards: middle },
+      { label: '尾道', cards: tail },
+      { label: '得分', score: myResult?.[0]?.score || 1 }
+    ];
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        <div style={{
+          background: '#fff',
+          borderRadius: 15,
+          padding: 24,
+          minWidth: 320,
+          minHeight: 240,
+          boxShadow: '0 8px 40px #0002',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: '1fr 1fr',
+          gap: 16,
+        }}>
+          <div style={{ gridColumn: '1/2', gridRow: '1/2', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, color: '#23e67a', marginBottom: 8 }}>{fields[0].label}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+              {fields[0].cards.map(card => (
+                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ gridColumn: '2/3', gridRow: '1/2', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, color: '#4f8cff', marginBottom: 8 }}>{fields[1].label}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+              {fields[1].cards.map(card => (
+                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ gridColumn: '1/2', gridRow: '2/3', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, color: '#ff974f', marginBottom: 8 }}>{fields[2].label}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+              {fields[2].cards.map(card => (
+                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ gridColumn: '2/3', gridRow: '2/3', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, color: '#ca1a4b', marginBottom: 8 }}>得分</div>
+            <div style={{ fontSize: 27, color: '#ca1a4b', marginTop: 14 }}>{fields[3].score}</div>
+          </div>
+          <button style={{
+            position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
+          }} onClick={() => setShowResult(false)}>×</button>
+        </div>
+      </div>
+    );
   }
 
   // 按钮样式
@@ -248,17 +335,17 @@ export default function Play() {
           alt={card}
           className="card-img"
           style={{
-            border: selected.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-            boxShadow: selected.includes(card) ? '0 0 12px #23e67a88' : ''
+            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+            boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
           }}
-          onClick={() => handleCardClick(card)}
+          onClick={() => handleCardClick(card, 'hand')}
         />
       )}
     </div>;
   }
 
-  // 渲染分好的三道
-  function renderPaiDun(arr, label, color, maxLen, onClick) {
+  // 渲染分好的三道（牌也可高亮多选）
+  function renderPaiDun(arr, label, color, area, onClick) {
     return (
       <div
         style={{
@@ -269,9 +356,9 @@ export default function Play() {
           cursor: submitted ? 'default' : 'pointer',
           border: submitted ? 'none' : '2px dashed #23e67a'
         }}
-        onClick={onClick}
+        onClick={() => moveTo(area)}
       >
-        <div style={{ marginBottom: 8, color, fontSize: 16 }}>{label}（{arr.length}/{maxLen}）</div>
+        <div style={{ marginBottom: 8, color, fontSize: 16 }}>{label}（{arr.length}）</div>
         <div style={{
           background: '#164b2e',
           borderRadius: 7,
@@ -288,7 +375,12 @@ export default function Play() {
                 src={`/cards/${card}.svg`}
                 alt={card}
                 className="card-img"
-                style={{ opacity: submitted ? 0.75 : 1 }}
+                style={{
+                  opacity: submitted ? 0.75 : 1,
+                  border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+                  boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
+                }}
+                onClick={e => { e.stopPropagation(); handleCardClick(card, area); }}
               />
             )
           }
@@ -349,9 +441,9 @@ export default function Play() {
           </div>
           {renderMyCards()}
         </div>
-        {renderPaiDun(head, '头道', '#e0ffe3', 3, () => moveTo('head'))}
-        {renderPaiDun(middle, '中道', '#e0eaff', 5, () => moveTo('middle'))}
-        {renderPaiDun(tail, '尾道', '#ffe6e0', 5, () => moveTo('tail'))}
+        {renderPaiDun(head, '头道', '#e0ffe3', 'head', () => moveTo('head'))}
+        {renderPaiDun(middle, '中道', '#e0eaff', 'middle', () => moveTo('middle'))}
+        {renderPaiDun(tail, '尾道', '#ffe6e0', 'tail', () => moveTo('tail'))}
 
         {/* 三个固定按钮 */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
@@ -362,7 +454,8 @@ export default function Play() {
           >准备</button>
           <button
             style={buttonStyle}
-            disabled
+            onClick={handleAutoSplit}
+            disabled={submitted}
           >自动分牌</button>
           <button
             style={buttonStyle}
@@ -374,6 +467,7 @@ export default function Play() {
           {submitMsg}
         </div>
       </div>
+      {renderResultModal()}
     </div>
   );
 }
