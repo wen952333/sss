@@ -6,13 +6,10 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
+// 本地洗牌
 function getShuffledDeck() {
   const deck = [];
-  for (const suit of allSuits) {
-    for (const rank of allRanks) {
-      deck.push(`${rank}_of_${suit}`);
-    }
-  }
+  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -20,7 +17,7 @@ function getShuffledDeck() {
   return deck;
 }
 
-// AI分牌：简单分3-5-5
+// 简单AI分牌
 function aiSplit(cards) {
   return {
     head: cards.slice(0, 3),
@@ -31,66 +28,69 @@ function aiSplit(cards) {
 
 // 比牌逻辑（简单：每墩随机分1~3分）
 function calcScores(allPlayers) {
-  // 返回每个玩家总分
   const scores = allPlayers.map(() => 0);
-  // 比每一墩，最强得3分、次强2分、最弱1分、最弱0分（示例，实际可自定义）
   ['head', 'middle', 'tail'].forEach(area => {
-    // 随机分配分数
     const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
-    for (let i=0; i<4; ++i) {
-      scores[i] += ranks[i];
-    }
+    for (let i=0; i<4; ++i) scores[i] += ranks[i];
   });
   return scores;
 }
 
 export default function TryPlay() {
   const navigate = useNavigate();
-  const [myCards, setMyCards] = useState([]);
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
-  const [selected, setSelected] = useState({ area: 'hand', cards: [] });
+  const [selected, setSelected] = useState({ area: '', cards: [] }); // 只支持三墩内操作
   const [msg, setMsg] = useState('');
   const [aiPlayers, setAiPlayers] = useState([
-    { name: AI_NAMES[0], cards: [], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[1], cards: [], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], cards: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[0], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[1], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[2], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [dealed, setDealed] = useState(false);
 
-  // 发牌
-  function handleDeal() {
+  // 只要玩家点准备，就洗牌&发牌&分牌到三墩，AI自动准备
+  function handleReady() {
+    // 洗牌并分四手
     const deck = getShuffledDeck();
-    const playerHand = deck.slice(0, 13);
+    const myHand = deck.slice(0, 13);
     const aiHands = [
       deck.slice(13, 26),
       deck.slice(26, 39),
       deck.slice(39, 52)
     ];
-    setMyCards(playerHand);
-    setHead([]); setMiddle([]); setTail([]);
-    setSelected({ area: 'hand', cards: [] });
-    setAiPlayers(aiPlayers.map((ai, idx) => ({
-      ...ai, cards: aiHands[idx], head: [], middle: [], tail: []
-    })));
+    // 玩家手牌智能分配到三墩
+    const mySplit = aiSplit(myHand);
+    setHead(mySplit.head);
+    setMiddle(mySplit.middle);
+    setTail(mySplit.tail);
+    // AI自动智能分配
+    setAiPlayers(aiPlayers.map((ai, idx) => {
+      const sp = aiSplit(aiHands[idx]);
+      return { ...ai, ...sp };
+    }));
+    setIsReady(true);
+    setDealed(true);
+    setMsg('');
     setShowResult(false);
     setScores([0,0,0,0]);
-    setHasStarted(true);
-    setMsg('');
+    setSelected({ area: '', cards: [] });
   }
 
-  // 自动分牌
+  // 智能分牌：重新分配三墩（只影响自己）
   function handleAutoSplit() {
-    const all = [...myCards, ...head, ...middle, ...tail];
-    setHead(all.slice(0, 3));
-    setMiddle(all.slice(3, 8));
-    setTail(all.slice(8, 13));
-    setMyCards([]);
-    setSelected({ area: 'hand', cards: [] });
+    if (!dealed) return;
+    const all = [...head, ...middle, ...tail];
+    const split = aiSplit(all);
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
     setMsg('');
+    setSelected({ area: '', cards: [] });
   }
 
   // 牌点击高亮
@@ -103,20 +103,18 @@ export default function TryPlay() {
     });
   }
 
-  // 移动牌到指定区
+  // 墩之间移动牌（允许多选，直接移过去）
   function moveTo(dest) {
     if (!selected.cards.length) return;
-    let newHand = [...myCards], newHead = [...head], newMiddle = [...middle], newTail = [...tail];
+    let newHead = [...head], newMiddle = [...middle], newTail = [...tail];
     const from = selected.area;
-    if (from === 'hand') newHand = newHand.filter(c => !selected.cards.includes(c));
     if (from === 'head') newHead = newHead.filter(c => !selected.cards.includes(c));
     if (from === 'middle') newMiddle = newMiddle.filter(c => !selected.cards.includes(c));
     if (from === 'tail') newTail = newTail.filter(c => !selected.cards.includes(c));
-    if (dest === 'hand') newHand = [...newHand, ...selected.cards];
     if (dest === 'head') newHead = [...newHead, ...selected.cards];
     if (dest === 'middle') newMiddle = [...newMiddle, ...selected.cards];
     if (dest === 'tail') newTail = [...newTail, ...selected.cards];
-    setMyCards(newHand); setHead(newHead); setMiddle(newMiddle); setTail(newTail);
+    setHead(newHead); setMiddle(newMiddle); setTail(newTail);
     setSelected({ area: dest, cards: [] });
     setMsg('');
   }
@@ -127,16 +125,10 @@ export default function TryPlay() {
       setMsg('请按 3-5-5 张分配');
       return;
     }
-    // AI自动分牌
-    const newAiPlayers = aiPlayers.map(ai => {
-      const split = aiSplit(ai.cards);
-      return { ...ai, ...split };
-    });
-    setAiPlayers(newAiPlayers);
-    // 计算分数
+    // AI已自动分好牌
     const allPlayers = [
       { head, middle, tail },
-      ...newAiPlayers
+      ...aiPlayers
     ];
     const resScores = calcScores(allPlayers);
     setScores(resScores);
@@ -144,6 +136,7 @@ export default function TryPlay() {
     setMsg('');
   }
 
+  // UI渲染
   function renderPlayerSeat(name, idx, isMe) {
     const color = isMe ? '#23e67a' : '#fff';
     return (
@@ -164,13 +157,12 @@ export default function TryPlay() {
       >
         <div style={{ fontWeight: 700, fontSize: 18 }}>{name}</div>
         <div style={{ marginTop: 4, fontSize: 14 }}>
-          {showResult ? `得分：${scores[idx]}` : (isMe ? '你' : 'AI')}
+          {isMe ? '你' : 'AI'}
         </div>
       </div>
     );
   }
 
-  // 牌区渲染
   function renderCards(arr, area) {
     return arr.map(card =>
       <img
@@ -232,6 +224,38 @@ export default function TryPlay() {
     );
   }
 
+  // 三墩渲染
+  function renderPaiDun(arr, label, color, area) {
+    return (
+      <div
+        style={{
+          background: '#1e663d',
+          borderRadius: 10,
+          padding: 14,
+          marginBottom: 12,
+          cursor: isReady ? 'pointer' : 'not-allowed',
+          border: '2px dashed #23e67a'
+        }}
+        onClick={() => { if (isReady) moveTo(area); }}
+      >
+        <div style={{ marginBottom: 8, color, fontSize: 16 }}>{label}（{arr.length}）</div>
+        <div style={{
+          background: '#164b2e',
+          borderRadius: 7,
+          minHeight: 36,
+          marginBottom: 6,
+          color: '#fff',
+          display: 'flex',
+          gap: 8,
+        }}>
+          {arr.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> :
+            renderCards(arr, area)
+          }
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       background: '#164b2e',
@@ -268,67 +292,29 @@ export default function TryPlay() {
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
-        {/* 发牌按钮 */}
-        <button
-          style={{
-            width: '100%',
-            background: '#4f8cff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 12,
-            padding: '13px 0',
-            fontWeight: 700,
-            fontSize: 20,
-            letterSpacing: 2,
-            boxShadow: '0 2px 14px #a8b8e7aa',
-            cursor: 'pointer',
-            marginBottom: 12
-          }}
-          onClick={handleDeal}
-        >发牌</button>
-        {/* 手牌 */}
-        <div style={{ margin: '15px 0 10px 0' }}>
-          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-            你的手牌（点击选中，点击下方牌墩移动）
-          </div>
-          <div className="cards-area">{renderCards(myCards, 'hand')}</div>
-        </div>
+
         {/* 三墩 */}
-        <div
-          style={{ background: '#1e663d', borderRadius: 10, padding: 14, marginBottom: 12, cursor: 'pointer', border: '2px dashed #23e67a' }}
-          onClick={() => moveTo('head')}
-        >
-          <div style={{ marginBottom: 8, color: '#e0ffe3', fontSize: 16 }}>头道（{head.length}）</div>
-          <div style={{
-            background: '#164b2e', borderRadius: 7, minHeight: 36, marginBottom: 6, color: '#fff', display: 'flex', gap: 8
-          }}>
-            {head.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> : renderCards(head, 'head')}
-          </div>
-        </div>
-        <div
-          style={{ background: '#1e663d', borderRadius: 10, padding: 14, marginBottom: 12, cursor: 'pointer', border: '2px dashed #23e67a' }}
-          onClick={() => moveTo('middle')}
-        >
-          <div style={{ marginBottom: 8, color: '#e0eaff', fontSize: 16 }}>中道（{middle.length}）</div>
-          <div style={{
-            background: '#164b2e', borderRadius: 7, minHeight: 36, marginBottom: 6, color: '#fff', display: 'flex', gap: 8
-          }}>
-            {middle.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> : renderCards(middle, 'middle')}
-          </div>
-        </div>
-        <div
-          style={{ background: '#1e663d', borderRadius: 10, padding: 14, marginBottom: 12, cursor: 'pointer', border: '2px dashed #23e67a' }}
-          onClick={() => moveTo('tail')}
-        >
-          <div style={{ marginBottom: 8, color: '#ffe6e0', fontSize: 16 }}>尾道（{tail.length}）</div>
-          <div style={{
-            background: '#164b2e', borderRadius: 7, minHeight: 36, marginBottom: 6, color: '#fff', display: 'flex', gap: 8
-          }}>
-            {tail.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> : renderCards(tail, 'tail')}
-          </div>
-        </div>
+        {renderPaiDun(head, '头道', '#e0ffe3', 'head')}
+        {renderPaiDun(middle, '中道', '#e0eaff', 'middle')}
+        {renderPaiDun(tail, '尾道', '#ffe6e0', 'tail')}
+
         {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
+          <button
+            style={{
+              flex: 1,
+              background: isReady ? '#9e9e9e' : '#23e67a',
+              color: '#fff',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: 7,
+              padding: '10px 0',
+              fontSize: 18,
+              cursor: isReady ? 'not-allowed' : 'pointer'
+            }}
+            onClick={handleReady}
+            disabled={isReady}
+          >准备</button>
           <button
             style={{
               flex: 1,
@@ -339,10 +325,11 @@ export default function TryPlay() {
               borderRadius: 7,
               padding: '10px 0',
               fontSize: 18,
-              cursor: 'pointer'
+              cursor: isReady ? 'pointer' : 'not-allowed'
             }}
             onClick={handleAutoSplit}
-          >自动分牌</button>
+            disabled={!isReady}
+          >智能分牌</button>
           <button
             style={{
               flex: 1,
@@ -353,10 +340,10 @@ export default function TryPlay() {
               borderRadius: 7,
               padding: '10px 0',
               fontSize: 18,
-              cursor: 'pointer'
+              cursor: isReady ? 'pointer' : 'not-allowed'
             }}
             onClick={handleStartCompare}
-            disabled={!hasStarted}
+            disabled={!isReady}
           >开始比牌</button>
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
