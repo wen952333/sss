@@ -38,6 +38,7 @@ const PAI_DUN_WIDTH = 340;
 const CARD_WIDTH = 46; // Play.css .card-img
 const CARD_GAP = 8;
 const CARD_STACK_OFFSET = 24; // 堆叠时每张横向偏移
+const PAI_DUN_HEIGHT = 68; // 固定高度
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -156,9 +157,9 @@ export default function TryPlay() {
     );
   }
 
-  // 堆叠显示卡片
+  // 平铺还是堆叠卡片（当牌数少时平铺，超出宽度才堆叠）
   function renderPaiDunCards(arr, area) {
-    const fullWidth = PAI_DUN_WIDTH - 16; // 内边距
+    const fullWidth = PAI_DUN_WIDTH;
     const cardFull = CARD_WIDTH + CARD_GAP;
     let overlap = CARD_GAP;
     let lefts = [];
@@ -172,8 +173,9 @@ export default function TryPlay() {
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
+    // 垂直居中
     return (
-      <div style={{ position: 'relative', height: 68, minWidth: PAI_DUN_WIDTH }}>
+      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, minWidth: PAI_DUN_WIDTH }}>
         {arr.map((card, idx) => (
           <img
             key={card}
@@ -183,7 +185,7 @@ export default function TryPlay() {
             style={{
               position: 'absolute',
               left: lefts[idx],
-              top: 0,
+              top: (PAI_DUN_HEIGHT - 66) / 2, // 66为card-img高度，居中
               zIndex: idx,
               border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
               boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
@@ -215,40 +217,50 @@ export default function TryPlay() {
             border: '2px dashed #23e67a',
             minWidth: PAI_DUN_WIDTH,
             maxWidth: PAI_DUN_WIDTH,
-            minHeight: 68,
+            minHeight: PAI_DUN_HEIGHT,
+            height: PAI_DUN_HEIGHT,
             position: 'relative',
             cursor: isReady ? 'pointer' : 'not-allowed',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start'
           }}
           onClick={() => { if (isReady) moveTo(area); }}
         >
-          {/* 牌 */}
-          {arr.length === 0 &&
-            <span style={{
-              display: 'block',
-              color: '#aaa',
-              fontSize: 15,
-              padding: '18px 0 0 16px'
-            }}>请放置</span>
-          }
-          {renderPaiDunCards(arr, area)}
-        </div>
-        {/* 说明文字在右侧，绝对定位在牌墩虚线框右边 */}
-        <div
-          style={{
-            marginLeft: 18,
-            color,
-            fontSize: 16,
-            minWidth: 60,
-            marginTop: 6,
-            height: 34,
-            whiteSpace: 'nowrap',
-            lineHeight: '34px',
-            zIndex: 1, // 说明文字可以被扑克牌覆盖
-            position: 'relative'
-          }}
-        >
-          {label}（{arr.length}）
+          {/* 说明文字在框内左上角 */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 14,
+              top: 8,
+              color,
+              fontSize: 16,
+              minWidth: 60,
+              height: 24,
+              whiteSpace: 'nowrap',
+              lineHeight: '24px',
+              zIndex: 2,
+              background: 'transparent', // 透明
+              fontWeight: 600,
+              pointerEvents: 'none'
+            }}
+          >
+            {label}（{arr.length}）
+          </div>
+          {/* 牌（居中显示） */}
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            {arr.length === 0 &&
+              <span style={{
+                display: 'block',
+                color: '#aaa',
+                fontSize: 15,
+                padding: '18px 0 0 0',
+                marginLeft: 70 // 留出说明文字空间
+              }}>请放置</span>
+            }
+            {renderPaiDunCards(arr, area)}
+          </div>
         </div>
       </div>
     );
