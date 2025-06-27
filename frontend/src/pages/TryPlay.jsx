@@ -6,9 +6,36 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-// 新牌墩高度，较前置基础再增30%
+function getShuffledDeck() {
+  const deck = [];
+  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+function aiSplit(cards) {
+  return {
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+function calcScores(allPlayers) {
+  const scores = allPlayers.map(() => 0);
+  ['head', 'middle', 'tail'].forEach(area => {
+    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
+    for (let i=0; i<4; ++i) scores[i] += ranks[i];
+  });
+  return scores;
+}
+
+// 牌墩高度与卡片尺寸设置
 const BASE_PAI_DUN_HEIGHT = 102;
 const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 约133
+const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94); // 牌高度为牌墩的94%
+const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66); // 保持原宽高比
 const CARD_GAP = 8;
 
 export default function TryPlay() {
@@ -131,24 +158,20 @@ export default function TryPlay() {
 
   // 牌墩卡片，宽度100%，高度占牌墩94%，圆角较小
   function renderPaiDunCards(arr, area) {
-    // 容器宽度100%，高度PAI_DUN_HEIGHT
-    // 卡片高度
-    const cardHeight = Math.round(PAI_DUN_HEIGHT * 0.94);
-    const cardWidth = Math.round((CARD_WIDTH / CARD_HEIGHT) * cardHeight);
-    const cardFull = cardWidth + CARD_GAP;
-    const fullWidth = '100%'; // 占满
+    const cardFull = CARD_WIDTH + CARD_GAP;
+    const availableWidth = 420 - 2 * 0 - 24; // 420=最大内容宽，-24为两边内边距
     let overlap = CARD_GAP;
     let lefts = [];
     let startX = 12;
-    if (arr.length * cardFull > 360 - 24) { // 假定整体内容宽度360px
-      overlap = ((360 - 24) - cardWidth) / (arr.length - 1);
+    if (arr.length * cardFull > availableWidth) {
+      overlap = (availableWidth - CARD_WIDTH) / (arr.length - 1);
       if (overlap < 18) overlap = 18;
     }
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
-      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, width: fullWidth }}>
+      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, width: '100%' }}>
         {arr.map((card, idx) => (
           <img
             key={card}
@@ -158,15 +181,15 @@ export default function TryPlay() {
             style={{
               position: 'absolute',
               left: lefts[idx],
-              top: (PAI_DUN_HEIGHT - cardHeight) / 2,
+              top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
               zIndex: idx,
               background: selected.area === area && selected.cards.includes(card) ? '#fffbe1' : '#fff',
               boxShadow: selected.area === area && selected.cards.includes(card)
                 ? '0 0 16px #23e67a88'
                 : '0 2px 8px #0002',
               cursor: isReady ? 'pointer' : 'not-allowed',
-              width: cardWidth,
-              height: cardHeight,
+              width: CARD_WIDTH,
+              height: CARD_HEIGHT,
               border: 'none',
               outline: 'none',
               borderRadius: 5, // 圆角收窄
@@ -239,6 +262,7 @@ export default function TryPlay() {
     );
   }
 
+  // 比牌弹窗
   function renderResultModal() {
     if (!showResult) return null;
     return (
@@ -300,7 +324,6 @@ export default function TryPlay() {
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'box-shadow 0.2s, border-color 0.2s',
         minHeight: 'auto'
       }}>
         {/* 头部：退出房间+积分 */}
@@ -406,30 +429,4 @@ export default function TryPlay() {
       </div>
     </div>
   );
-}
-
-// 辅助工具
-function getShuffledDeck() {
-  const deck = [];
-  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
-}
-function calcScores(allPlayers) {
-  const scores = allPlayers.map(() => 0);
-  ['head', 'middle', 'tail'].forEach(area => {
-    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
-    for (let i=0; i<4; ++i) scores[i] += ranks[i];
-  });
-  return scores;
 }
