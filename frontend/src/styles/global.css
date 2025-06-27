@@ -1,7 +1,7 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Arial', sans-serif;
-  background: #f3f4f6;
+  background: #164b2e; /* 全局背景色改为深绿色 */
   min-height: 100vh;
 }
 input, button {
@@ -29,6 +29,8 @@ input, button {
   border-radius: 6px;
   border: 1px solid #d1d5db;
   font-size: 1.15rem;
+  box-sizing: border-box;
+  /* 保证和按钮一样宽 */
 }
 .tip {
   color: #666;
