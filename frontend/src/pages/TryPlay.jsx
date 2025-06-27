@@ -2,19 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Play.css';
 
-// 智能分牌算法(你可以用自己的SmartSplit.js引入替换aiSplit)
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
-}
-
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
-const allRanks = [
-  '2','3','4','5','6','7','8','9','10','jack','queen','king','ace'
-];
+const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
 function getShuffledDeck() {
@@ -27,6 +16,14 @@ function getShuffledDeck() {
   return deck;
 }
 
+function aiSplit(cards) {
+  return {
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+
 function calcScores(allPlayers) {
   const scores = allPlayers.map(() => 0);
   ['head', 'middle', 'tail'].forEach(area => {
@@ -36,8 +33,9 @@ function calcScores(allPlayers) {
   return scores;
 }
 
+// 牌墩宽度和卡片宽度
 const PAI_DUN_WIDTH = 340;
-const CARD_WIDTH = 46;
+const CARD_WIDTH = 46; // Play.css .card-img
 const CARD_GAP = 8;
 
 export default function TryPlay() {
@@ -50,16 +48,12 @@ export default function TryPlay() {
   const [aiPlayers, setAiPlayers] = useState([
     { name: AI_NAMES[0], head: [], middle: [], tail: [] },
     { name: AI_NAMES[1], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], head: [], middle: [], tail: [] }
+    { name: AI_NAMES[2], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
-
-  // 智能分牌循环索引和缓存（如用SmartSplit.js可替换）
-  const [splitIndex, setSplitIndex] = useState(0);
-  const [allSplits, setAllSplits] = useState([]);
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -83,26 +77,12 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
-    setAllSplits([]);
-    setSplitIndex(0);
   }
 
-  // 智能分牌：循环5种优选分法（如用SmartSplit.js请替换此函数）
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
-    // 只演示普通切分, 你可以引入getSmartSplits并替换此处
-    let splits = allSplits.length ? allSplits : [
-      aiSplit(all),
-      aiSplit([...all].reverse()),
-      aiSplit([...all].sort()),
-      aiSplit([...all].slice().sort(() => Math.random()-0.5)),
-      aiSplit([...all].slice().sort(() => Math.random()-0.5))
-    ];
-    if (!allSplits.length) setAllSplits(splits);
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
+    const split = aiSplit(all);
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
@@ -176,24 +156,21 @@ export default function TryPlay() {
   }
 
   // 堆叠显示卡片
-  function renderPaiDunCards(arr, area, size = 1) {
-    // size=1为正常，size=0.9为缩小10%（用于比牌弹窗）
-    const cardW = CARD_WIDTH * size;
-    const cardH = 66 * size;
+  function renderPaiDunCards(arr, area, cardWidth = CARD_WIDTH, cardHeight = 66) {
     const fullWidth = PAI_DUN_WIDTH - 16;
-    const cardFull = cardW + CARD_GAP;
+    const cardFull = cardWidth + CARD_GAP;
     let overlap = CARD_GAP;
     let lefts = [];
     let startX = 8;
     if (arr.length * cardFull > fullWidth) {
-      overlap = (fullWidth - cardW) / (arr.length - 1);
+      overlap = (fullWidth - cardWidth) / (arr.length - 1);
       if (overlap < 18) overlap = 18;
     }
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
-      <div style={{ position: 'relative', height: cardH, minWidth: PAI_DUN_WIDTH }}>
+      <div style={{ position: 'relative', height: cardHeight + 2, minWidth: PAI_DUN_WIDTH }}>
         {arr.map((card, idx) => (
           <img
             key={card}
@@ -205,13 +182,14 @@ export default function TryPlay() {
               left: lefts[idx],
               top: 0,
               zIndex: idx,
-              width: cardW,
-              height: cardH,
+              width: cardWidth,
+              height: cardHeight,
               border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
               boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
               cursor: isReady ? 'pointer' : 'not-allowed'
             }}
             onClick={() => { if (isReady) handleCardClick(card, area); }}
+            draggable={false}
           />
         ))}
       </div>
@@ -274,26 +252,66 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗（缩小扑克牌10%，红线4区块十字）
+  // 比牌弹窗（与牌桌同宽高，缩小牌面90%，红色十字线分4区块）
   function renderResultModal() {
     if (!showResult) return null;
-    // 四区块坐标
-    const vLine = { left: '50%', top: 0, width: 2, height: '100%', position: 'absolute', background: 'red', zIndex: 10, transform: 'translateX(-1px)' };
-    const hLine = { left: 0, top: '50%', width: '100%', height: 2, position: 'absolute', background: 'red', zIndex: 10, transform: 'translateY(-1px)' };
-    const CARD_SCALE = 0.9;
+
+    // 牌桌宽高
+    const outerWidth = 420;
+    const outerHeight = 650;
+    // 缩小10%牌面
+    const resultCardWidth = Math.round(CARD_WIDTH * 0.9);
+    const resultCardHeight = Math.round(66 * 0.9);
+
+    // 4宫格布局
+    const gridStyle = {
+      background: '#fff',
+      borderRadius: 12,
+      padding: 0,
+      width: outerWidth,
+      height: outerHeight,
+      boxShadow: '0 8px 40px #0002',
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gridTemplateRows: '1fr 1fr',
+      position: 'relative',
+      overflow: 'hidden'
+    };
+
+    // 红色十字线样式
+    const crossLineStyleV = {
+      position: 'absolute',
+      top: 0,
+      left: '50%',
+      width: '2px',
+      height: '100%',
+      background: 'red',
+      zIndex: 10,
+      transform: 'translateX(-1px)'
+    };
+    const crossLineStyleH = {
+      position: 'absolute',
+      left: 0,
+      top: '50%',
+      width: '100%',
+      height: '2px',
+      background: 'red',
+      zIndex: 10,
+      transform: 'translateY(-1px)'
+    };
 
     function renderPlayerBlock(player, score, headArr, middleArr, tailArr, color) {
       return (
-        <div style={{ textAlign: 'center', padding: 10, boxSizing: 'border-box', height: '100%' }}>
+        <div style={{ textAlign: 'center', padding: '22px 0 0 0', boxSizing: 'border-box', height: '100%' }}>
           <div style={{ fontWeight: 700, color, marginBottom: 6 }}>{player}（{score}分）</div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginBottom: 2 }}>
-            {renderPaiDunCards(headArr, 'none', CARD_SCALE)}
+            {renderPaiDunCards(headArr, 'none', resultCardWidth, resultCardHeight)}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginBottom: 2 }}>
-            {renderPaiDunCards(middleArr, 'none', CARD_SCALE)}
+            {renderPaiDunCards(middleArr, 'none', resultCardWidth, resultCardHeight)}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-            {renderPaiDunCards(tailArr, 'none', CARD_SCALE)}
+            {renderPaiDunCards(tailArr, 'none', resultCardWidth, resultCardHeight)}
           </div>
         </div>
       );
@@ -304,23 +322,11 @@ export default function TryPlay() {
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
-        <div style={{
-          background: '#fff',
-          borderRadius: 15,
-          padding: 24,
-          minWidth: 440,
-          minHeight: 420,
-          boxShadow: '0 8px 40px #0002',
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
-          gap: 0,
-          position: 'relative'
-        }}>
-          {/* 红色十字线 */}
-          <div style={vLine} />
-          <div style={hLine} />
-          {/* 四区块玩家区 */}
+        <div style={gridStyle}>
+          {/* 红色十字分割线 */}
+          <div style={crossLineStyleV} />
+          <div style={crossLineStyleH} />
+          {/* 四宫格玩家 */}
           {renderPlayerBlock('你', scores[0], head, middle, tail, '#23e67a')}
           {renderPlayerBlock(aiPlayers[0].name, scores[1], aiPlayers[0].head, aiPlayers[0].middle, aiPlayers[0].tail, '#4f8cff')}
           {renderPlayerBlock(aiPlayers[1].name, scores[2], aiPlayers[1].head, aiPlayers[1].middle, aiPlayers[1].tail, '#4f8cff')}
@@ -365,13 +371,16 @@ export default function TryPlay() {
         >
           &lt; 返回大厅
         </button>
+        {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18 }}>
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
+        {/* 牌墩区域 */}
         {renderPaiDun(head, '头道', 'head', '#e0ffe3')}
         {renderPaiDun(middle, '中道', 'middle', '#e0eaff')}
         {renderPaiDun(tail, '尾道', 'tail', '#ffe6e0')}
+        {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
           <button
             style={{
