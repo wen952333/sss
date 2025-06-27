@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CompareResultModal from './CompareResultModal'; // 注意路径视你实际项目结构
+import CompareResultModal from './CompareResultModal';
+import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
@@ -38,7 +39,6 @@ function calcScores(allPlayers) {
 const PAI_DUN_WIDTH = 340;
 const CARD_WIDTH = 46; // Play.css .card-img
 const CARD_GAP = 8;
-const CARD_STACK_OFFSET = 24; // 堆叠时每张横向偏移
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -56,6 +56,10 @@ export default function TryPlay() {
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
+
+  // 智能分牌循环索引和缓存
+  const [splitIndex, setSplitIndex] = useState(0);
+  const [allSplits, setAllSplits] = useState([]);
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -79,12 +83,21 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
+    setAllSplits([]);
+    setSplitIndex(0);
   }
 
+  // 智能分牌：循环5种优选分法
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
-    const split = aiSplit(all);
+    if (all.length !== 13) return;
+    let splits = allSplits.length ? allSplits : getSmartSplits(all);
+    if (!allSplits.length) setAllSplits(splits);
+    // 循环取下一个分法
+    const idx = (splitIndex + 1) % splits.length;
+    setSplitIndex(idx);
+    const split = splits[idx];
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
@@ -349,7 +362,7 @@ export default function TryPlay() {
           {msg}
         </div>
       </div>
-      {/* 比牌弹窗交由 CompareResultModal 渲染 */}
+      {/* 比牌弹窗完全交由 CompareResultModal 控制，且TryPlay界面本身永远不变 */}
       <CompareResultModal
         open={showResult}
         onClose={() => setShowResult(false)}
