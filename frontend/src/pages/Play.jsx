@@ -28,20 +28,18 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
-  // 拉房间玩家
+  // 房间玩家定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 3000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [roomId]);
 
-  // 拉自己的手牌
+  // 手牌定时刷新
   useEffect(() => {
     fetchMyCards();
-    const timer = setInterval(fetchMyCards, 2000);
+    const timer = setInterval(fetchMyCards, 1500); // 更快刷新，体验更好
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [roomId]);
 
   async function fetchPlayers() {
@@ -69,19 +67,25 @@ export default function Play() {
     const res = await fetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
     const data = await res.json();
     if (data.success) {
-      setMyCards(data.cards || []);
+      // 1. 未提交时，cards 为 13 张手牌
+      // 2. 提交后，cards 为 13 张已分配（顺序：头道3，中道5，尾道5）
       setSubmitted(!!data.submitted);
-      // 若已提交，则显示自己的分墩
-      if (data.submitted && Array.isArray(data.cards)) {
-        // 自动识别已分好的head/middle/tail
-        if (data.cards.length === 13) {
-          setHead([]);
-          setMiddle([]);
-          setTail([]);
-        } else if (data.cards.length === 3 + 5 + 5) {
-          setHead(data.cards.slice(0, 3));
-          setMiddle(data.cards.slice(3, 8));
-          setTail(data.cards.slice(8, 13));
+
+      // 若刚提交，显示自己分好的三墩
+      if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
+        setHead(data.cards.slice(0, 3));
+        setMiddle(data.cards.slice(3, 8));
+        setTail(data.cards.slice(8, 13));
+        setMyCards([]); // 已交牌，手牌区清空
+      } else if (!data.submitted && Array.isArray(data.cards)) {
+        // 未提交时，cards 就是13张手牌
+        setMyCards(data.cards);
+      }
+      // 如果玩家本地分堆已分好，不自动重置（避免定时器覆盖手动分牌进度）
+      // 若手牌数和三墩都为0，说明牌已经交过
+      if (!data.submitted && Array.isArray(data.cards)) {
+        if (myCards.length === 0 && head.length === 0 && middle.length === 0 && tail.length === 0) {
+          setMyCards(data.cards);
         }
       }
     }
