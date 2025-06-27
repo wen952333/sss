@@ -1,4 +1,6 @@
-// 只导出智能分牌函数，不包含React
+// 智能分牌模块，循环5种优选分法，禁止倒水，仅导出算法工具函数
+
+// 主入口：输入13张牌（形如 ["2_of_hearts", ...]），返回5组分法 [{head, middle, tail}, ...]
 export function getSmartSplits(cards13) {
   if (!Array.isArray(cards13) || cards13.length !== 13) return [];
   let splits = [];
@@ -8,25 +10,31 @@ export function getSmartSplits(cards13) {
   splits.push(bestBombSplit(cards13));
   splits.push(balancedSplit(cards13));
   splits = splits.filter(isValidSplit);
+  // 不足5种分法补齐均衡（永远输出5组）
   while (splits.length < 5) splits.push(balancedSplit(cards13));
-  return splits.slice(0,5);
+  return splits.slice(0, 5);
 }
 
+// 判断分法是否合法（禁止倒水：头<中<尾）
 function isValidSplit(split) {
   if (!split) return false;
   const rank = handRank;
   return rank(split.head) < rank(split.middle) && rank(split.middle) < rank(split.tail);
 }
 
+// 牌型强度简单分级（1高牌 2对子 3两对 4三条 5顺子 6同花 7葫芦 8炸弹 9同花顺）
 function handRank(cards) {
   if (!cards || cards.length < 3) return 0;
   const vals = cards.map(card => card.split('_')[0]);
+  const suits = cards.map(card => card.split('_')[2]);
   const uniqVals = Array.from(new Set(vals));
-  if (uniqVals.length === 1) return 8;
-  if (isStraight(vals)) return 5;
-  if (uniqVals.length === 2) return 4;
-  if (uniqVals.length === 3) return 3;
-  if (uniqVals.length === cards.length - 1) return 2;
+  const uniqSuits = Array.from(new Set(suits));
+  if (uniqVals.length === 1) return 8; // 炸弹/三条
+  if (uniqSuits.length === 1) return 6; // 同花
+  if (isStraight(vals)) return 5; // 顺子
+  if (uniqVals.length === 2) return 4; // 三条/两对
+  if (uniqVals.length === 3) return 3; // 两对
+  if (uniqVals.length === cards.length - 1) return 2; // 一对
   return 1;
 }
 function isStraight(vals) {
@@ -35,16 +43,20 @@ function isStraight(vals) {
   for(let i=1;i<idxs.length;i++) if (idxs[i]!==idxs[0]+i) return false;
   return true;
 }
+
+// 1. 顺子顺子顺子分法（示例：按序取3/5/5张）
 function bestShunziSplit(cards) {
   const order = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
   const sorted = [...cards].sort((a,b)=>order.indexOf(a.split('_')[0])-order.indexOf(b.split('_')[0]));
   return {head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13)};
 }
+// 2. 三条三条三条
 function bestTripsSplit(cards) {
   const groups = groupByValue(cards);
   const sorted = Object.values(groups).sort((a,b)=>b.length-a.length).flat();
   return {head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13)};
 }
+// 3. 同花同花同花
 function bestFlushSplit(cards) {
   const suits = {};
   cards.forEach(c=>{
@@ -55,6 +67,7 @@ function bestFlushSplit(cards) {
   const flush = Object.values(suits).sort((a,b)=>b.length-a.length).flat();
   return {head: flush.slice(0,3), middle: flush.slice(3,8), tail: flush.slice(8,13)};
 }
+// 4. 炸弹（4张）+其余
 function bestBombSplit(cards) {
   const groups = groupByValue(cards);
   let bomb = [];
@@ -62,10 +75,12 @@ function bestBombSplit(cards) {
   let rest = cards.filter(c=>!bomb.includes(c));
   return {head: rest.slice(0,3), middle: rest.slice(3,8), tail: bomb.concat(rest.slice(8))};
 }
+// 5. 均衡分散
 function balancedSplit(cards) {
   const sorted = [...cards];
   return {head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13)};
 }
+
 function groupByValue(cards) {
   const groups = {};
   cards.forEach(c=>{
