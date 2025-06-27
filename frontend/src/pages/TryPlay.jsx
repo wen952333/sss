@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSmartSplits } from './SmartSplit'; // 智能分牌算法
 import './Play.css';
 
+// 智能分牌算法(你可以用自己的SmartSplit.js引入替换aiSplit)
+function aiSplit(cards) {
+  return {
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
-const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+const allRanks = [
+  '2','3','4','5','6','7','8','9','10','jack','queen','king','ace'
+];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
 function getShuffledDeck() {
@@ -17,14 +27,6 @@ function getShuffledDeck() {
   return deck;
 }
 
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
-}
-
 function calcScores(allPlayers) {
   const scores = allPlayers.map(() => 0);
   ['head', 'middle', 'tail'].forEach(area => {
@@ -34,11 +36,9 @@ function calcScores(allPlayers) {
   return scores;
 }
 
-// 牌墩宽度和卡片宽度
-const OUTER_MAX_WIDTH = 420;
-const PAI_DUN_HEIGHT = 133;
-const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
-const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66);
+const PAI_DUN_WIDTH = 340;
+const CARD_WIDTH = 46;
+const CARD_GAP = 8;
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -50,19 +50,16 @@ export default function TryPlay() {
   const [aiPlayers, setAiPlayers] = useState([
     { name: AI_NAMES[0], head: [], middle: [], tail: [] },
     { name: AI_NAMES[1], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[2], head: [], middle: [], tail: [] }
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
 
-  // 智能分牌循环索引和缓存
+  // 智能分牌循环索引和缓存（如用SmartSplit.js可替换）
   const [splitIndex, setSplitIndex] = useState(0);
   const [allSplits, setAllSplits] = useState([]);
-
-  // 绿色发光
-  const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a66';
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -86,18 +83,23 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
-    setAllSplits([]); // 重置智能分牌缓存
+    setAllSplits([]);
     setSplitIndex(0);
   }
 
-  // 智能分牌：循环5种优选分法
+  // 智能分牌：循环5种优选分法（如用SmartSplit.js请替换此函数）
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
+    // 只演示普通切分, 你可以引入getSmartSplits并替换此处
+    let splits = allSplits.length ? allSplits : [
+      aiSplit(all),
+      aiSplit([...all].reverse()),
+      aiSplit([...all].sort()),
+      aiSplit([...all].slice().sort(() => Math.random()-0.5)),
+      aiSplit([...all].slice().sort(() => Math.random()-0.5))
+    ];
     if (!allSplits.length) setAllSplits(splits);
-    // 循环取下一个分法
     const idx = (splitIndex + 1) % splits.length;
     setSplitIndex(idx);
     const split = splits[idx];
@@ -108,18 +110,12 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  function handleCardClick(card, area, e) {
-    e.stopPropagation();
-    setSelected(prev => {
-      if (prev.area !== area) return { area, cards: [card] };
-      const isSelected = prev.cards.includes(card);
-      let nextCards;
-      if (isSelected) {
-        nextCards = prev.cards.filter(c => c !== card);
-      } else {
-        nextCards = [...prev.cards, card];
-      }
-      return { area, cards: nextCards };
+  function handleCardClick(card, area) {
+    setSelected(sel => {
+      if (sel.area !== area) return { area, cards: [card] };
+      return sel.cards.includes(card)
+        ? { area, cards: sel.cards.filter(c => c !== card) }
+        : { area, cards: [...sel.cards, card] };
     });
   }
 
@@ -154,28 +150,25 @@ export default function TryPlay() {
   }
 
   function renderPlayerSeat(name, idx, isMe) {
+    const color = isMe ? '#23e67a' : '#fff';
     return (
       <div
         key={name}
-        className="play-seat"
+        className={`play-seat`}
         style={{
-          border: '2.5px solid transparent',
+          border: `2px solid ${isMe ? '#23e67a' : '#3ba0e7'}`,
           borderRadius: 10,
           marginRight: 8,
-          width: '22%',
-          minWidth: 70,
-          color: isMe ? '#23e67a' : '#fff',
-          background: isMe ? '#1c6e41' : '#2a556e',
+          width: '25%',
+          minWidth: 80,
+          color,
+          background: isMe ? '#115f37' : '#194e3a',
           textAlign: 'center',
-          padding: '12px 0',
-          fontWeight: 700,
-          fontSize: 17,
-          boxShadow: greenShadow,
-          boxSizing: 'border-box'
+          padding: '12px 0'
         }}
       >
-        <div>{name}</div>
-        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
+        <div style={{ fontWeight: 700, fontSize: 18 }}>{name}</div>
+        <div style={{ marginTop: 4, fontSize: 14 }}>
           {isMe ? '你' : 'AI'}
         </div>
       </div>
@@ -183,124 +176,96 @@ export default function TryPlay() {
   }
 
   // 堆叠显示卡片
-  function renderPaiDunCards(arr, area) {
-    const paddingX = 16;
-    const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70; // 70留给说明文字
-    let overlap = Math.floor(CARD_WIDTH / 3);
-    if (arr.length > 1) {
-      const totalWidth = CARD_WIDTH + (arr.length - 1) * overlap;
-      if (totalWidth > maxWidth) {
-        overlap = Math.floor((maxWidth - CARD_WIDTH) / (arr.length - 1));
-      }
-    }
+  function renderPaiDunCards(arr, area, size = 1) {
+    // size=1为正常，size=0.9为缩小10%（用于比牌弹窗）
+    const cardW = CARD_WIDTH * size;
+    const cardH = 66 * size;
+    const fullWidth = PAI_DUN_WIDTH - 16;
+    const cardFull = cardW + CARD_GAP;
+    let overlap = CARD_GAP;
     let lefts = [];
-    let startX = 0;
+    let startX = 8;
+    if (arr.length * cardFull > fullWidth) {
+      overlap = (fullWidth - cardW) / (arr.length - 1);
+      if (overlap < 18) overlap = 18;
+    }
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
-      <div style={{
-        position: 'relative',
-        height: PAI_DUN_HEIGHT,
-        width: '100%',
-        minWidth: 0,
-        boxSizing: 'border-box',
-        overflow: 'visible'
-      }}>
-        {arr.map((card, idx) => {
-          const isSelected = selected.area === area && selected.cards.includes(card);
-          return (
-            <img
-              key={card}
-              src={`/cards/${card}.svg`}
-              alt={card}
-              className="card-img"
-              style={{
-                position: 'absolute',
-                left: lefts[idx],
-                top: (PAI_DUN_HEIGHT - CARD_HEIGHT) / 2,
-                zIndex: idx,
-                width: CARD_WIDTH,
-                height: CARD_HEIGHT,
-                borderRadius: 5,
-                border: isSelected
-                  ? '2.5px solid #ff4444'
-                  : '2.5px solid #eaeaea',
-                boxShadow: isSelected
-                  ? '0 0 16px 2px #ff4444cc'
-                  : '0 0 14px #23e67a33',
-                cursor: isReady ? 'pointer' : 'not-allowed',
-                background: '#fff',
-                transition: 'border .13s, box-shadow .13s'
-              }}
-              onClick={e => { if (isReady) handleCardClick(card, area, e); }}
-              draggable={false}
-            />
-          );
-        })}
+      <div style={{ position: 'relative', height: cardH, minWidth: PAI_DUN_WIDTH }}>
+        {arr.map((card, idx) => (
+          <img
+            key={card}
+            src={`/cards/${card}.svg`}
+            alt={card}
+            className="card-img"
+            style={{
+              position: 'absolute',
+              left: lefts[idx],
+              top: 0,
+              zIndex: idx,
+              width: cardW,
+              height: cardH,
+              border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+              boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : '',
+              cursor: isReady ? 'pointer' : 'not-allowed'
+            }}
+            onClick={() => { if (isReady) handleCardClick(card, area); }}
+          />
+        ))}
       </div>
     );
   }
 
-  // 绿色光影牌墩，左右边距与外框统一，内部说明文字绝对定位右侧，移动端不溢出
+  // 牌墩
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
         style={{
-          width: '100%',
-          borderRadius: 14,
-          background: '#176b3c',
-          minHeight: PAI_DUN_HEIGHT,
-          height: PAI_DUN_HEIGHT,
-          marginBottom: 20,
-          position: 'relative',
-          boxShadow: greenShadow,
           display: 'flex',
-          alignItems: 'center',
-          boxSizing: 'border-box',
-          paddingLeft: 16,
-          paddingRight: 70, // 留出空间给右侧说明
+          alignItems: 'flex-start',
+          marginBottom: 16,
+          position: 'relative'
         }}
-        onClick={() => { if (isReady) moveTo(area); }}
       >
-        <div style={{
-          flex: 1,
-          height: '100%',
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          minWidth: 0,
-        }}>
+        <div
+          style={{
+            background: '#1e663d',
+            borderRadius: 10,
+            padding: '0 0',
+            border: '2px dashed #23e67a',
+            minWidth: PAI_DUN_WIDTH,
+            maxWidth: PAI_DUN_WIDTH,
+            minHeight: 68,
+            position: 'relative',
+            cursor: isReady ? 'pointer' : 'not-allowed',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => { if (isReady) moveTo(area); }}
+        >
           {arr.length === 0 &&
-            <div style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              color: '#c3d6c6',
-              fontSize: 18,
-              fontWeight: 500,
-              userSelect: 'none'
-            }}>
-              请放置
-            </div>
+            <span style={{
+              display: 'block',
+              color: '#aaa',
+              fontSize: 15,
+              padding: '18px 0 0 16px'
+            }}>请放置</span>
           }
           {renderPaiDunCards(arr, area)}
         </div>
         <div
           style={{
-            position: 'absolute',
-            right: 16,
-            top: 0,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
+            marginLeft: 18,
             color,
-            fontSize: 18,
-            fontWeight: 600,
-            pointerEvents: 'none',
-            background: 'transparent',
-            whiteSpace: 'nowrap'
+            fontSize: 16,
+            minWidth: 60,
+            marginTop: 6,
+            height: 34,
+            whiteSpace: 'nowrap',
+            lineHeight: '34px',
+            zIndex: 1,
+            position: 'relative'
           }}
         >
           {label}（{arr.length}）
@@ -309,9 +274,31 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗
+  // 比牌弹窗（缩小扑克牌10%，红线4区块十字）
   function renderResultModal() {
     if (!showResult) return null;
+    // 四区块坐标
+    const vLine = { left: '50%', top: 0, width: 2, height: '100%', position: 'absolute', background: 'red', zIndex: 10, transform: 'translateX(-1px)' };
+    const hLine = { left: 0, top: '50%', width: '100%', height: 2, position: 'absolute', background: 'red', zIndex: 10, transform: 'translateY(-1px)' };
+    const CARD_SCALE = 0.9;
+
+    function renderPlayerBlock(player, score, headArr, middleArr, tailArr, color) {
+      return (
+        <div style={{ textAlign: 'center', padding: 10, boxSizing: 'border-box', height: '100%' }}>
+          <div style={{ fontWeight: 700, color, marginBottom: 6 }}>{player}（{score}分）</div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginBottom: 2 }}>
+            {renderPaiDunCards(headArr, 'none', CARD_SCALE)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginBottom: 2 }}>
+            {renderPaiDunCards(middleArr, 'none', CARD_SCALE)}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+            {renderPaiDunCards(tailArr, 'none', CARD_SCALE)}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -321,33 +308,26 @@ export default function TryPlay() {
           background: '#fff',
           borderRadius: 15,
           padding: 24,
-          minWidth: 400,
-          minHeight: 300,
+          minWidth: 440,
+          minHeight: 420,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gridTemplateRows: '1fr 1fr',
-          gap: 16,
+          gap: 0,
           position: 'relative'
         }}>
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
-              <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
-                {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderPaiDunCards(head, 'none') : renderPaiDunCards(aiPlayers[i - 1].head, 'none')}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
-                {i === 0 ? renderPaiDunCards(middle, 'none') : renderPaiDunCards(aiPlayers[i - 1].middle, 'none')}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-                {i === 0 ? renderPaiDunCards(tail, 'none') : renderPaiDunCards(aiPlayers[i - 1].tail, 'none')}
-              </div>
-            </div>
-          ))}
+          {/* 红色十字线 */}
+          <div style={vLine} />
+          <div style={hLine} />
+          {/* 四区块玩家区 */}
+          {renderPlayerBlock('你', scores[0], head, middle, tail, '#23e67a')}
+          {renderPlayerBlock(aiPlayers[0].name, scores[1], aiPlayers[0].head, aiPlayers[0].middle, aiPlayers[0].tail, '#4f8cff')}
+          {renderPlayerBlock(aiPlayers[1].name, scores[2], aiPlayers[1].head, aiPlayers[1].middle, aiPlayers[1].tail, '#4f8cff')}
+          {renderPlayerBlock(aiPlayers[2].name, scores[3], aiPlayers[2].head, aiPlayers[2].middle, aiPlayers[2].tail, '#4f8cff')}
+          {/* 关闭按钮 */}
           <button style={{
-            position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
+            position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer', zIndex: 20
           }} onClick={() => setShowResult(false)}>×</button>
         </div>
       </div>
@@ -361,77 +341,49 @@ export default function TryPlay() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: OUTER_MAX_WIDTH,
-        width: '100%',
+        maxWidth: 420,
         margin: '30px auto',
-        background: '#185a30',
-        borderRadius: 22,
-        boxShadow: greenShadow,
-        padding: 16,
-        border: '2.5px solid transparent',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
+        background: '#144126',
+        borderRadius: 12,
+        boxShadow: '0 4px 32px #0f2717bb',
+        padding: 22,
         minHeight: 650,
-        boxSizing: 'border-box'
+        position: 'relative'
       }}>
-        {/* 头部：退出房间+积分 */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-          <button
-            style={{
-              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
-              color: '#234',
-              fontWeight: 'bold',
-              border: 'none',
-              borderRadius: 9,
-              padding: '7px 22px',
-              cursor: 'pointer',
-              marginRight: 18,
-              fontSize: 17,
-              boxShadow: '0 1.5px 6px #23e67a30'
-            }}
-            onClick={() => navigate('/')}
-          >
-            &lt; 退出房间
-          </button>
-          <div style={{
-            flex: 1,
-            textAlign: 'right',
-            color: '#23e67a',
-            fontWeight: 900,
-            fontSize: 21,
-            letterSpacing: 2,
-            marginRight: 8,
-            textShadow: '0 2px 7px #23e67a44'
-          }}>
-            <span role="img" aria-label="coin" style={{ fontSize: 18, marginRight: 4 }}>🪙</span>
-            积分：100
-          </div>
-        </div>
-        {/* 玩家区 */}
-        <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
+        <button
+          style={{
+            background: '#fff',
+            color: '#234',
+            fontWeight: 'bold',
+            border: 'none',
+            borderRadius: 7,
+            padding: '5px 16px',
+            cursor: 'pointer',
+            marginBottom: 14
+          }}
+          onClick={() => navigate('/')}
+        >
+          &lt; 返回大厅
+        </button>
+        <div style={{ display: 'flex', marginBottom: 18 }}>
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
-        {/* 牌墩区域 */}
-        {renderPaiDun(head, '头道', 'head', '#23e67a')}
-        {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
-        {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
-        {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
+        {renderPaiDun(head, '头道', 'head', '#e0ffe3')}
+        {renderPaiDun(middle, '中道', 'middle', '#e0eaff')}
+        {renderPaiDun(tail, '尾道', 'tail', '#ffe6e0')}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10, marginTop: 10 }}>
           <button
             style={{
               flex: 1,
-              background: isReady ? '#b0b0b0' : '#dddddd',
+              background: isReady ? '#9e9e9e' : '#bbbbbb',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 10,
-              padding: '13px 0',
+              borderRadius: 7,
+              padding: '10px 0',
               fontSize: 18,
-              cursor: isReady ? 'not-allowed' : 'pointer',
-              boxShadow: isReady ? 'none' : '0 2px 9px #23e67a22',
-              transition: 'background 0.16s'
+              cursor: isReady ? 'not-allowed' : 'pointer'
             }}
             onClick={handleReady}
             disabled={isReady}
@@ -443,12 +395,10 @@ export default function TryPlay() {
               color: '#fff',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 10,
-              padding: '13px 0',
+              borderRadius: 7,
+              padding: '10px 0',
               fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed',
-              boxShadow: '0 2px 9px #23e67a44',
-              transition: 'background 0.16s'
+              cursor: isReady ? 'pointer' : 'not-allowed'
             }}
             onClick={handleAutoSplit}
             disabled={!isReady}
@@ -460,36 +410,20 @@ export default function TryPlay() {
               color: '#222',
               fontWeight: 700,
               border: 'none',
-              borderRadius: 10,
-              padding: '13px 0',
+              borderRadius: 7,
+              padding: '10px 0',
               fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed',
-              boxShadow: '0 2px 9px #ffb14d55',
-              transition: 'background 0.16s'
+              cursor: isReady ? 'pointer' : 'not-allowed'
             }}
             onClick={handleStartCompare}
             disabled={!isReady}
           >开始比牌</button>
         </div>
-        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
+        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
           {msg}
         </div>
-        {renderResultModal()}
       </div>
-      {/* 移动端自适应，防止溢出 */}
-      <style>{`
-        @media (max-width: 480px) {
-          .play-seat {
-            margin-right: 4px !important;
-            width: 24% !important;
-            min-width: 0 !important;
-          }
-          .card-img {
-            width: ${Math.floor(CARD_WIDTH*0.92)}px !important;
-            height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
-          }
-        }
-      `}</style>
+      {renderResultModal()}
     </div>
   );
 }
