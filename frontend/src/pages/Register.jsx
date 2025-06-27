@@ -42,28 +42,35 @@ export default function Register() {
   }
 
   return (
-    <div className="home-container">
+    <div className="home-container" style={{ background: "#185a30" }}>
       <div className="home-title">用户注册</div>
       <input
         className="input"
+        style={{ width: '100%', marginBottom: 0 }}
         placeholder="手机号"
         value={phone}
         onChange={e => setPhone(e.target.value)}
       />
       <input
         className="input"
+        style={{ width: '100%', marginBottom: 0 }}
         placeholder="昵称"
         value={nickname}
         onChange={e => setNickname(e.target.value)}
       />
       <input
         className="input"
+        style={{ width: '100%', marginBottom: 0 }}
         placeholder="密码"
         type="password"
         value={password}
         onChange={e => setPassword(e.target.value)}
       />
-      <button className="button" onClick={handleRegister}>注册</button>
+      <button
+        className="button"
+        style={{ width: '100%', marginTop: 18, marginBottom: 0 }}
+        onClick={handleRegister}
+      >注册</button>
       <div className="tips">
         已有账号？
         <span style={{color: '#4f8cff', cursor: 'pointer'}} onClick={() => navigate('/login')}>去登录</span>
