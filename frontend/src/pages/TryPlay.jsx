@@ -6,13 +6,35 @@ const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
 
-// 基础参数
-const OUTER_WIDTH = 420;
-const PAI_DUN_WIDTH = OUTER_WIDTH - 0;
-const BASE_PAI_DUN_HEIGHT = 102;
-const PAI_DUN_HEIGHT = Math.round(BASE_PAI_DUN_HEIGHT * 1.3); // 133
+const OUTER_MAX_WIDTH = 420;
+const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
-const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66); // 保持原宽高比
+const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66);
+
+function getShuffledDeck() {
+  const deck = [];
+  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+function aiSplit(cards) {
+  return {
+    head: cards.slice(0, 3),
+    middle: cards.slice(3, 8),
+    tail: cards.slice(8, 13)
+  }
+}
+function calcScores(allPlayers) {
+  const scores = allPlayers.map(() => 0);
+  ['head', 'middle', 'tail'].forEach(area => {
+    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
+    for (let i=0; i<4; ++i) scores[i] += ranks[i];
+  });
+  return scores;
+}
 
 export default function TryPlay() {
   const navigate = useNavigate();
@@ -30,6 +52,9 @@ export default function TryPlay() {
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
+
+  // 绿色发光
+  const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a66';
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -66,7 +91,6 @@ export default function TryPlay() {
     setSelected({ area: '', cards: [] });
   }
 
-  // 多选核心
   function handleCardClick(card, area, e) {
     e.stopPropagation();
     setSelected(prev => {
@@ -112,9 +136,6 @@ export default function TryPlay() {
     setMsg('');
   }
 
-  // 绿色发光边框
-  const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a55';
-
   function renderPlayerSeat(name, idx, isMe) {
     return (
       <div
@@ -132,7 +153,8 @@ export default function TryPlay() {
           padding: '12px 0',
           fontWeight: 700,
           fontSize: 17,
-          boxShadow: greenShadow
+          boxShadow: greenShadow,
+          boxSizing: 'border-box'
         }}
       >
         <div>{name}</div>
@@ -143,9 +165,13 @@ export default function TryPlay() {
     );
   }
 
-  // 堆叠显示卡片（始终堆叠，间距为CARD_WIDTH/3，超宽时自动缩小间距）
+  // 堆叠显示卡片（堆叠起点为内边距，右侧不溢出，移动端自适应）
   function renderPaiDunCards(arr, area) {
-    const maxWidth = PAI_DUN_WIDTH - 16;
+    // 需要考虑“牌墩宽度 = 父div.clientWidth - 2*padding”
+    // 这里假设父div 100%宽，maxWidth: OUTER_MAX_WIDTH, paddingX:16
+    const paddingX = 16;
+    // 动态获取实际宽度（或直接用maxWidth-2*paddingX）
+    const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70; // 70留给说明文字
     let overlap = Math.floor(CARD_WIDTH / 3);
     if (arr.length > 1) {
       const totalWidth = CARD_WIDTH + (arr.length - 1) * overlap;
@@ -154,12 +180,19 @@ export default function TryPlay() {
       }
     }
     let lefts = [];
-    let startX = 8;
+    let startX = 0;
     for (let i = 0; i < arr.length; ++i) {
       lefts.push(startX + i * overlap);
     }
     return (
-      <div style={{ position: 'relative', height: PAI_DUN_HEIGHT, width: '100%' }}>
+      <div style={{
+        position: 'relative',
+        height: PAI_DUN_HEIGHT,
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        overflow: 'visible'
+      }}>
         {arr.map((card, idx) => {
           const isSelected = selected.area === area && selected.cards.includes(card);
           return (
@@ -195,14 +228,12 @@ export default function TryPlay() {
     );
   }
 
-  // 绿色光影牌墩
+  // 绿色光影牌墩，左右边距与外框统一，内部说明文字绝对定位右侧，移动端不溢出
   function renderPaiDun(arr, label, area, color) {
     return (
       <div
         style={{
           width: '100%',
-          minWidth: PAI_DUN_WIDTH,
-          border: '2.5px solid transparent',
           borderRadius: 14,
           background: '#176b3c',
           minHeight: PAI_DUN_HEIGHT,
@@ -212,12 +243,20 @@ export default function TryPlay() {
           boxShadow: greenShadow,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 8px'
+          boxSizing: 'border-box',
+          paddingLeft: 16,
+          paddingRight: 70, // 留出空间给右侧说明
         }}
         onClick={() => { if (isReady) moveTo(area); }}
       >
-        <div style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <div style={{
+          flex: 1,
+          height: '100%',
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          minWidth: 0,
+        }}>
           {arr.length === 0 &&
             <div style={{
               width: '100%',
@@ -236,18 +275,18 @@ export default function TryPlay() {
         </div>
         <div
           style={{
-            color,
-            fontSize: 18,
-            minWidth: 60,
-            height: PAI_DUN_HEIGHT,
-            whiteSpace: 'nowrap',
+            position: 'absolute',
+            right: 16,
+            top: 0,
+            height: '100%',
             display: 'flex',
             alignItems: 'center',
+            color,
+            fontSize: 18,
             fontWeight: 600,
             pointerEvents: 'none',
             background: 'transparent',
-            justifyContent: 'flex-end',
-            marginLeft: 16
+            whiteSpace: 'nowrap'
           }}
         >
           {label}（{arr.length}）
@@ -267,14 +306,15 @@ export default function TryPlay() {
           background: '#fff',
           borderRadius: 18,
           padding: 26,
-          minWidth: 400,
+          minWidth: 320,
           minHeight: 300,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gridTemplateRows: '1fr 1fr',
           gap: 16,
-          position: 'relative'
+          position: 'relative',
+          maxWidth: '98vw'
         }}>
           {[0, 1, 2, 3].map(i => (
             <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee', paddingBottom: 8 }}>
@@ -307,16 +347,19 @@ export default function TryPlay() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: OUTER_WIDTH,
+        maxWidth: OUTER_MAX_WIDTH,
+        width: '100%',
         margin: '30px auto',
         background: '#185a30',
         borderRadius: 22,
         boxShadow: greenShadow,
-        padding: 26,
+        padding: 16,
         border: '2.5px solid transparent',
         position: 'relative',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        minHeight: 650,
+        boxSizing: 'border-box'
       }}>
         {/* 头部：退出房间+积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
@@ -352,7 +395,7 @@ export default function TryPlay() {
           </div>
         </div>
         {/* 玩家区 */}
-        <div style={{ display: 'flex', marginBottom: 22, gap: 8 }}>
+        <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
           {renderPlayerSeat('你', 0, true)}
           {aiPlayers.map((ai, idx) => renderPlayerSeat(ai.name, idx + 1, false))}
         </div>
@@ -419,32 +462,20 @@ export default function TryPlay() {
         </div>
         {renderResultModal()}
       </div>
+      {/* 移动端自适应，防止溢出 */}
+      <style>{`
+        @media (max-width: 480px) {
+          .play-seat {
+            margin-right: 4px !important;
+            width: 24% !important;
+            min-width: 0 !important;
+          }
+          .card-img {
+            width: ${Math.floor(CARD_WIDTH*0.92)}px !important;
+            height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
+          }
+        }
+      `}</style>
     </div>
   );
-}
-
-// 工具函数
-function getShuffledDeck() {
-  const deck = [];
-  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
-}
-function calcScores(allPlayers) {
-  const scores = allPlayers.map(() => 0);
-  ['head', 'middle', 'tail'].forEach(area => {
-    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
-    for (let i=0; i<4; ++i) scores[i] += ranks[i];
-  });
-  return scores;
 }
