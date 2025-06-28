@@ -3,7 +3,8 @@
   margin: 28px auto 0 auto;
   background: #fff;
   border-radius: 18px;
-  box-shadow: 0 4px 24px #326eca1a;
+  /* 主界面绿色暗影风格 */
+  box-shadow: 0 8px 40px #23e67a50, 0 1.5px 5px #1a462a6a;
   padding: 22px 12px 24px 12px;
   text-align: center;
 }
@@ -18,7 +19,8 @@
   width: 46px;
   height: 66px;
   border-radius: 6px;
-  box-shadow: 0 2px 8px #bec7dd3a;
+  /* 绿色暗影 */
+  box-shadow: 0 2px 8px #23e67a33;
   background: #fff;
   object-fit: contain;
 }
@@ -27,7 +29,14 @@
   margin: 60px auto 0 auto;
   background: #fff;
   border-radius: 18px;
-  box-shadow: 0 4px 24px #326eca1a;
+  box-shadow: 0 8px 40px #23e67a50, 0 1.5px 5px #1a462a6a;
   padding: 28px 24px 24px 24px;
   text-align: center;
+}
+
+/* 牌墩和seat的绿色暗影风格 */
+.play-seat, .play-seat.empty, .play-pai-dun {
+  border: none !important;
+  box-shadow: 0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a !important;
+  background: #185a30 !important;
 }
