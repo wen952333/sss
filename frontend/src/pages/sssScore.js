@@ -1,4 +1,4 @@
-// sssScore.js - 十三水比牌计分（与后端play.php规则严格一致，倒水直接全输，倒水无特殊牌型）
+// sssScore.js - 十三水比牌计分（倒水直接全输，按对方三道分数结算）
 
 const VALUE_ORDER = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -12,59 +12,48 @@ export function calcSSSAllScores(players) {
   const N = players.length;
   let marks = new Array(N).fill(0);
 
-  // 先判断倒水
+  // 倒水判定
   const fouls = players.map(p => isFoul(p.head, p.middle, p.tail));
-
-  // 特殊牌型判定（只对未倒水玩家有效）
+  // 特殊牌型（只对未倒水玩家有效）
   const specials = players.map((p, idx) => fouls[idx] ? null : getSpecialType(p));
   const specialRanks = specials.map(s => s ? specialTypeRank(s) : 0);
-
-  // 统计每家三道分数（用于倒水扣分）
-  const threeScores = players.map((p, idx) => fouls[idx] ? 0 :
+  // 统计每家三道分数（用于倒水结算）
+  const threeScores = players.map((p, idx) => (
     getAreaScore(p.head, 'head') +
     getAreaScore(p.middle, 'middle') +
     getAreaScore(p.tail, 'tail')
-  );
+  ));
 
-  // 倒水处理：倒水玩家全输所有人，按每家三道分扣分，对方加分
+  // 每家和每家一对一结算，倒水就是全输，对方赢自己三道分
   for (let i = 0; i < N; ++i) {
-    if (fouls[i]) {
-      let lose = 0;
-      for (let j = 0; j < N; ++j) {
-        if (i === j) continue;
+    for (let j = 0; j < N; ++j) {
+      if (i === j) continue;
+      // 倒水处理
+      if (fouls[i] && !fouls[j]) {
+        marks[i] -= threeScores[j];
         marks[j] += threeScores[j];
-        lose += threeScores[j];
-      }
-      marks[i] -= lose;
-    }
-  }
-
-  // 正常玩家之间比牌（倒水玩家不参与任何特殊/普通比牌）
-  for (let i = 0; i < N; ++i) {
-    if (fouls[i]) continue;
-    for (let j = i + 1; j < N; ++j) {
-      if (fouls[j]) continue;
-      // 特殊牌型优先
-      if (specials[i] && !specials[j]) {
-        marks[i] += 3;
-        marks[j] -= 3;
         continue;
+      }
+      if (!fouls[i] && fouls[j]) {
+        marks[i] += threeScores[i];
+        marks[j] -= threeScores[i];
+        continue;
+      }
+      if (fouls[i] && fouls[j]) continue;
+
+      // 正常玩家之间比牌
+      if (specials[i] && !specials[j]) {
+        marks[i] += 3; marks[j] -= 3; continue;
       }
       if (!specials[i] && specials[j]) {
-        marks[i] -= 3;
-        marks[j] += 3;
-        continue;
+        marks[i] -= 3; marks[j] += 3; continue;
       }
       if (specials[i] && specials[j]) {
-        if (specialRanks[i] > specialRanks[j]) {
-          marks[i] += 3; marks[j] -= 3;
-        }
-        else if (specialRanks[i] < specialRanks[j]) {
-          marks[i] -= 3; marks[j] += 3;
-        }
+        if (specialRanks[i] > specialRanks[j]) { marks[i] += 3; marks[j] -= 3; }
+        else if (specialRanks[i] < specialRanks[j]) { marks[i] -= 3; marks[j] += 3; }
         continue;
       }
-      // 普通三道比牌，必须分胜负
+      // 普通三道比牌
       let winA = 0, winB = 0;
       if (compareArea(players[i].head, players[j].head, 'head') > 0) winA++; else winB++;
       if (compareArea(players[i].middle, players[j].middle, 'middle') > 0) winA++; else winB++;
