@@ -1,4 +1,4 @@
-// sssScore.js - 十三水比牌计分（倒水直接全输，按对方三道分数结算）
+// sssScore.js - 十三水比牌计分（倒水直接全输，按每道分数结算，无三道全胜额外奖励）
 
 const VALUE_ORDER = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -17,6 +17,7 @@ export function calcSSSAllScores(players) {
   // 特殊牌型（只对未倒水玩家有效）
   const specials = players.map((p, idx) => fouls[idx] ? null : getSpecialType(p));
   const specialRanks = specials.map(s => s ? specialTypeRank(s) : 0);
+
   // 统计每家三道分数（用于倒水结算）
   const threeScores = players.map((p, idx) => (
     getAreaScore(p.head, 'head') +
@@ -53,26 +54,20 @@ export function calcSSSAllScores(players) {
         else if (specialRanks[i] < specialRanks[j]) { marks[i] -= 3; marks[j] += 3; }
         continue;
       }
-      // 普通三道比牌
-      let winA = 0, winB = 0;
-      if (compareArea(players[i].head, players[j].head, 'head') > 0) winA++; else winB++;
-      if (compareArea(players[i].middle, players[j].middle, 'middle') > 0) winA++; else winB++;
-      if (compareArea(players[i].tail, players[j].tail, 'tail') > 0) winA++; else winB++;
-      if (winA === 3) {
-        let add = getAreaScore(players[i].head, 'head') +
-                  getAreaScore(players[i].middle, 'middle') +
-                  getAreaScore(players[i].tail, 'tail');
-        marks[i] += add;
-        marks[j] -= add;
-      } else if (winB === 3) {
-        let add = getAreaScore(players[j].head, 'head') +
-                  getAreaScore(players[j].middle, 'middle') +
-                  getAreaScore(players[j].tail, 'tail');
-        marks[i] -= add;
-        marks[j] += add;
-      } else {
-        marks[i] += winA - winB;
-        marks[j] += winB - winA;
+      // 普通三道比牌：每道分别比较得分，无三道全胜额外奖励
+      let areaNames = ['head', 'middle', 'tail'];
+      for (let k = 0; k < 3; ++k) {
+        let cmp = compareArea(players[i][areaNames[k]], players[j][areaNames[k]], areaNames[k]);
+        if (cmp > 0) {
+          let add = getAreaScore(players[i][areaNames[k]], areaNames[k]);
+          marks[i] += add;
+          marks[j] -= add;
+        } else if (cmp < 0) {
+          let add = getAreaScore(players[j][areaNames[k]], areaNames[k]);
+          marks[i] -= add;
+          marks[j] += add;
+        }
+        // 平局不加减
       }
     }
   }
