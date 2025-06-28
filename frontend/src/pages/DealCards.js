@@ -1,4 +1,4 @@
-// DealCards.js - 十三水前端发牌/洗牌模块（40%概率发好牌，避免重复好牌）
+// DealCards.js - 十三水前端发牌/洗牌模块（修复：发牌绝无重复，所有好牌保证唯一）
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
 const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
@@ -10,7 +10,17 @@ function makeFullDeck() {
   return deck;
 }
 
-// ---------- 多种好牌生成函数，确保互不重复 ----------
+// 校验一副牌全唯一
+function assertNoDuplicate(deck) {
+  const seen = new Set();
+  for (const card of deck) {
+    if (seen.has(card)) throw new Error('有重复牌: ' + card);
+    seen.add(card);
+  }
+  if (deck.length !== 52) throw new Error('牌数量不是52: ' + deck.length);
+}
+
+// ---------- 多种好牌生成函数，确保互不重复且全唯一 ----------
 
 // 一条龙（A~K不同花色）
 function makeDragonHand() {
@@ -49,10 +59,10 @@ function makeBombHand1() {
   ];
 }
 function makeBombHand2() {
-  // 7炸弹+同花顺
+  // 7炸弹+同花顺（注意不要重复7_of_clubs）
   return [
     '7_of_spades','7_of_hearts','7_of_diamonds','7_of_clubs',
-    '3_of_clubs','4_of_clubs','5_of_clubs','6_of_clubs','7_of_clubs',
+    '3_of_clubs','4_of_clubs','5_of_clubs','6_of_clubs','8_of_clubs',
     '10_of_hearts','jack_of_spades','queen_of_diamonds','king_of_diamonds'
   ];
 }
@@ -112,27 +122,32 @@ const patterns = [
   makeThreeFlushHand2
 ];
 
-// 40%概率发好牌，否则完全随机。好牌互不重复。
+// 修复核心：确保无论好牌还是随机，都绝无重复
 export function getShuffledDeck() {
   const deck = makeFullDeck();
   const useGoodHand = Math.random() < 0.4;
   let goodHand = null;
   if (useGoodHand) {
-    // 随机选一个好牌生成函数
     const idx = Math.floor(Math.random() * patterns.length);
     goodHand = patterns[idx]();
+    // 检查好牌本身无重复
+    assertNoDuplicate(goodHand);
   }
+  // 从全牌中剔除好牌，剩余洗牌
   const left = goodHand ? deck.filter(card => !goodHand.includes(card)) : [...deck];
-  // 洗剩下的牌
   for (let i = left.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [left[i], left[j]] = [left[j], left[i]];
   }
-  return goodHand ? [...goodHand, ...left] : left;
+  // 合成最终发牌
+  const finalDeck = goodHand ? [...goodHand, ...left] : left;
+  assertNoDuplicate(finalDeck);
+  return finalDeck;
 }
 
 // 一次性发4家，每家13张
 export function dealHands(deck = getShuffledDeck()) {
+  if (deck.length !== 52) throw new Error('发牌总数不是52');
   return [
     deck.slice(0, 13),
     deck.slice(13, 26),
@@ -147,9 +162,11 @@ export function dealCustomHands({ player0, player1, player2, player3 }) {
   let used = [];
   const all = makeFullDeck();
 
-  // 优先使用自定义
+  // 优先使用自定义（务必保证自定义牌无重复）
   let hands = [player0, player1, player2, player3].map(arr => arr ? [...arr] : []);
   used = hands.flat();
+  // 检查自定义部分无重复
+  assertNoDuplicate(used);
 
   // 补足未指定的手牌
   let left = all.filter(card => !used.includes(card));
@@ -158,6 +175,8 @@ export function dealCustomHands({ player0, player1, player2, player3 }) {
       hands[i].push(left.pop());
     }
   }
+  // 检查最终四家无重复
+  assertNoDuplicate(hands.flat());
   return hands;
 }
 
