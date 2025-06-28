@@ -90,8 +90,10 @@ export default function TryPlay() {
     setSplitIndex(0);
   }
 
+  // 智能分牌（循环5种分法）
   function handleAutoSplit() {
     if (!dealed) return;
+    // 合并三墩的牌
     const all = [...head, ...middle, ...tail];
     if (all.length !== 13) return;
     let splits = allSplits.length ? allSplits : getSmartSplits(all);
@@ -220,12 +222,10 @@ export default function TryPlay() {
                 width: cardSize?.width ?? CARD_WIDTH,
                 height: cardSize?.height ?? CARD_HEIGHT,
                 borderRadius: 5,
-                border: isSelected
-                  ? '2.5px solid #ff4444'
-                  : '2.5px solid #eaeaea',
+                border: isSelected ? '2.5px solid #ff4444' : 'none',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
-                  : greenShadow,
+                  : 'none',
                 cursor: isReady ? 'pointer' : 'not-allowed',
                 background: '#fff',
                 transition: 'border .13s, box-shadow .13s'
