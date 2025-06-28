@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSmartSplits } from './SmartSplit'; // 智能分牌算法
+import { aiSmartSplit, fillAiPlayers, getPlayerSmartSplits } from './SmartSplit'; // 使用AI分牌/补位
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
@@ -15,14 +15,6 @@ function getShuffledDeck() {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;
-}
-
-function aiSplit(cards) {
-  return {
-    head: cards.slice(0, 3),
-    middle: cards.slice(3, 8),
-    tail: cards.slice(8, 13)
-  }
 }
 
 function calcScores(allPlayers) {
@@ -48,9 +40,9 @@ export default function TryPlay() {
   const [selected, setSelected] = useState({ area: '', cards: [] });
   const [msg, setMsg] = useState('');
   const [aiPlayers, setAiPlayers] = useState([
-    { name: AI_NAMES[0], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[1], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
@@ -72,14 +64,17 @@ export default function TryPlay() {
       deck.slice(26, 39),
       deck.slice(39, 52)
     ];
-    const mySplit = aiSplit(myHand);
+    // 玩家用AI分法
+    const mySplit = aiSmartSplit(myHand);
     setHead(mySplit.head);
     setMiddle(mySplit.middle);
     setTail(mySplit.tail);
-    setAiPlayers(aiPlayers.map((ai, idx) => {
-      const sp = aiSplit(aiHands[idx]);
-      return { ...ai, ...sp };
-    }));
+    // AI补位分牌
+    setAiPlayers(fillAiPlayers([
+      { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
+      { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
+      { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
+    ]));
     setIsReady(true);
     setDealed(true);
     setMsg('');
@@ -96,8 +91,7 @@ export default function TryPlay() {
     // 合并三墩的牌
     const all = [...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
+    const splits = getPlayerSmartSplits(all);
     const idx = (splitIndex + 1) % splits.length;
     setSplitIndex(idx);
     const split = splits[idx];
@@ -310,7 +304,6 @@ export default function TryPlay() {
     const scale = 0.9;
     const cardW = CARD_WIDTH * scale;
     const cardH = CARD_HEIGHT * scale;
-    const paiDunH = PAI_DUN_HEIGHT * scale;
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
