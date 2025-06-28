@@ -1,23 +1,25 @@
-// 更智能的十三水分牌与AI补位模块 v3（保证不倒水，智能评分）
+// 更智能的十三水分牌与AI补位模块（保证不倒水，智能评分，严格比牌规则）
 
 /**
  * 返回最优分法，优先级：
- * 1. 永远不会摆出倒水牌型
- * 2. 尾道炸弹/同花顺/葫芦优先
- * 3. 中道顺子/三条/两对优先
- * 4. 头道对子优先，头道高牌惩罚
- * 5. 三墩递增，强牌不拆弱
+ * 1. 永远不会摆出倒水牌型（与sssScore.js倒水判定一致）
+ * 2. 综合计分权重最大
+ * 3. 尾道炸弹/同花顺/葫芦优先
+ * 4. 中道顺子/三条/两对优先
+ * 5. 头道对子优先，头道高牌惩罚
+ * 6. 三墩递增，强牌不拆弱
  */
 
 export function getSmartSplits(cards13) {
   if (!Array.isArray(cards13) || cards13.length !== 13) return [];
-  // 生成所有合理分法，按综合分值排序，取前5
+  // 枚举所有合法（非倒水）分法，按综合分值排序，取前5
   let allSplits = generateAllValidSplits(cards13);
-  // 保证不倒水，如果全是倒水则回退为简单分法
+  // 如果没有合法分法（极端低概率），退回顺序分
   if (!allSplits.length) {
     return [balancedSplit(cards13)];
   }
   allSplits.sort((a, b) => b.score - a.score);
+  // 只输出拆分，不输出score
   return allSplits.slice(0, 5).map(s => ({ head: s.head, middle: s.middle, tail: s.tail }));
 }
 
@@ -43,26 +45,33 @@ export function getPlayerSmartSplits(cards13) {
 function generateAllValidSplits(cards13) {
   const comb = combinations(cards13, 3); // 头道所有组合
   let splits = [];
+  // 穷举所有组合
   for (const head of comb) {
     const left1 = cards13.filter(c => !head.includes(c));
     for (const mid of combinations(left1, 5)) {
       const tail = left1.filter(c => !mid.includes(c));
       if (tail.length !== 5) continue;
-      // 判断顺序合法(头<中<尾)，否则跳过
-      const headRank = handTypeRank(head, 'head');
-      const midRank = handTypeRank(mid, 'middle');
-      const tailRank = handTypeRank(tail, 'tail');
-      if (headRank > midRank || midRank > tailRank) continue;
+      // 严格检测倒水（与sssScore.js一致）
+      if (isFoul(head, mid, tail)) continue;
       // 评分
       const score = scoreSplit(head, mid, tail);
       splits.push({ head, middle: mid, tail, score });
     }
-    if (splits.length > 100) break; // 性能限制
+    // 若枚举量太大，可取消此break
+    // if (splits.length > 500) break;
   }
   return splits;
 }
 
-// 更智能评分
+// 严格倒水检测（与sssScore.js一致）
+function isFoul(head, middle, tail) {
+  const headRank = handTypeRank(head, 'head');
+  const midRank = handTypeRank(middle, 'middle');
+  const tailRank = handTypeRank(tail, 'tail');
+  return !(headRank <= midRank && midRank <= tailRank);
+}
+
+// 智能评分（可继续优化）
 function scoreSplit(head, mid, tail) {
   // 强牌优先，炸弹/同花顺/葫芦>顺子>三条>两对>对子>高牌
   let score =
@@ -110,27 +119,34 @@ function scoreSplit(head, mid, tail) {
   return score;
 }
 
-// 牌型分数加强版
+// 牌型分数（和sssScore.js一致）
 function handTypeScore(cards, area) {
   const t = handType(cards, area);
   switch (t) {
-    case "铁支": return 13;
-    case "同花顺": return 12;
-    case "葫芦": return 10;
-    case "同花": return 8;
-    case "顺子": return 7;
-    case "三条": return 5;
-    case "两对": return 4;
-    case "对子": return 2;
-    case "高牌": return 1;
+    case "铁支": return 8;
+    case "同花顺": return 7;
+    case "葫芦": return 6;
+    case "同花": return 5;
+    case "顺子": return 4;
+    case "三条": return 3;
+    case "两对": return 2;
+    case "对子": return 1;
+    case "高牌": return 0;
     default: return 0;
   }
 }
 function handTypeRank(cards, area) {
+  // 和sssScore.js areaTypeRank完全一致
+  if (area === 'head') {
+    const t = handType(cards, area);
+    if (t === "三条") return 4;
+    if (t === "对子") return 2;
+    return 1;
+  }
   return handTypeScore(cards, area);
 }
 
-// 判断牌型
+// 判断牌型，和sssScore.js getAreaType一致
 function handType(cards, area) {
   if (!cards || cards.length < 3) return "高牌";
   const vals = cards.map(card => card.split('_')[0]);
@@ -142,12 +158,12 @@ function handType(cards, area) {
     if (Object.values(groupBy(vals)).some(a => a.length === 4)) return "铁支";
     // 同花顺
     if (uniqSuits.length === 1 && isStraight(vals)) return "同花顺";
+    // 葫芦
+    if (Object.values(groupBy(vals)).some(a => a.length === 3) && Object.values(groupBy(vals)).some(a => a.length === 2)) return "葫芦";
     // 同花
     if (uniqSuits.length === 1) return "同花";
     // 顺子
     if (isStraight(vals)) return "顺子";
-    // 葫芦
-    if (Object.values(groupBy(vals)).some(a => a.length === 3) && Object.values(groupBy(vals)).some(a => a.length === 2)) return "葫芦";
     // 三条
     if (Object.values(groupBy(vals)).some(a => a.length === 3)) return "三条";
     // 两对
