@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
 import { calcSSSAllScores } from './sssScore';
-import { getShuffledDeck, dealHands } from './DealCards'; // 新增发牌模块
+import { getShuffledDeck, dealHands } from './DealCards';
 import './Play.css';
 
 const AI_NAMES = ['小明', '小红', '小刚'];
@@ -25,13 +25,13 @@ export default function TryPlay() {
     { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
-  const [scores, setScores] = useState([0,0,0,0]);
+  const [scores, setScores] = useState([0, 0, 0, 0]);
   const [isReady, setIsReady] = useState(false);
-  const [hasCompared, setHasCompared] = useState(false);
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
+  // 点击准备/取消准备
   function handleReady() {
     if (!isReady) {
       // 发牌并进入准备状态
@@ -47,10 +47,9 @@ export default function TryPlay() {
         { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
       ]));
       setIsReady(true);
-      setHasCompared(false);
       setMsg('');
       setShowResult(false);
-      setScores([0,0,0,0]);
+      setScores([0, 0, 0, 0]);
       setSelected({ area: '', cards: [] });
     } else {
       // 取消准备，清空手牌和AI
@@ -61,14 +60,14 @@ export default function TryPlay() {
         { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
       ]);
       setIsReady(false);
-      setHasCompared(false);
       setMsg('');
       setShowResult(false);
-      setScores([0,0,0,0]);
+      setScores([0, 0, 0, 0]);
       setSelected({ area: '', cards: [] });
     }
   }
 
+  // 选牌
   function handleCardClick(card, area, e) {
     e.stopPropagation();
     setSelected(prev => {
@@ -84,6 +83,7 @@ export default function TryPlay() {
     });
   }
 
+  // 移动牌到指定区域
   function moveTo(dest) {
     if (!selected.cards.length) return;
     let newHead = [...head], newMiddle = [...middle], newTail = [...tail];
@@ -99,6 +99,7 @@ export default function TryPlay() {
     setMsg('');
   }
 
+  // 开始比牌
   function handleStartCompare() {
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setMsg('请按 3-5-5 张分配');
@@ -108,11 +109,9 @@ export default function TryPlay() {
       { name: '你', head, middle, tail },
       ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
     ];
-    // 用sssScore.js比牌计分
     const resScores = calcSSSAllScores(allPlayers);
     setScores(resScores);
     setShowResult(true);
-    setHasCompared(true);
     setMsg('');
     setIsReady(false); // 比牌后恢复为“准备”模式
   }
@@ -399,7 +398,7 @@ export default function TryPlay() {
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: !isReady || hasCompared ? 'pointer' : 'pointer',
+              cursor: 'pointer',
               boxShadow: !isReady
                 ? '0 2px 9px #23e67a22'
                 : 'none',
@@ -440,8 +439,8 @@ export default function TryPlay() {
             min-width: 0 !important;
           }
           .card-img {
-            width: ${Math.floor(CARD_WIDTH*0.92)}px !important;
-            height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
+            width: ${Math.floor(CARD_WIDTH * 0.92)}px !important;
+            height: ${Math.floor(CARD_HEIGHT * 0.92)}px !important;
           }
         }
       `}</style>
