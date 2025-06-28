@@ -19,8 +19,8 @@
   width: 46px;
   height: 66px;
   border-radius: 6px;
-  /* 绿色暗影 */
-  box-shadow: 0 2px 8px #23e67a33;
+  /* 主界面绿色暗影 */
+  box-shadow: 0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a !important;
   background: #fff;
   object-fit: contain;
 }
