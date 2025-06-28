@@ -283,7 +283,8 @@ export default function Play() {
             key={i}
             className={`play-seat`}
             style={{
-              border: '2px solid #23e67a',
+              boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
+              border: 'none',
               borderRadius: 10,
               marginRight: 8,
               width: '25%',
@@ -306,7 +307,8 @@ export default function Play() {
             key={i}
             className="play-seat empty"
             style={{
-              border: '2px dashed #3b7c5e',
+              boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
+              border: 'none',
               borderRadius: 10,
               marginRight: 8,
               width: '25%',
@@ -350,11 +352,12 @@ export default function Play() {
       <div
         style={{
           background: '#1e663d',
+          boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
+          border: 'none',
           borderRadius: 10,
           padding: 14,
           marginBottom: 12,
           cursor: submitted ? 'default' : 'pointer',
-          border: submitted ? 'none' : '2px dashed #23e67a'
         }}
         onClick={() => moveTo(area)}
       >
