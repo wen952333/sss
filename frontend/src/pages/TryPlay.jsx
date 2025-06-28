@@ -30,7 +30,7 @@ export default function TryPlay() {
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
-  // ---------- 1. 改造发牌为后端API ----------
+  // ---------- 1. 发牌接口 ----------
   async function handleReady() {
     if (!isReady) {
       setMsg('智能发牌中...');
@@ -74,7 +74,7 @@ export default function TryPlay() {
     }
   }
 
-  // ---------- 2. 改造比牌为后端API ----------
+  // ---------- 2. 比牌接口 ----------
   async function handleStartCompare() {
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setMsg('请按 3-5-5 张分配');
