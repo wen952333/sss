@@ -34,26 +34,36 @@ export default function TryPlay() {
   async function handleReady() {
     if (!isReady) {
       setIsReady(true);
+      setMsg('正在发牌，请稍候...');
       setTimeout(async () => {
-        const res = await fetch('https://9525.ip-ddns.com/api/try_deal_and_split.php');
-        const data = await res.json();
-        if (data.success && data.players && data.players.length === 4) {
-          setHead(data.players[0].head);
-          setMiddle(data.players[0].middle);
-          setTail(data.players[0].tail);
-          setAiPlayers([
-            { name: AI_NAMES[0], isAI: true, ...data.players[1] },
-            { name: AI_NAMES[1], isAI: true, ...data.players[2] },
-            { name: AI_NAMES[2], isAI: true, ...data.players[3] },
-          ]);
+        try {
+          const res = await fetch('https://9525.ip-ddns.com/api/try_deal_and_split.php');
+          const data = await res.json();
+          if (data.success && data.players && data.players.length === 4) {
+            setHead(data.players[0].head);
+            setMiddle(data.players[0].middle);
+            setTail(data.players[0].tail);
+            setAiPlayers([
+              { name: AI_NAMES[0], isAI: true, ...data.players[1] },
+              { name: AI_NAMES[1], isAI: true, ...data.players[2] },
+              { name: AI_NAMES[2], isAI: true, ...data.players[3] },
+            ]);
+            setMsg('');
+          } else {
+            setMsg('发牌失败，请重试');
+          }
+        } catch(e) {
+          setMsg('连接服务器失败，请重试');
         }
-        setMsg('');
         setShowResult(false);
         setScores([0,0,0,0]);
         setSelected({ area: '', cards: [] });
+        setHasCompared(false);
       }, 0);
     } else {
-      setHead([]); setMiddle([]); setTail([]);
+      setHead([]);
+      setMiddle([]);
+      setTail([]);
       setAiPlayers([
         { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
         { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
