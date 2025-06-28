@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
 import { calcSSSAllScores } from './sssScore';
-import { getShuffledDeck, dealHands } from './DealCards';
 import './Play.css';
 
 const AI_NAMES = ['小明', '小红', '小刚'];
@@ -25,33 +23,33 @@ export default function TryPlay() {
     { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
-  const [scores, setScores] = useState([0, 0, 0, 0]);
+  const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [hasCompared, setHasCompared] = useState(false);
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
-  // 优化：发牌与AI分牌异步，UI不卡顿
-  function handleReady() {
+  // 新：后端发牌+分牌
+  async function handleReady() {
     if (!isReady) {
       setIsReady(true);
-      setTimeout(() => {
-        const deck = getShuffledDeck();
-        const [myHand, ...aiHands] = dealHands(deck);
-        const mySplit = aiSmartSplit(myHand);
-        setHead(mySplit.head);
-        setMiddle(mySplit.middle);
-        setTail(mySplit.tail);
-        setAiPlayers(fillAiPlayers([
-          { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
-          { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
-          { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
-        ]));
-        setHasCompared(false);
+      setTimeout(async () => {
+        const res = await fetch('https://9525.ip-ddns.com/api/try_deal_and_split.php');
+        const data = await res.json();
+        if (data.success && data.players && data.players.length === 4) {
+          setHead(data.players[0].head);
+          setMiddle(data.players[0].middle);
+          setTail(data.players[0].tail);
+          setAiPlayers([
+            { name: AI_NAMES[0], isAI: true, ...data.players[1] },
+            { name: AI_NAMES[1], isAI: true, ...data.players[2] },
+            { name: AI_NAMES[2], isAI: true, ...data.players[3] },
+          ]);
+        }
         setMsg('');
         setShowResult(false);
-        setScores([0, 0, 0, 0]);
+        setScores([0,0,0,0]);
         setSelected({ area: '', cards: [] });
       }, 0);
     } else {
@@ -65,7 +63,7 @@ export default function TryPlay() {
       setHasCompared(false);
       setMsg('');
       setShowResult(false);
-      setScores([0, 0, 0, 0]);
+      setScores([0,0,0,0]);
       setSelected({ area: '', cards: [] });
     }
   }
@@ -109,12 +107,13 @@ export default function TryPlay() {
       { name: '你', head, middle, tail },
       ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
     ];
+    // 用sssScore.js比牌计分
     const resScores = calcSSSAllScores(allPlayers);
     setScores(resScores);
     setShowResult(true);
     setHasCompared(true);
     setMsg('');
-    setIsReady(false);
+    setIsReady(false); // 比牌后恢复为“准备”模式
   }
 
   function renderPlayerSeat(name, idx, isMe) {
