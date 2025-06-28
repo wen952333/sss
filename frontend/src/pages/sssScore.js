@@ -1,4 +1,4 @@
-// sssScore.js - 十三水比牌计分（倒水直接全输，按每道分数结算，无三道全胜额外奖励）
+// sssScore.js - 十三水比牌计分（严格每道分数，无赢道数-输道数，无全胜奖励）
 
 const VALUE_ORDER = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -17,7 +17,6 @@ export function calcSSSAllScores(players) {
   // 特殊牌型（只对未倒水玩家有效）
   const specials = players.map((p, idx) => fouls[idx] ? null : getSpecialType(p));
   const specialRanks = specials.map(s => s ? specialTypeRank(s) : 0);
-
   // 统计每家三道分数（用于倒水结算）
   const threeScores = players.map((p, idx) => (
     getAreaScore(p.head, 'head') +
@@ -25,7 +24,7 @@ export function calcSSSAllScores(players) {
     getAreaScore(p.tail, 'tail')
   ));
 
-  // 每家和每家一对一结算，倒水就是全输，对方赢自己三道分
+  // 每家和每家一对一结算
   for (let i = 0; i < N; ++i) {
     for (let j = 0; j < N; ++j) {
       if (i === j) continue;
@@ -42,7 +41,7 @@ export function calcSSSAllScores(players) {
       }
       if (fouls[i] && fouls[j]) continue;
 
-      // 正常玩家之间比牌
+      // 特殊牌型
       if (specials[i] && !specials[j]) {
         marks[i] += 3; marks[j] -= 3; continue;
       }
@@ -54,10 +53,10 @@ export function calcSSSAllScores(players) {
         else if (specialRanks[i] < specialRanks[j]) { marks[i] -= 3; marks[j] += 3; }
         continue;
       }
-      // 普通三道比牌：每道分别比较得分，无三道全胜额外奖励
-      let areaNames = ['head', 'middle', 'tail'];
+      // 普通三道比牌：逐道单独计分（无道数-输道数、无全胜奖励）
+      const areaNames = ['head', 'middle', 'tail'];
       for (let k = 0; k < 3; ++k) {
-        let cmp = compareArea(players[i][areaNames[k]], players[j][areaNames[k]], areaNames[k]);
+        const cmp = compareArea(players[i][areaNames[k]], players[j][areaNames[k]], areaNames[k]);
         if (cmp > 0) {
           let add = getAreaScore(players[i][areaNames[k]], areaNames[k]);
           marks[i] += add;
@@ -85,7 +84,6 @@ function isFoul(head, middle, tail) {
 // 特殊牌型识别（倒水玩家不会调用此函数）
 function getSpecialType(p) {
   const all = [...p.head, ...p.middle, ...p.tail];
-  const suits = all.map(c => c.split('_')[2]);
   const uniqVals = new Set(all.map(c => c.split('_')[0]));
   // 一条龙
   if (uniqVals.size === 13) return '一条龙';
@@ -95,25 +93,24 @@ function getSpecialType(p) {
     const v = c.split('_')[0];
     valueCount[v] = (valueCount[v] || 0) + 1;
   });
-  let pairs = 0, four = 0;
+  let pairs = 0;
   Object.values(valueCount).forEach(cnt => {
-    if (cnt === 4) four++;
+    if (cnt === 4) pairs += 2;
     if (cnt === 2) pairs++;
   });
   if (pairs === 6 && Object.values(valueCount).includes(1)) return '六对半';
-  // 三同花（三墩各自同花，且三墩花色可以相同或不同）
+  // 三同花
   const hSuit = p.head[0].split('_')[2];
   const mSuit = p.middle[0].split('_')[2];
   const tSuit = p.tail[0].split('_')[2];
   if (p.head.every(c => c.split('_')[2] === hSuit) &&
       p.middle.every(c => c.split('_')[2] === mSuit) &&
       p.tail.every(c => c.split('_')[2] === tSuit)) {
-    // 尾道为同花顺不算三同花
     if (!(isStraight(p.tail) && p.tail.every(c => c.split('_')[2] === tSuit))) {
       return '三同花';
     }
   }
-  // 三顺子（每道均为顺子，尾道为同花顺不算三顺子）
+  // 三顺子
   if (isStraight(p.head) && isStraight(p.middle) && isStraight(p.tail)) {
     if (!(isStraight(p.tail) && p.tail.every(c => c.split('_')[2] === tSuit))) {
       return '三顺子';
