@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { aiSmartSplit, fillAiPlayers, getPlayerSmartSplits } from './SmartSplit';
+import { aiSmartSplit, fillAiPlayers } from './SmartSplit'; // 只用AI最优分法
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
@@ -48,10 +48,6 @@ export default function TryPlay() {
   const [isReady, setIsReady] = useState(false);
   const [dealed, setDealed] = useState(false);
 
-  // 智能分牌循环索引和缓存
-  const [splitIndex, setSplitIndex] = useState(0);
-  const [allSplits, setAllSplits] = useState([]);
-
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
@@ -79,30 +75,6 @@ export default function TryPlay() {
     setMsg('');
     setShowResult(false);
     setScores([0,0,0,0]);
-    setSelected({ area: '', cards: [] });
-    setAllSplits([]);
-    setSplitIndex(0);
-  }
-
-  // 智能分牌（循环5种分法）
-  function handleAutoSplit() {
-    if (!dealed) return;
-    // 合并三墩的牌
-    const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) {
-      setMsg('三墩总共应为13张牌');
-      return;
-    }
-    let splits = allSplits.length ? allSplits : getPlayerSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
-    if (!splits.length) return;
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
-    setHead(split.head);
-    setMiddle(split.middle);
-    setTail(split.tail);
-    setMsg('');
     setSelected({ area: '', cards: [] });
   }
 
@@ -438,23 +410,7 @@ export default function TryPlay() {
             onClick={handleReady}
             disabled={isReady}
           >准备</button>
-          <button
-            style={{
-              flex: 1,
-              background: '#23e67a',
-              color: '#fff',
-              fontWeight: 700,
-              border: 'none',
-              borderRadius: 10,
-              padding: '13px 0',
-              fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed',
-              boxShadow: '0 2px 9px #23e67a44',
-              transition: 'background 0.16s'
-            }}
-            onClick={handleAutoSplit}
-            disabled={!isReady}
-          >智能分牌</button>
+          {/* 移除智能分牌按钮 */}
           <button
             style={{
               flex: 1,
