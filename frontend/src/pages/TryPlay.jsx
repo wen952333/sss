@@ -1,22 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
-import { calcSSSAllScores } from './sssScore'; // 引入本地比牌计分
+import { calcSSSAllScores } from './sssScore';
+import { getShuffledDeck, dealHands } from './DealCards'; // 新增发牌模块
 import './Play.css';
 
-const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
-const allRanks = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
 const AI_NAMES = ['小明', '小红', '小刚'];
-
-function getShuffledDeck() {
-  const deck = [];
-  for (const suit of allSuits) for (const rank of allRanks) deck.push(`${rank}_of_${suit}`);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
 
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
@@ -43,19 +32,14 @@ export default function TryPlay() {
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
   function handleReady() {
+    // 新：用DealCards模块发牌
     const deck = getShuffledDeck();
-    const myHand = deck.slice(0, 13);
-    const aiHands = [
-      deck.slice(13, 26),
-      deck.slice(26, 39),
-      deck.slice(39, 52)
-    ];
+    const [myHand, ...aiHands] = dealHands(deck);
     // 玩家用AI分法
     const mySplit = aiSmartSplit(myHand);
     setHead(mySplit.head);
     setMiddle(mySplit.middle);
     setTail(mySplit.tail);
-    // AI补位分牌
     setAiPlayers(fillAiPlayers([
       { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
       { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
@@ -107,6 +91,7 @@ export default function TryPlay() {
       { name: '你', head, middle, tail },
       ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
     ];
+    // 用sssScore.js比牌计分
     const resScores = calcSSSAllScores(allPlayers);
     setScores(resScores);
     setShowResult(true);
