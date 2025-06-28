@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getSmartSplits } from './SmartSplit';
 import './Play.css';
+
+const OUTER_MAX_WIDTH = 420;
+const PAI_DUN_HEIGHT = 133;
+const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
+const CARD_WIDTH = Math.round(CARD_HEIGHT * 46 / 66);
 
 export default function Play() {
   const { roomId } = useParams();
@@ -8,7 +14,7 @@ export default function Play() {
   const [myPoints, setMyPoints] = useState(0);
   const [myName, setMyName] = useState('');
   const [myCards, setMyCards] = useState([]);
-  const [selected, setSelected] = useState({ area: 'hand', cards: [] }); // {area, cards}
+  const [selected, setSelected] = useState({ area: '', cards: [] });
   const [head, setHead] = useState([]);
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
@@ -18,6 +24,9 @@ export default function Play() {
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
+  const [allSplits, setAllSplits] = useState([]);
+  const [splitIndex, setSplitIndex] = useState(0);
+
   const navigate = useNavigate();
 
   // 登录校验和查分
@@ -44,6 +53,7 @@ export default function Play() {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
+    // eslint-disable-next-line
   }, [roomId]);
 
   async function fetchPlayers() {
@@ -117,21 +127,27 @@ export default function Play() {
     setIsReady(true);
   }
 
-  // 自动分牌
-  function handleAutoSplit() {
+  // 智能分牌（循环5种分法）
+  function handleSmartSplit() {
     // 合并所有未分配的牌
     const all = [...myCards, ...head, ...middle, ...tail];
-    setHead(all.slice(0, 3));
-    setMiddle(all.slice(3, 8));
-    setTail(all.slice(8, 13));
-    setMyCards([]);
-    setSelected({ area: 'hand', cards: [] });
+    if (all.length !== 13) return;
+    let splits = allSplits.length ? allSplits : getSmartSplits(all);
+    if (!allSplits.length) setAllSplits(splits);
+    const idx = (splitIndex + 1) % splits.length;
+    setSplitIndex(idx);
+    const split = splits[idx];
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
+    setSelected({ area: '', cards: [] });
     setSubmitMsg('');
   }
 
   // 牌点击：高亮/取消高亮（在手牌或三墩中都可选）
-  function handleCardClick(card, area) {
+  function handleCardClick(card, area, e) {
     if (submitted) return;
+    if (e) e.stopPropagation();
     setSelected(sel => {
       if (sel.area !== area) return { area, cards: [card] };
       return sel.cards.includes(card)
@@ -144,22 +160,15 @@ export default function Play() {
   function moveTo(dest) {
     if (submitted) return;
     if (!selected.cards.length) return;
-    // 先从原区移除
     let newHand = [...myCards];
     let newHead = [...head];
     let newMiddle = [...middle];
     let newTail = [...tail];
     const from = selected.area;
-    if (from === 'hand') {
-      newHand = newHand.filter(c => !selected.cards.includes(c));
-    } else if (from === 'head') {
-      newHead = newHead.filter(c => !selected.cards.includes(c));
-    } else if (from === 'middle') {
-      newMiddle = newMiddle.filter(c => !selected.cards.includes(c));
-    } else if (from === 'tail') {
-      newTail = newTail.filter(c => !selected.cards.includes(c));
-    }
-    // 放到目标区
+    if (from === 'hand') newHand = newHand.filter(c => !selected.cards.includes(c));
+    if (from === 'head') newHead = newHead.filter(c => !selected.cards.includes(c));
+    if (from === 'middle') newMiddle = newMiddle.filter(c => !selected.cards.includes(c));
+    if (from === 'tail') newTail = newTail.filter(c => !selected.cards.includes(c));
     if (dest === 'hand') newHand = [...newHand, ...selected.cards];
     if (dest === 'head') newHead = [...newHead, ...selected.cards];
     if (dest === 'middle') newMiddle = [...newMiddle, ...selected.cards];
@@ -196,16 +205,190 @@ export default function Play() {
     }
   }
 
-  // 比牌弹窗（2x2田字格，3墩堆叠显示）
+  // 绿色暗影主色
+  const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
+
+  // 渲染玩家座位
+  function renderPlayerSeat(name, idx, isMe, submitted) {
+    return (
+      <div
+        key={name}
+        className="play-seat"
+        style={{
+          border: 'none',
+          borderRadius: 10,
+          marginRight: 8,
+          width: '22%',
+          minWidth: 70,
+          color: isMe ? '#23e67a' : '#fff',
+          background: isMe ? '#1c6e41' : '#2a556e',
+          textAlign: 'center',
+          padding: '12px 0',
+          fontWeight: 700,
+          fontSize: 17,
+          boxShadow: greenShadow,
+          boxSizing: 'border-box'
+        }}
+      >
+        <div>{name}</div>
+        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
+          {isMe ? '你' : (submitted ? '已提交' : '未提交')}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPaiDunCards(arr, area, cardSize) {
+    const paddingX = 16;
+    const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70;
+    let overlap = Math.floor((cardSize?.width ?? CARD_WIDTH) / 3);
+    if (arr.length > 1) {
+      const totalWidth = (cardSize?.width ?? CARD_WIDTH) + (arr.length - 1) * overlap;
+      if (totalWidth > maxWidth) {
+        overlap = Math.floor((maxWidth - (cardSize?.width ?? CARD_WIDTH)) / (arr.length - 1));
+      }
+    }
+    let lefts = [];
+    let startX = 0;
+    for (let i = 0; i < arr.length; ++i) {
+      lefts.push(startX + i * overlap);
+    }
+    return (
+      <div style={{
+        position: 'relative',
+        height: cardSize?.height ?? PAI_DUN_HEIGHT,
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        overflow: 'visible'
+      }}>
+        {arr.map((card, idx) => {
+          const isSelected = selected.area === area && selected.cards.includes(card);
+          return (
+            <img
+              key={card}
+              src={`/cards/${card}.svg`}
+              alt={card}
+              className="card-img"
+              style={{
+                position: 'absolute',
+                left: lefts[idx],
+                top: ((cardSize?.height ?? PAI_DUN_HEIGHT) - (cardSize?.height ?? CARD_HEIGHT)) / 2,
+                zIndex: idx,
+                width: cardSize?.width ?? CARD_WIDTH,
+                height: cardSize?.height ?? CARD_HEIGHT,
+                borderRadius: 5,
+                border: isSelected
+                  ? '2.5px solid #ff4444'
+                  : '2.5px solid #eaeaea',
+                boxShadow: isSelected
+                  ? '0 0 16px 2px #ff4444cc'
+                  : greenShadow,
+                cursor: submitted ? 'not-allowed' : 'pointer',
+                background: '#fff',
+                transition: 'border .13s, box-shadow .13s'
+              }}
+              onClick={e => { if (!submitted) handleCardClick(card, area, e); }}
+              draggable={false}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderPaiDun(arr, label, area, color) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          borderRadius: 14,
+          background: '#176b3c',
+          minHeight: PAI_DUN_HEIGHT,
+          height: PAI_DUN_HEIGHT,
+          marginBottom: 20,
+          position: 'relative',
+          boxShadow: greenShadow,
+          display: 'flex',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          paddingLeft: 16,
+          paddingRight: 70,
+        }}
+        onClick={() => { if (!submitted) moveTo(area); }}
+      >
+        <div style={{
+          flex: 1,
+          height: '100%',
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          minWidth: 0,
+        }}>
+          {arr.length === 0 &&
+            <div style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#c3d6c6',
+              fontSize: 18,
+              fontWeight: 500,
+              userSelect: 'none'
+            }}>
+              请放置
+            </div>
+          }
+          {renderPaiDunCards(arr, area)}
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            right: 16,
+            top: 0,
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            color,
+            fontSize: 18,
+            fontWeight: 600,
+            pointerEvents: 'none',
+            background: 'transparent',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {label}（{arr.length}）
+        </div>
+      </div>
+    );
+  }
+
+  // 渲染13张手牌
+  function renderMyCards() {
+    return <div className="cards-area">
+      {myCards.map(card =>
+        <img
+          key={card}
+          src={`/cards/${card}.svg`}
+          alt={card}
+          className="card-img"
+          style={{
+            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+            boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
+          }}
+          onClick={e => handleCardClick(card, 'hand', e)}
+        />
+      )}
+    </div>;
+  }
+
+  // 比牌弹窗
   function renderResultModal() {
     if (!showResult) return null;
-    // 假数据演示结构，实际可用myResult
-    const fields = [
-      { label: '头道', cards: head },
-      { label: '中道', cards: middle },
-      { label: '尾道', cards: tail },
-      { label: '得分', score: myResult?.[0]?.score || 1 }
-    ];
+    const scale = 0.9;
+    const cardW = CARD_WIDTH * scale;
+    const cardH = CARD_HEIGHT * scale;
+    // 展示我的三道和得分（后端可扩展多人比牌结果）
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -222,171 +405,25 @@ export default function Play() {
           gridTemplateColumns: '1fr 1fr',
           gridTemplateRows: '1fr 1fr',
           gap: 16,
+          position: 'relative'
         }}>
-          <div style={{ gridColumn: '1/2', gridRow: '1/2', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#23e67a', marginBottom: 8 }}>{fields[0].label}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {fields[0].cards.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
+          <div style={{ textAlign: 'center', borderBottom: '1px solid #eee', gridColumn: '1/3' }}>
+            <div style={{ fontWeight: 700, color: '#23e67a', marginBottom: 8 }}>
+              {myName}（{(myResult && myResult[0] && myResult[0].score) || 1}分）
             </div>
-          </div>
-          <div style={{ gridColumn: '2/3', gridRow: '1/2', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#4f8cff', marginBottom: 8 }}>{fields[1].label}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {fields[1].cards.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
+              {renderPaiDunCards(head, 'none', { width: cardW, height: cardH })}
             </div>
-          </div>
-          <div style={{ gridColumn: '1/2', gridRow: '2/3', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#ff974f', marginBottom: 8 }}>{fields[2].label}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {fields[2].cards.map(card => (
-                <img key={card} src={`/cards/${card}.svg`} alt={card} className="card-img" style={{ width: 36, height: 52 }} />
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
+              {renderPaiDunCards(middle, 'none', { width: cardW, height: cardH })}
             </div>
-          </div>
-          <div style={{ gridColumn: '2/3', gridRow: '2/3', textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, color: '#ca1a4b', marginBottom: 8 }}>得分</div>
-            <div style={{ fontSize: 27, color: '#ca1a4b', marginTop: 14 }}>{fields[3].score}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+              {renderPaiDunCards(tail, 'none', { width: cardW, height: cardH })}
+            </div>
           </div>
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
           }} onClick={() => setShowResult(false)}>×</button>
-        </div>
-      </div>
-    );
-  }
-
-  // 按钮样式
-  const buttonStyle = {
-    flex: 1,
-    background: '#23e67a',
-    color: '#fff',
-    fontWeight: 700,
-    border: 'none',
-    borderRadius: 7,
-    padding: '10px 0',
-    fontSize: 18,
-    cursor: 'pointer'
-  };
-
-  // 渲染玩家座位
-  function renderSeats() {
-    let seats = [];
-    for (let i = 0; i < 4; i++) {
-      const player = players[i];
-      if (player) {
-        seats.push(
-          <div
-            key={i}
-            className={`play-seat`}
-            style={{
-              boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
-              border: 'none',
-              borderRadius: 10,
-              marginRight: 8,
-              width: '25%',
-              minWidth: 80,
-              color: '#fff',
-              background: '#115f37',
-              textAlign: 'center',
-              padding: '12px 0'
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{player.name}</div>
-            <div style={{ marginTop: 4, fontSize: 14 }}>
-              {player.submitted ? '已提交' : '未提交'}
-            </div>
-          </div>
-        );
-      } else {
-        seats.push(
-          <div
-            key={i}
-            className="play-seat empty"
-            style={{
-              boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
-              border: 'none',
-              borderRadius: 10,
-              marginRight: 8,
-              width: '25%',
-              minWidth: 80,
-              color: '#7ecfab',
-              background: '#194e3a',
-              textAlign: 'center',
-              padding: '12px 0'
-            }}
-          >
-            等待加入...
-          </div>
-        );
-      }
-    }
-    return <div style={{ display: 'flex', marginBottom: 18 }}>{seats}</div>;
-  }
-
-  // 渲染13张手牌
-  function renderMyCards() {
-    return <div className="cards-area">
-      {myCards.map(card =>
-        <img
-          key={card}
-          src={`/cards/${card}.svg`}
-          alt={card}
-          className="card-img"
-          style={{
-            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-            boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
-          }}
-          onClick={() => handleCardClick(card, 'hand')}
-        />
-      )}
-    </div>;
-  }
-
-  // 渲染分好的三道（牌也可高亮多选）
-  function renderPaiDun(arr, label, color, area, onClick) {
-    return (
-      <div
-        style={{
-          background: '#1e663d',
-          boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
-          border: 'none',
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 12,
-          cursor: submitted ? 'default' : 'pointer',
-        }}
-        onClick={() => moveTo(area)}
-      >
-        <div style={{ marginBottom: 8, color, fontSize: 16 }}>{label}（{arr.length}）</div>
-        <div style={{
-          background: '#164b2e',
-          borderRadius: 7,
-          minHeight: 36,
-          marginBottom: 6,
-          color: '#fff',
-          display: 'flex',
-          gap: 8,
-        }}>
-          {arr.length === 0 ? <span style={{ color: '#aaa' }}>请放置</span> :
-            arr.map(card =>
-              <img
-                key={card}
-                src={`/cards/${card}.svg`}
-                alt={card}
-                className="card-img"
-                style={{
-                  opacity: submitted ? 0.75 : 1,
-                  border: selected.area === area && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
-                  boxShadow: selected.area === area && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
-                }}
-                onClick={e => { e.stopPropagation(); handleCardClick(card, area); }}
-              />
-            )
-          }
         </div>
       </div>
     );
@@ -399,26 +436,34 @@ export default function Play() {
       fontFamily: 'inherit'
     }}>
       <div style={{
-        maxWidth: 420,
+        maxWidth: OUTER_MAX_WIDTH,
+        width: '100%',
         margin: '30px auto',
-        background: '#144126',
-        borderRadius: 12,
-        boxShadow: '0 4px 32px #0f2717bb',
-        padding: 22,
-        minHeight: 650
+        background: '#185a30',
+        borderRadius: 22,
+        boxShadow: greenShadow,
+        padding: 16,
+        border: 'none',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 650,
+        boxSizing: 'border-box'
       }}>
-        {/* 顶部按钮和积分 */}
+        {/* 头部：退出房间+积分 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
           <button
             style={{
-              background: '#fff',
+              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
               color: '#234',
               fontWeight: 'bold',
               border: 'none',
-              borderRadius: 7,
-              padding: '5px 16px',
-              marginRight: 16,
-              cursor: 'pointer'
+              borderRadius: 9,
+              padding: '7px 22px',
+              cursor: 'pointer',
+              marginRight: 18,
+              fontSize: 17,
+              boxShadow: '0 1.5px 6px #23e67a30'
             }}
             onClick={handleExitRoom}
           >
@@ -426,51 +471,108 @@ export default function Play() {
           </button>
           <div style={{
             flex: 1,
-            textAlign: 'center',
-            color: '#fff',
+            textAlign: 'right',
+            color: '#23e67a',
             fontWeight: 900,
             fontSize: 21,
-            letterSpacing: 2
+            letterSpacing: 2,
+            marginRight: 8,
+            textShadow: '0 2px 7px #23e67a44'
           }}>
+            <span role="img" aria-label="coin" style={{ fontSize: 18, marginRight: 4 }}>🪙</span>
             积分：{myPoints}
           </div>
         </div>
-
-        {renderSeats()}
-
-        <div style={{ margin: '15px 0 10px 0' }}>
+        {/* 玩家区 */}
+        <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
+          {players.map((p, idx) =>
+            renderPlayerSeat(p.name, idx, p.name === myName, p.submitted)
+          )}
+        </div>
+        {/* 牌墩区域 */}
+        {renderPaiDun(head, '头道', 'head', '#23e67a')}
+        {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
+        {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
+        {/* 我的手牌 */}
+        <div style={{ margin: '16px 0 8px 0' }}>
           <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-            你的手牌（点击选中，点击下方牌墩移动）
+            你的手牌（点击选中，点击上方牌墩移动）
           </div>
           {renderMyCards()}
         </div>
-        {renderPaiDun(head, '头道', '#e0ffe3', 'head', () => moveTo('head'))}
-        {renderPaiDun(middle, '中道', '#e0eaff', 'middle', () => moveTo('middle'))}
-        {renderPaiDun(tail, '尾道', '#ffe6e0', 'tail', () => moveTo('tail'))}
-
-        {/* 三个固定按钮 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        {/* 按钮区 */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
           <button
-            style={buttonStyle}
-            disabled={isReady || submitted}
+            style={{
+              flex: 1,
+              background: isReady || submitted ? '#b0b0b0' : '#dddddd',
+              color: '#fff',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px 0',
+              fontSize: 18,
+              cursor: isReady || submitted ? 'not-allowed' : 'pointer',
+              boxShadow: isReady || submitted ? 'none' : '0 2px 9px #23e67a22',
+              transition: 'background 0.16s'
+            }}
             onClick={handleReady}
+            disabled={isReady || submitted}
           >准备</button>
           <button
-            style={buttonStyle}
-            onClick={handleAutoSplit}
+            style={{
+              flex: 1,
+              background: '#23e67a',
+              color: '#fff',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px 0',
+              fontSize: 18,
+              cursor: submitted ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 9px #23e67a44',
+              transition: 'background 0.16s'
+            }}
+            onClick={handleSmartSplit}
             disabled={submitted}
-          >自动分牌</button>
+          >智能分牌</button>
           <button
-            style={buttonStyle}
+            style={{
+              flex: 1,
+              background: '#ffb14d',
+              color: '#222',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px 0',
+              fontSize: 18,
+              cursor: submitted ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 9px #ffb14d55',
+              transition: 'background 0.16s'
+            }}
             disabled={submitted}
             onClick={handleStartCompare}
           >开始比牌</button>
         </div>
-        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 6, minHeight: 24 }}>
+        <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {submitMsg}
         </div>
+        {renderResultModal()}
       </div>
-      {renderResultModal()}
+      {/* 移动端自适应，防止溢出 */}
+      <style>{`
+        @media (max-width: 480px) {
+          .play-seat {
+            margin-right: 4px !important;
+            width: 24% !important;
+            min-width: 0 !important;
+          }
+          .card-img {
+            width: ${Math.floor(CARD_WIDTH*0.92)}px !important;
+            height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
