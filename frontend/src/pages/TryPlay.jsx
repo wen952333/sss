@@ -61,8 +61,8 @@ export default function TryPlay() {
   const [splitIndex, setSplitIndex] = useState(0);
   const [allSplits, setAllSplits] = useState([]);
 
-  // 绿色发光
-  const greenShadow = '0 0 0 2.5px #23e67a,0 0 16px #23e67a66';
+  // 绿色暗影主色
+  const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
   function handleReady() {
     const deck = getShuffledDeck();
@@ -86,18 +86,16 @@ export default function TryPlay() {
     setShowResult(false);
     setScores([0,0,0,0]);
     setSelected({ area: '', cards: [] });
-    setAllSplits([]); // 重置智能分牌缓存
+    setAllSplits([]);
     setSplitIndex(0);
   }
 
-  // 智能分牌：循环5种优选分法
   function handleAutoSplit() {
     if (!dealed) return;
     const all = [...head, ...middle, ...tail];
     if (all.length !== 13) return;
     let splits = allSplits.length ? allSplits : getSmartSplits(all);
     if (!allSplits.length) setAllSplits(splits);
-    // 循环取下一个分法
     const idx = (splitIndex + 1) % splits.length;
     setSplitIndex(idx);
     const split = splits[idx];
@@ -159,7 +157,7 @@ export default function TryPlay() {
         key={name}
         className="play-seat"
         style={{
-          border: '2.5px solid transparent',
+          border: 'none',
           borderRadius: 10,
           marginRight: 8,
           width: '22%',
@@ -182,9 +180,7 @@ export default function TryPlay() {
     );
   }
 
-  // 堆叠显示卡片
   function renderPaiDunCards(arr, area, cardSize) {
-    // cardSize: {width, height}
     const paddingX = 16;
     const maxWidth = OUTER_MAX_WIDTH - 2 * paddingX - 70;
     let overlap = Math.floor((cardSize?.width ?? CARD_WIDTH) / 3);
@@ -229,7 +225,7 @@ export default function TryPlay() {
                   : '2.5px solid #eaeaea',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
-                  : '0 0 14px #23e67a33',
+                  : greenShadow,
                 cursor: isReady ? 'pointer' : 'not-allowed',
                 background: '#fff',
                 transition: 'border .13s, box-shadow .13s'
@@ -309,10 +305,8 @@ export default function TryPlay() {
     );
   }
 
-  // 比牌弹窗：整体高度、扑克牌高度宽度都缩小10%
   function renderResultModal() {
     if (!showResult) return null;
-    // 缩放参数
     const scale = 0.9;
     const cardW = CARD_WIDTH * scale;
     const cardH = CARD_HEIGHT * scale;
@@ -327,7 +321,7 @@ export default function TryPlay() {
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
-          minHeight: 270, // 原300，缩小10%
+          minHeight: 270,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -379,7 +373,7 @@ export default function TryPlay() {
         borderRadius: 22,
         boxShadow: greenShadow,
         padding: 16,
-        border: '2.5px solid transparent',
+        border: 'none',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
