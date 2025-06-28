@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { aiSmartSplit, fillAiPlayers, getPlayerSmartSplits } from './SmartSplit'; // 使用AI分牌/补位
+import { aiSmartSplit, fillAiPlayers, getPlayerSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
@@ -26,7 +26,6 @@ function calcScores(allPlayers) {
   return scores;
 }
 
-// 牌墩宽度和卡片宽度
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
@@ -90,8 +89,13 @@ export default function TryPlay() {
     if (!dealed) return;
     // 合并三墩的牌
     const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) return;
-    const splits = getPlayerSmartSplits(all);
+    if (all.length !== 13) {
+      setMsg('三墩总共应为13张牌');
+      return;
+    }
+    let splits = allSplits.length ? allSplits : getPlayerSmartSplits(all);
+    if (!allSplits.length) setAllSplits(splits);
+    if (!splits.length) return;
     const idx = (splitIndex + 1) % splits.length;
     setSplitIndex(idx);
     const split = splits[idx];
