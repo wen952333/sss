@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { aiSmartSplit, fillAiPlayers } from './SmartSplit'; // 只用AI最优分法
+import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
+import { calcSSSAllScores } from './sssScore'; // 引入本地比牌计分
 import './Play.css';
 
 const allSuits = ['clubs', 'spades', 'diamonds', 'hearts'];
@@ -15,15 +16,6 @@ function getShuffledDeck() {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;
-}
-
-function calcScores(allPlayers) {
-  const scores = allPlayers.map(() => 0);
-  ['head', 'middle', 'tail'].forEach(area => {
-    const ranks = [3,2,1,0].sort(() => Math.random()-0.5);
-    for (let i=0; i<4; ++i) scores[i] += ranks[i];
-  });
-  return scores;
 }
 
 const OUTER_MAX_WIDTH = 420;
@@ -46,7 +38,6 @@ export default function TryPlay() {
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
-  const [dealed, setDealed] = useState(false);
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
@@ -71,7 +62,6 @@ export default function TryPlay() {
       { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
     ]));
     setIsReady(true);
-    setDealed(true);
     setMsg('');
     setShowResult(false);
     setScores([0,0,0,0]);
@@ -114,10 +104,10 @@ export default function TryPlay() {
       return;
     }
     const allPlayers = [
-      { head, middle, tail },
-      ...aiPlayers
+      { name: '你', head, middle, tail },
+      ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
     ];
-    const resScores = calcScores(allPlayers);
+    const resScores = calcSSSAllScores(allPlayers);
     setScores(resScores);
     setShowResult(true);
     setMsg('');
@@ -410,7 +400,6 @@ export default function TryPlay() {
             onClick={handleReady}
             disabled={isReady}
           >准备</button>
-          {/* 移除智能分牌按钮 */}
           <button
             style={{
               flex: 1,
@@ -434,7 +423,6 @@ export default function TryPlay() {
         </div>
         {renderResultModal()}
       </div>
-      {/* 移动端自适应，防止溢出 */}
       <style>{`
         @media (max-width: 480px) {
           .play-seat {
