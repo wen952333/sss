@@ -27,29 +27,46 @@ export default function TryPlay() {
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
+  const [hasCompared, setHasCompared] = useState(false);
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
   function handleReady() {
-    // 新：用DealCards模块发牌
-    const deck = getShuffledDeck();
-    const [myHand, ...aiHands] = dealHands(deck);
-    // 玩家用AI分法
-    const mySplit = aiSmartSplit(myHand);
-    setHead(mySplit.head);
-    setMiddle(mySplit.middle);
-    setTail(mySplit.tail);
-    setAiPlayers(fillAiPlayers([
-      { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
-      { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
-      { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
-    ]));
-    setIsReady(true);
-    setMsg('');
-    setShowResult(false);
-    setScores([0,0,0,0]);
-    setSelected({ area: '', cards: [] });
+    if (!isReady) {
+      // 发牌并进入准备状态
+      const deck = getShuffledDeck();
+      const [myHand, ...aiHands] = dealHands(deck);
+      const mySplit = aiSmartSplit(myHand);
+      setHead(mySplit.head);
+      setMiddle(mySplit.middle);
+      setTail(mySplit.tail);
+      setAiPlayers(fillAiPlayers([
+        { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
+        { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
+        { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
+      ]));
+      setIsReady(true);
+      setHasCompared(false);
+      setMsg('');
+      setShowResult(false);
+      setScores([0,0,0,0]);
+      setSelected({ area: '', cards: [] });
+    } else {
+      // 取消准备，清空手牌和AI
+      setHead([]); setMiddle([]); setTail([]);
+      setAiPlayers([
+        { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+      ]);
+      setIsReady(false);
+      setHasCompared(false);
+      setMsg('');
+      setShowResult(false);
+      setScores([0,0,0,0]);
+      setSelected({ area: '', cards: [] });
+    }
   }
 
   function handleCardClick(card, area, e) {
@@ -95,7 +112,9 @@ export default function TryPlay() {
     const resScores = calcSSSAllScores(allPlayers);
     setScores(resScores);
     setShowResult(true);
+    setHasCompared(true);
     setMsg('');
+    setIsReady(false); // 比牌后恢复为“准备”模式
   }
 
   function renderPlayerSeat(name, idx, isMe) {
@@ -371,35 +390,40 @@ export default function TryPlay() {
           <button
             style={{
               flex: 1,
-              background: isReady ? '#b0b0b0' : '#dddddd',
+              background: !isReady
+                ? 'linear-gradient(90deg,#23e67a 80%,#43ffb8 100%)'
+                : '#b0b0b0',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'not-allowed' : 'pointer',
-              boxShadow: isReady ? 'none' : '0 2px 9px #23e67a22',
+              cursor: !isReady || hasCompared ? 'pointer' : 'pointer',
+              boxShadow: !isReady
+                ? '0 2px 9px #23e67a22'
+                : 'none',
               transition: 'background 0.16s'
             }}
             onClick={handleReady}
-            disabled={isReady}
-          >准备</button>
+          >{isReady ? '取消准备' : '准备'}</button>
           <button
             style={{
               flex: 1,
-              background: '#ffb14d',
-              color: '#222',
+              background: isReady
+                ? '#ffb14d'
+                : '#ddd',
+              color: isReady ? '#222' : '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
               cursor: isReady ? 'pointer' : 'not-allowed',
-              boxShadow: '0 2px 9px #ffb14d55',
+              boxShadow: isReady ? '0 2px 9px #ffb14d55' : 'none',
               transition: 'background 0.16s'
             }}
-            onClick={handleStartCompare}
+            onClick={isReady ? handleStartCompare : undefined}
             disabled={!isReady}
           >开始比牌</button>
         </div>
