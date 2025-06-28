@@ -206,7 +206,7 @@ export default function Home() {
 
       {/* 房间列表 */}
       <div style={{ margin: '18px 0 20px 0', textAlign: 'left' }}>
-        <div style={{ fontWeight: 700, marginBottom: 8, color: '#454c5a' }}>房间列表</div>
+        <div className="room-list-title">房间列表</div>
         {rooms.length === 0 && <div style={{ color: '#a8b1c7' }}>暂无房间</div>}
         <ul style={{ padding: 0, margin: 0 }}>
           {rooms.map(room => (
@@ -221,23 +221,14 @@ export default function Home() {
         </ul>
       </div>
 
-      {/* 试玩按钮，右下角固定 */}
+      {/* 试玩按钮 */}
       <button
+        className="tryplay-btn"
         style={{
           position: 'absolute',
           left: 32,
           bottom: 30,
           width: 'calc(100% - 64px)',
-          background: '#4f8cff',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 12,
-          padding: '13px 0',
-          fontWeight: 700,
-          fontSize: 20,
-          letterSpacing: 2,
-          boxShadow: '0 2px 14px #a8b8e7aa',
-          cursor: 'pointer',
           zIndex: 10,
         }}
         onClick={() => navigate('/try')}
