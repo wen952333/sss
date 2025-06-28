@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
+import { calcSSSAllScores } from './sssScore';
+import { getShuffledDeck, dealHands } from './DealCards'; // 新增发牌模块
 import './Play.css';
 
 const AI_NAMES = ['小明', '小红', '小刚'];
@@ -17,105 +20,52 @@ export default function TryPlay() {
   const [selected, setSelected] = useState({ area: '', cards: [] });
   const [msg, setMsg] = useState('');
   const [aiPlayers, setAiPlayers] = useState([
-    { name: AI_NAMES[0], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[1], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
-  const [myVs, setMyVs] = useState([0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [hasCompared, setHasCompared] = useState(false);
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
-  // ---------- 1. 发牌接口 ----------
-  async function handleReady() {
+  function handleReady() {
     if (!isReady) {
-      setMsg('智能发牌中...');
-      try {
-        const res = await fetch('https://9525.ip-ddns.com/api/sss_tryplay_deal.php');
-        const data = await res.json();
-        if (!data.success || !data.players || data.players.length !== 4) {
-          setMsg('发牌失败');
-          return;
-        }
-        const me = data.players[0];
-        setHead(me.head);
-        setMiddle(me.middle);
-        setTail(me.tail);
-        setAiPlayers([data.players[1], data.players[2], data.players[3]]);
-        setIsReady(true);
-        setHasCompared(false);
-        setMsg('');
-        setShowResult(false);
-        setScores([0,0,0,0]);
-        setMyVs([0,0,0]);
-        setSelected({ area: '', cards: [] });
-      } catch (e) {
-        setMsg('发牌接口异常');
-      }
+      // 发牌并进入准备状态
+      const deck = getShuffledDeck();
+      const [myHand, ...aiHands] = dealHands(deck);
+      const mySplit = aiSmartSplit(myHand);
+      setHead(mySplit.head);
+      setMiddle(mySplit.middle);
+      setTail(mySplit.tail);
+      setAiPlayers(fillAiPlayers([
+        { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
+        { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
+        { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
+      ]));
+      setIsReady(true);
+      setHasCompared(false);
+      setMsg('');
+      setShowResult(false);
+      setScores([0,0,0,0]);
+      setSelected({ area: '', cards: [] });
     } else {
       // 取消准备，清空手牌和AI
       setHead([]); setMiddle([]); setTail([]);
       setAiPlayers([
-        { name: AI_NAMES[0], head: [], middle: [], tail: [] },
-        { name: AI_NAMES[1], head: [], middle: [], tail: [] },
-        { name: AI_NAMES[2], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
       ]);
       setIsReady(false);
       setHasCompared(false);
       setMsg('');
       setShowResult(false);
       setScores([0,0,0,0]);
-      setMyVs([0,0,0]);
       setSelected({ area: '', cards: [] });
-    }
-  }
-
-  // ---------- 2. 比牌接口 ----------
-  async function handleStartCompare() {
-    if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
-      setMsg('请按 3-5-5 张分配');
-      return;
-    }
-    const allPlayers = [
-      { name: '你', head, middle, tail },
-      ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
-    ];
-    setMsg('正在比牌...');
-    try {
-      const res = await fetch('https://9525.ip-ddns.com/api/sss_tryplay_score.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ players: allPlayers }),
-      });
-      const data = await res.json();
-      if (!data.success || !Array.isArray(data.scores)) {
-        setMsg('比牌失败');
-        return;
-      }
-      setScores(data.scores);
-      // 计算你vs每个AI的分数（即你和Ta的单挑分）
-      const myVsArr = [];
-      for (let i = 1; i <= 3; ++i) {
-        // 用后端接口只传2家来算“你vs Ta”
-        const resVs = await fetch('https://9525.ip-ddns.com/api/sss_tryplay_score.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ players: [allPlayers[0], allPlayers[i]] }),
-        });
-        const dataVs = await resVs.json();
-        myVsArr.push(dataVs.scores ? dataVs.scores[0] : 0);
-      }
-      setMyVs(myVsArr);
-      setShowResult(true);
-      setHasCompared(true);
-      setMsg('');
-      setIsReady(false);
-    } catch (e) {
-      setMsg('比牌接口异常');
     }
   }
 
@@ -147,6 +97,24 @@ export default function TryPlay() {
     setHead(newHead); setMiddle(newMiddle); setTail(newTail);
     setSelected({ area: dest, cards: [] });
     setMsg('');
+  }
+
+  function handleStartCompare() {
+    if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
+      setMsg('请按 3-5-5 张分配');
+      return;
+    }
+    const allPlayers = [
+      { name: '你', head, middle, tail },
+      ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
+    ];
+    // 用sssScore.js比牌计分
+    const resScores = calcSSSAllScores(allPlayers);
+    setScores(resScores);
+    setShowResult(true);
+    setHasCompared(true);
+    setMsg('');
+    setIsReady(false); // 比牌后恢复为“准备”模式
   }
 
   function renderPlayerSeat(name, idx, isMe) {
@@ -327,10 +295,7 @@ export default function TryPlay() {
           {[0, 1, 2, 3].map(i => (
             <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
-                {i === 0
-                  ? `你（总分：${scores[0]}）`
-                  : `${aiPlayers[i-1].name}（vs你：${myVs[i-1] > 0 ? '+' : ''}${myVs[i-1]}）`
-                }
+                {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
                 {i === 0
