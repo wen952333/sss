@@ -134,6 +134,10 @@ li[style], .home-announcement-area ul li, .players-list li, .players-list li.me 
   border-radius: 18px !important;
 }
 
+/* --------- 移除全局 .card-img 边框限制，支持高亮 --------- */
+/* 下面这句如果有一定要删除，否则高亮红边无效！ */
+/* .card-img { border: none !important; } */
+
 @media (max-width: 600px) {
   .home-container, .room-container, .play-container, .result-container {
     margin: 0;
