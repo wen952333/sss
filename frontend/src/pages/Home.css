@@ -16,7 +16,6 @@ body {
   text-align: center;
   min-height: 600px;
   box-sizing: border-box;
-  /* 移除旧的定位和transform方式 */
   position: relative;
   top: 0;
   transform: none;
@@ -38,7 +37,7 @@ body {
 }
 
 .home-doubleheight {
-  min-height: 600px; /* 可以保留，移动端时会被min-height:100vh覆盖 */
+  min-height: 600px;
 }
 
 .home-title {
@@ -70,4 +69,32 @@ body {
   margin-bottom: 4px;
 }
 
-/* 其它原有样式保持不变 */
+/* 新增：试玩按钮绿色主色带光影 */
+.tryplay-btn {
+  background: linear-gradient(90deg,#23e67a 80%,#43ffb8 100%) !important;
+  color: #fff !important;
+  border: none;
+  border-radius: 12px !important;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 2px;
+  box-shadow: 0 0 0 3px #23e67a55, 0 2px 20px #23e67a99 !important;
+  transition: all .22s;
+  padding: 13px 0;
+}
+.tryplay-btn:active {
+  background: #13c05a !important;
+}
+.tryplay-btn:hover, .tryplay-btn:focus {
+  background: linear-gradient(90deg,#35ff9e 80%,#7fffd4 100%) !important;
+  box-shadow: 0 0 0 5px #35ff9e66, 0 4px 24px #35ff9e99 !important;
+}
+
+/* 新增：房间列表标题绿色主色 */
+.room-list-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #23e67a !important;
+  font-size: 1.18rem;
+  letter-spacing: 1px;
+}
