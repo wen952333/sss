@@ -98,3 +98,36 @@ body {
   font-size: 1.18rem;
   letter-spacing: 1px;
 }
+
+/* 个人中心弹窗宽度限制和居中 */
+.profile-modal-bg {
+  position: fixed;
+  left: 0; top: 0; width: 100vw; height: 100vh;
+  background: rgba(20,90,48,0.84);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-modal {
+  background: #176b3c !important;
+  color: #e0ffe3 !important;
+  border-radius: 18px !important;
+  max-width: 340px;
+  width: 90vw;
+  min-width: 220px;
+  margin: 0 auto;
+  box-shadow: 0 0 28px 5px #23e67a50, 0 8px 40px #1a462a6a !important;
+  padding: 28px 18px 18px 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 480px) {
+  .profile-modal {
+    max-width: 98vw;
+    min-width: 0;
+    padding: 18px 5vw 18px 5vw;
+  }
+}
