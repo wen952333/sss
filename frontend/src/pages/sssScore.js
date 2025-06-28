@@ -1,4 +1,4 @@
-// sssScore.js - 十三水比牌计分（倒水直接全输，按每道分数结算，无三道全胜额外奖励）
+// sssScore.js - 十三水比牌计分（各道分数制，两两结算，每对只算一次，符合你要的规则）
 
 const VALUE_ORDER = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -6,7 +6,7 @@ const VALUE_ORDER = {
 };
 const SUIT_ORDER = { clubs: 1, diamonds: 2, hearts: 3, spades: 4 };
 
-// 计算所有玩家分数
+// 计算所有玩家分数（每对只结算一次！）
 export function calcSSSAllScores(players) {
   // players: [{head, middle, tail, name}, ...]
   const N = players.length;
@@ -25,10 +25,9 @@ export function calcSSSAllScores(players) {
     getAreaScore(p.tail, 'tail')
   ));
 
-  // 每家和每家一对一结算，倒水就是全输，对方赢自己三道分
+  // 每对玩家只结算一次（i < j），不会重复
   for (let i = 0; i < N; ++i) {
-    for (let j = 0; j < N; ++j) {
-      if (i === j) continue;
+    for (let j = i + 1; j < N; ++j) {
       // 倒水处理
       if (fouls[i] && !fouls[j]) {
         marks[i] -= threeScores[j];
@@ -42,19 +41,27 @@ export function calcSSSAllScores(players) {
       }
       if (fouls[i] && fouls[j]) continue;
 
-      // 正常玩家之间比牌
+      // 特殊牌型判定
       if (specials[i] && !specials[j]) {
-        marks[i] += 3; marks[j] -= 3; continue;
-      }
-      if (!specials[i] && specials[j]) {
-        marks[i] -= 3; marks[j] += 3; continue;
-      }
-      if (specials[i] && specials[j]) {
-        if (specialRanks[i] > specialRanks[j]) { marks[i] += 3; marks[j] -= 3; }
-        else if (specialRanks[i] < specialRanks[j]) { marks[i] -= 3; marks[j] += 3; }
+        marks[i] += 3;
+        marks[j] -= 3;
         continue;
       }
-      // 普通三道比牌：每道分别比较得分，无三道全胜额外奖励
+      if (!specials[i] && specials[j]) {
+        marks[i] -= 3;
+        marks[j] += 3;
+        continue;
+      }
+      if (specials[i] && specials[j]) {
+        if (specialRanks[i] > specialRanks[j]) {
+          marks[i] += 3; marks[j] -= 3;
+        } else if (specialRanks[i] < specialRanks[j]) {
+          marks[i] -= 3; marks[j] += 3;
+        }
+        continue;
+      }
+
+      // 普通三道比牌
       let areaNames = ['head', 'middle', 'tail'];
       for (let k = 0; k < 3; ++k) {
         let cmp = compareArea(players[i][areaNames[k]], players[j][areaNames[k]], areaNames[k]);
@@ -67,7 +74,7 @@ export function calcSSSAllScores(players) {
           marks[i] -= add;
           marks[j] += add;
         }
-        // 平局不加减
+        // 平局不加减（但实际比牌逻辑已几乎不可能平局）
       }
     }
   }
