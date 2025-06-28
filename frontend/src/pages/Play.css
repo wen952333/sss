@@ -23,7 +23,7 @@
   box-shadow: 0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a !important;
   background: #fff;
   object-fit: contain;
-  border: none !important;
+  /* border: none;  // 去掉 !important，允许内联高亮边框生效 */
 }
 .result-container {
   max-width: 350px;
