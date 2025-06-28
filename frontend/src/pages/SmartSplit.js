@@ -1,4 +1,5 @@
 // 更智能的十三水分牌与AI补位模块（保证不倒水，智能评分，严格比牌规则）
+// 优化：分法枚举量限制，极端手牌下不再卡慢
 
 /**
  * 返回最优分法，优先级：
@@ -9,6 +10,8 @@
  * 5. 头道对子优先，头道高牌惩罚
  * 6. 三墩递增，强牌不拆弱
  */
+
+const SPLIT_ENUM_LIMIT = 3000; // 枚举上限，防卡死
 
 export function getSmartSplits(cards13) {
   if (!Array.isArray(cards13) || cards13.length !== 13) return [];
@@ -45,10 +48,12 @@ export function getPlayerSmartSplits(cards13) {
 function generateAllValidSplits(cards13) {
   const comb = combinations(cards13, 3); // 头道所有组合
   let splits = [];
-  // 穷举所有组合
+  let tries = 0;
   for (const head of comb) {
     const left1 = cards13.filter(c => !head.includes(c));
     for (const mid of combinations(left1, 5)) {
+      tries++;
+      if (tries > SPLIT_ENUM_LIMIT) break;
       const tail = left1.filter(c => !mid.includes(c));
       if (tail.length !== 5) continue;
       // 严格检测倒水（与sssScore.js一致）
@@ -56,9 +61,10 @@ function generateAllValidSplits(cards13) {
       // 评分
       const score = scoreSplit(head, mid, tail);
       splits.push({ head, middle: mid, tail, score });
+      // 可选：找到一定数量分法就提前返回
+      if (splits.length >= 10) break;
     }
-    // 若枚举量太大，可取消此break
-    // if (splits.length > 500) break;
+    if (tries > SPLIT_ENUM_LIMIT || splits.length >= 10) break;
   }
   return splits;
 }
