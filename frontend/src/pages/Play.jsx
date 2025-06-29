@@ -19,8 +19,8 @@ export default function Play() {
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
   const [submitMsg, setSubmitMsg] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [submitted, setSubmitted] = useState(false); // 理牌已提交
+  const [isReady, setIsReady] = useState(false);     // “准备”按钮可用性
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
@@ -31,7 +31,6 @@ export default function Play() {
   const [countdown, setCountdown] = useState(null);
   const [hasShownResult, setHasShownResult] = useState(false);
 
-  const isFirstSplit = useRef(true);
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
@@ -98,10 +97,10 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 弹窗弹出时恢复准备按钮
+  // 弹窗弹出时，恢复准备按钮可用（绿色）
   useEffect(() => {
     if (showResult) {
-      setIsReady(false);
+      setIsReady(true);
       setSubmitted(false);
       setAllSplits([]);
       setSplitIndex(0);
@@ -117,13 +116,15 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
+  // 更新玩家状态（只要比牌弹窗未弹出，都不可点击准备按钮）
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    setIsReady(me && me.submitted);
+    // 只有比牌弹窗弹出时（showResult），才允许准备按钮可点
+    setIsReady(showResult);
   }
 
   async function fetchMyPoints() {
@@ -191,13 +192,14 @@ export default function Play() {
   }
 
   async function handleReady() {
+    if (!isReady) return;
     const token = localStorage.getItem('token');
     await apiFetch('https://9526.ip-ddns.com/api/ready.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(true);
+    setIsReady(false); // 点击后立即变灰
   }
 
   function handleSmartSplit() {
@@ -368,9 +370,7 @@ export default function Play() {
                 width: cardSize?.width ?? CARD_WIDTH,
                 height: cardSize?.height ?? CARD_HEIGHT,
                 borderRadius: 5,
-                border: isSelected
-                  ? '2.5px solid #ff4444'
-                  : '2.5px solid #eaeaea',
+                border: 'none',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
                   : greenShadow,
@@ -462,7 +462,7 @@ export default function Play() {
           alt={card}
           className="card-img"
           style={{
-            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
+            border: 'none',
             boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
           }}
           onClick={e => handleCardClick(card, 'hand', e)}
@@ -483,7 +483,7 @@ export default function Play() {
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-          background: '#185a30',
+          background: '#fff',
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
@@ -593,19 +593,19 @@ export default function Play() {
           <button
             style={{
               flex: 1,
-              background: isReady ? '#b0b0b0' : '#23e67a',
+              background: isReady ? '#23e67a' : '#b0b0b0',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'not-allowed' : 'pointer',
-              boxShadow: isReady ? 'none' : '0 2px 9px #23e67a22',
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              boxShadow: isReady ? '0 2px 9px #23e67a22' : 'none',
               transition: 'background 0.16s'
             }}
             onClick={handleReady}
-            disabled={isReady}
+            disabled={!isReady}
           >准备</button>
           <button
             style={{
@@ -655,7 +655,7 @@ export default function Play() {
         @media (max-width: 480px) {
           .play-seat {
             margin-right: 4px !important;
-            width: 24% !important;
+            width: ${Math.floor(OUTER_MAX_WIDTH/4)-4}px !important;
             min-width: 0 !important;
           }
           .card-img {
