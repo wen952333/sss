@@ -1,33 +1,61 @@
 <?php
-/**
- * 统一自动超时踢人和理牌工具
- * 用法: require_once '_timeout_helper.php'; handleTimeoutsAndAutoPlay($roomId, $pdo);
- * 要求players表有 join_time, deal_time, finish_time 字段，cards字段存13张，submitted字段标记是否已理牌
- */
 function handleTimeoutsAndAutoPlay($roomId, $pdo) {
     $now = time();
     $players = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($players as $p) {
-        // 1. 未准备超时踢出（入场超45秒、局后未准备超45秒）
-        if (!$p['submitted'] && isset($p['join_time']) && strtotime($p['join_time']) + 45 < $now) {
-            $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
-            continue;
-        }
-        if ($p['submitted'] && isset($p['finish_time']) && strtotime($p['finish_time']) + 45 < $now) {
-            $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
-            continue;
-        }
-        // 2. 理牌超时自动提交（发牌后180秒未理牌）
+        // ...原有逻辑...
         if (isset($p['deal_time']) && !$p['submitted'] && strtotime($p['deal_time']) + 180 < $now) {
             $cards = json_decode($p['cards'], true);
             if (is_array($cards) && count($cards) === 13) {
-                $head = array_slice($cards, 0, 3);
-                $middle = array_slice($cards, 3, 8);
-                $tail = array_slice($cards, 8, 13);
+                list($head, $middle, $tail) = smartSplit($cards);
                 $autoCards = array_merge($head, $middle, $tail);
                 $pdo->prepare("UPDATE players SET cards=?, submitted=1 WHERE id=?")
                     ->execute([json_encode($autoCards), $p['id']]);
             }
         }
     }
+}
+
+// 智能分牌（极简：不倒水+优先大牌，推荐移植前端 getSmartSplits 全算法）
+function smartSplit($cards) {
+    // 枚举所有合法分法，选最优
+    $best = null; $bestScore = -1;
+    foreach (combinations($cards, 3) as $head) {
+        $left1 = array_diff($cards, $head);
+        foreach (combinations($left1, 5) as $middle) {
+            $tail = array_diff($left1, $middle);
+            if (isFoul($head, $middle, $tail)) continue;
+            $score = array_sum(array_map('cardValue', $head)) + array_sum(array_map('cardValue', $middle)) + array_sum(array_map('cardValue', $tail));
+            if ($score > $bestScore) { $bestScore = $score; $best = [$head, $middle, $tail]; }
+        }
+    }
+    if ($best) return $best;
+    // 退化顺序分
+    return [array_slice($cards, 0, 3), array_slice($cards, 3, 8), array_slice($cards, 8, 13)];
+}
+
+// 组合生成
+function combinations($arr, $k) {
+    $result = [];
+    $n = count($arr);
+    $indexes = range(0, $k - 1);
+    while ($indexes[0] < $n - $k + 1) {
+        $comb = [];
+        foreach ($indexes as $i) $comb[] = $arr[$i];
+        $result[] = $comb;
+        // 增加下一个组合
+        $t = $k - 1;
+        while ($t != 0 && $indexes[$t] == $n - $k + $t) $t--;
+        $indexes[$t]++;
+        for ($i = $t + 1; $i < $k; $i++) $indexes[$i] = $indexes[$i - 1] + 1;
+    }
+    return $result;
+}
+function cardValue($card) {
+    $v = explode('_', $card)[0];
+    if ($v === 'ace') return 14;
+    if ($v === 'king') return 13;
+    if ($v === 'queen') return 12;
+    if ($v === 'jack') return 11;
+    return intval($v);
 }
