@@ -35,6 +35,7 @@ export default function Play() {
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
+  // 全局异常fetch
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -90,12 +91,22 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
-  // 新局重置hasShownResult
+  // 新局重置 hasShownResult
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setHasShownResult(false);
     }
   }, [myCards, submitted]);
+
+  // 弹窗弹出时恢复准备按钮
+  useEffect(() => {
+    if (showResult) {
+      setIsReady(false);
+      setSubmitted(false);
+      setAllSplits([]);
+      setSplitIndex(0);
+    }
+  }, [showResult]);
 
   // 只在未弹过窗时弹出比牌界面
   useEffect(() => {
@@ -152,15 +163,18 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
     if (Array.isArray(data.players)) {
-      // 保证有 name, head, middle, tail, score, isFoul 字段
-      const resultPlayers = data.players.map(p => ({
-        name: p.name,
-        head: p.head || [],
-        middle: p.middle || [],
-        tail: p.tail || [],
-        score: typeof p.score === 'number' ? p.score : (p.result ? p.result.score : 0),
-        isFoul: typeof p.isFoul === 'boolean' ? p.isFoul : (p.result ? p.result.isFoul : false)
-      }));
+      // 保证有 name, head, middle, tail, score, isFoul 字段，且每墩只3/5/5张
+      const resultPlayers = data.players.map(p => {
+        let head = Array.isArray(p.head) ? p.head.slice(0, 3) : [];
+        let middle = Array.isArray(p.middle) ? p.middle.slice(0, 5) : [];
+        let tail = Array.isArray(p.tail) ? p.tail.slice(0, 5) : [];
+        // 分数与倒水兼容result对象和顶层
+        let score = typeof p.score === "number" ? p.score :
+          (p.result && typeof p.result.score === "number" ? p.result.score : 0);
+        let isFoul = typeof p.isFoul === "boolean" ? p.isFoul :
+          (p.result && typeof p.result.isFoul === "boolean" ? p.result.isFoul : false);
+        return { name: p.name, head, middle, tail, score, isFoul };
+      });
       setResultModalData(resultPlayers);
       setShowResult(true);
     }
@@ -276,9 +290,8 @@ export default function Play() {
     return null;
   }
 
-  // 新版玩家区
   function renderPlayerSeat(name, idx, isMe, submitted) {
-    // 状态文字、颜色规则
+    // 新版状态文字与颜色
     let statusText = submitted ? '已准备' : '未准备';
     let statusColor = submitted ? '#23e67a' : '#fff';
     return (
@@ -580,19 +593,19 @@ export default function Play() {
           <button
             style={{
               flex: 1,
-              background: isReady || submitted ? '#b0b0b0' : '#23e67a',
+              background: isReady ? '#b0b0b0' : '#23e67a',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: isReady || submitted ? 'not-allowed' : 'pointer',
-              boxShadow: isReady || submitted ? 'none' : '0 2px 9px #23e67a22',
+              cursor: isReady ? 'not-allowed' : 'pointer',
+              boxShadow: isReady ? 'none' : '0 2px 9px #23e67a22',
               transition: 'background 0.16s'
             }}
             onClick={handleReady}
-            disabled={isReady || submitted}
+            disabled={isReady}
           >准备</button>
           <button
             style={{
