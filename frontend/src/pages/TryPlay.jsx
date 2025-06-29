@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
 import { calcSSSAllScores } from './sssScore';
-import { getShuffledDeck, dealHands } from './DealCards'; // 新增发牌模块
+import { getShuffledDeck, dealHands } from './DealCards';
 import './Play.css';
+
+// 加载倒水判定方法
+import { isFoul } from './sssScore';
 
 const AI_NAMES = ['小明', '小红', '小刚'];
 
@@ -28,6 +31,7 @@ export default function TryPlay() {
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [hasCompared, setHasCompared] = useState(false);
+  const [foulStates, setFoulStates] = useState([false, false, false, false]); // <--- 新增
 
   // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
@@ -52,6 +56,7 @@ export default function TryPlay() {
       setShowResult(false);
       setScores([0,0,0,0]);
       setSelected({ area: '', cards: [] });
+      setFoulStates([false, false, false, false]);
     } else {
       // 取消准备，清空手牌和AI
       setHead([]); setMiddle([]); setTail([]);
@@ -66,6 +71,7 @@ export default function TryPlay() {
       setShowResult(false);
       setScores([0,0,0,0]);
       setSelected({ area: '', cards: [] });
+      setFoulStates([false, false, false, false]);
     }
   }
 
@@ -108,13 +114,16 @@ export default function TryPlay() {
       { name: '你', head, middle, tail },
       ...aiPlayers.map(ai => ({ name: ai.name, head: ai.head, middle: ai.middle, tail: ai.tail }))
     ];
-    // 用sssScore.js比牌计分
+    // 比牌+倒水判定
     const resScores = calcSSSAllScores(allPlayers);
+    // 计算倒水状态
+    const fouls = allPlayers.map(p => isFoul(p.head, p.middle, p.tail));
     setScores(resScores);
+    setFoulStates(fouls);
     setShowResult(true);
     setHasCompared(true);
     setMsg('');
-    setIsReady(false); // 比牌后恢复为“准备”模式
+    setIsReady(false);
   }
 
   function renderPlayerSeat(name, idx, isMe) {
@@ -295,7 +304,11 @@ export default function TryPlay() {
           {[0, 1, 2, 3].map(i => (
             <div key={i} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: i === 0 ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
-                {i === 0 ? '你' : aiPlayers[i - 1].name}（{scores[i]}分）
+                {i === 0 ? '你' : aiPlayers[i - 1].name}
+                {foulStates[i] && (
+                  <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>
+                )}
+                （{scores[i]}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
                 {i === 0
@@ -448,3 +461,6 @@ export default function TryPlay() {
     </div>
   );
 }
+
+// 导出isFoul供外部引用（如有TreeShaking可忽略）
+export { isFoul } from './sssScore';
