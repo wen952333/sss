@@ -35,7 +35,6 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
  * 返回 [head, middle, tail]，每个为数组
  */
 function smartSplitNoFoul($cards13) {
-    // 枚举所有头道3张组合，挑选中尾道不倒水且总点数最高
     $combs = combinations($cards13, 3);
     $best = null;
     $bestScore = -1;
@@ -63,12 +62,15 @@ function smartSplitNoFoul($cards13) {
     ];
 }
 
-/** 判断是否倒水 */
+/** ----------- 核心倒水判定严格同步前端 ----------- */
 function isFoul($head, $middle, $tail) {
     $headRank = areaTypeRank(areaType($head, 'head'), 'head');
     $midRank = areaTypeRank(areaType($middle, 'middle'), 'middle');
     $tailRank = areaTypeRank(areaType($tail, 'tail'), 'tail');
-    return !($headRank <= $midRank && $midRank <= $tailRank);
+    if ($headRank > $midRank || $midRank > $tailRank) return true;
+    if ($headRank == $midRank && compareArea($head, $middle, 'head') > 0) return true;
+    if ($midRank == $tailRank && compareArea($middle, $tail, 'middle') > 0) return true;
+    return false;
 }
 /** 牌型分数（和前端一致，简化版） */
 function areaType($cards, $area) {
@@ -149,4 +151,95 @@ function cardValue($card) {
     if ($v === 'queen') return 12;
     if ($v === 'jack') return 11;
     return intval($v);
+}
+
+// --------- compareArea（与play.php一致） ---------
+function compareArea($a, $b, $area) {
+    $typeA = areaType($a, $area);
+    $typeB = areaType($b, $area);
+    $rankA = areaTypeRank($typeA, $area);
+    $rankB = areaTypeRank($typeB, $area);
+    if ($rankA !== $rankB) return $rankA - $rankB;
+    $groupA = getGroupedValues($a);
+    $groupB = getGroupedValues($b);
+    // 顺子/同花顺先比最大点
+    if ($typeA=='顺子'||$typeA=='同花顺') {
+        $maxA = getStraightRank($a);
+        $maxB = getStraightRank($b);
+        if ($maxA != $maxB) return $maxA-$maxB;
+    }
+    // 铁支/三条/对子比主点,再比副
+    if (in_array($typeA,['铁支','三条','对子'])) {
+        $mainA = $groupA[$typeA=='铁支'?4:($typeA=='三条'?3:2)][0];
+        $mainB = $groupB[$typeA=='铁支'?4:($typeA=='三条'?3:2)][0];
+        if ($mainA != $mainB) return $mainA-$mainB;
+        $subA = [];
+        foreach($a as $c){ $v=cardValue($c); if ($v!=$mainA) $subA[]=$v; }
+        $subB = [];
+        foreach($b as $c){ $v=cardValue($c); if ($v!=$mainB) $subB[]=$v; }
+        rsort($subA); rsort($subB);
+        for($i=0;$i<count($subA);++$i) if ($subA[$i]!=$subB[$i]) return $subA[$i]-$subB[$i];
+        return 0;
+    }
+    // 葫芦
+    if ($typeA=='葫芦') {
+        $tA=$groupA[3][0]; $tB=$groupB[3][0];
+        if ($tA!=$tB) return $tA-$tB;
+        $pA=$groupA[2][0]; $pB=$groupB[2][0];
+        if ($pA!=$pB) return $pA-$pB;
+        return 0;
+    }
+    // 两对
+    if ($typeA=='两对') {
+        $pairsA = $groupA[2]; $pairsB = $groupB[2];
+        if ($pairsA[0]!=$pairsB[0]) return $pairsA[0]-$pairsB[0];
+        if ($pairsA[1]!=$pairsB[1]) return $pairsA[1]-$pairsB[1];
+        $subA = isset($groupA[1]) ? $groupA[1][0] : 0;
+        $subB = isset($groupB[1]) ? $groupB[1][0] : 0;
+        if ($subA != $subB) return $subA-$subB;
+        return 0;
+    }
+    // 同花
+    if ($typeA=='同花') {
+        $valsA = [];
+        foreach($a as $c) $valsA[]=cardValue($c);
+        $valsB = [];
+        foreach($b as $c) $valsB[]=cardValue($c);
+        rsort($valsA); rsort($valsB);
+        for($i=0;$i<count($valsA);++$i) if ($valsA[$i]!=$valsB[$i]) return $valsA[$i]-$valsB[$i];
+        return 0;
+    }
+    // 其它高牌
+    $valsA = [];
+    foreach($a as $c) $valsA[]=cardValue($c);
+    $valsB = [];
+    foreach($b as $c) $valsB[]=cardValue($c);
+    rsort($valsA); rsort($valsB);
+    for($i=0;$i<count($valsA);++$i) if ($valsA[$i]!=$valsB[$i]) return $valsA[$i]-$valsB[$i];
+    return 0;
+}
+function getGroupedValues($cards) {
+    $cnt = [];
+    foreach($cards as $c) {
+        $v = cardValue($c);
+        if (!isset($cnt[$v])) $cnt[$v]=0;
+        $cnt[$v]++;
+    }
+    $groups = [];
+    foreach($cnt as $val=>$count) {
+        if (!isset($groups[$count])) $groups[$count]=[];
+        $groups[$count][]=$val;
+    }
+    foreach($groups as $count=>$arr) rsort($groups[$count]);
+    return $groups;
+}
+function getStraightRank($cards) {
+    $vals = [];
+    foreach($cards as $c) $vals[]=cardValue($c);
+    sort($vals);
+    if ($vals==[10,11,12,13,14]) return 14.9;
+    if ($vals==[2,3,4,5,14]) return 5.5;
+    if ($vals==[9,10,11,12,13]) return 13;
+    if ($vals==[8,9,10,11,12]) return 12;
+    return max($vals);
 }
