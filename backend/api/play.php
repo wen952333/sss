@@ -185,7 +185,7 @@ if ($allSubmitted) {
     $p['score'] *= $roomScore;
   }
 
-  // === 5. 写回结果 ===
+  // === 5. 写回结果并累计更新users总积分 ===
   foreach ($playerData as $p) {
     $pdo->prepare("UPDATE players SET result=? WHERE id=?")
         ->execute([json_encode([
@@ -197,6 +197,9 @@ if ($allSubmitted) {
             'isGrandSlam'=>$p['isGrandSlam'] ?? false
           ]
         ]), $p['id']]);
+    // 新增：同步累计到users表
+    $stmt = $pdo->prepare("UPDATE users SET points = points + ? WHERE nickname = ?");
+    $stmt->execute([$p['score'], $p['name']]);
   }
 }
 
