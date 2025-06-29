@@ -6,7 +6,6 @@ header('Content-Type: application/json');
 
 /**
  * 2024-06-29 十三水后端结算，完全同步前端 sssScore.js 规则
- * 普通分场/翻倍场/全垒打/三道全胜翻倍，实现
  */
 
 $data = json_decode(file_get_contents('php://input'), true);
@@ -51,22 +50,19 @@ if ($allSubmitted) {
       'isFoul' => $foul,
       'special' => $special,
       'score' => 0,
-      // 下面用于翻倍判断
-      'triple_win' => [], // [对手名,...] 三道全胜的对手
-      'total_triple_win' => 0, // 三道全胜人数
-      'isGrandSlam' => false, // 全垒打
+      'triple_win' => [],
+      'total_triple_win' => 0,
+      'isGrandSlam' => false,
     ];
   }
   $N = count($playerData);
 
-  // === 1. 先普通计分 ===
+  // 1. 先普通计分
   for ($i = 0; $i < $N; ++$i) {
     for ($j = 0; $j < $N; ++$j) {
       if ($i === $j) continue;
       $p1 = &$playerData[$i];
       $p2 = &$playerData[$j];
-
-      // 倒水
       if ($p1['isFoul'] && !$p2['isFoul']) {
         $pairScore = -calculateTotalBaseScore($p2);
       } else if (!$p1['isFoul'] && $p2['isFoul']) {
@@ -74,7 +70,6 @@ if ($allSubmitted) {
       } else if ($p1['isFoul'] && $p2['isFoul']) {
         $pairScore = 0;
       }
-      // 特殊型
       else if ($p1['special'] && $p2['special']) {
         $pairScore = 0;
       } else if ($p1['special'] && !$p2['special']) {
@@ -82,11 +77,9 @@ if ($allSubmitted) {
       } else if (!$p1['special'] && $p2['special']) {
         $pairScore = -specialScore($p2['special']);
       }
-      // 普通三道
       else {
         $areas = ['head','middle','tail'];
         $winCount = 0;
-        $loseCount = 0;
         $pairScore = 0;
         foreach ($areas as $area) {
           $cmp = compareArea($p1[$area], $p2[$area], $area);
@@ -95,15 +88,12 @@ if ($allSubmitted) {
             $winCount++;
           } else if ($cmp < 0) {
             $pairScore -= getAreaScore($p2[$area], $area);
-            $loseCount++;
           }
         }
-        // === 记录三道全胜 ===
         if ($winCount === 3) {
           $p1['triple_win'][] = $p2['name'];
         }
       }
-      // 只加一次（避免双向重复加）
       if ($i < $j) {
         $playerData[$i]['score'] += $pairScore;
         $playerData[$j]['score'] -= $pairScore;
@@ -111,15 +101,13 @@ if ($allSubmitted) {
     }
   }
 
-  // === 2. 三道全胜翻倍 ===
-  // 规则：三道全胜对手，单对手得分*2（只翻这部分分数，对手被扣的也是翻倍）
+  // 2. 三道全胜翻倍
   $pairScoreTable = [];
   for ($i = 0; $i < $N; ++$i) {
     for ($j = 0; $j < $N; ++$j) {
       if ($i === $j) continue;
       $p1 = &$playerData[$i];
       $p2 = &$playerData[$j];
-      // 普通对局分
       $pairScore = 0;
       if ($p1['isFoul'] && !$p2['isFoul']) {
         $pairScore = -calculateTotalBaseScore($p2);
@@ -144,33 +132,24 @@ if ($allSubmitted) {
       $pairScoreTable[$i][$j] = $pairScore;
     }
   }
-
-  // 重新计分（先清零），用于翻倍
   foreach ($playerData as &$p) $p['score'] = 0;
-
   for ($i = 0; $i < $N; ++$i) {
     for ($j = $i + 1; $j < $N; ++$j) {
       $score_i_j = $pairScoreTable[$i][$j];
       $score_j_i = -$score_i_j;
-
-      // 三道全胜翻倍
       $triple_i_j = in_array($playerData[$j]['name'], $playerData[$i]['triple_win']);
       $triple_j_i = in_array($playerData[$i]['name'], $playerData[$j]['triple_win']);
       if ($roomType === 'double') {
         if ($triple_i_j) $score_i_j *= 2;
         if ($triple_j_i) $score_j_i *= 2;
       }
-
       $playerData[$i]['score'] += $score_i_j;
       $playerData[$j]['score'] += $score_j_i;
     }
   }
-
-  // 统计三道全胜人数
   foreach ($playerData as &$p) $p['total_triple_win'] = count($p['triple_win']);
 
-  // === 3. 全垒打再翻倍 ===
-  // 规则：对所有对手三道全胜，本局总分×2
+  // 3. 全垒打再翻倍
   if ($roomType === 'double') {
     foreach ($playerData as &$p) {
       if ($p['total_triple_win'] === $N - 1) {
@@ -180,12 +159,12 @@ if ($allSubmitted) {
     }
   }
 
-  // === 4. 按分场倍数 ===
+  // 4. 底分倍率
   foreach ($playerData as &$p) {
     $p['score'] *= $roomScore;
   }
 
-  // === 5. 写回结果并累计更新users总积分 ===
+  // 5. 写回
   foreach ($playerData as $p) {
     $pdo->prepare("UPDATE players SET result=? WHERE id=?")
         ->execute([json_encode([
@@ -197,7 +176,6 @@ if ($allSubmitted) {
             'isGrandSlam'=>$p['isGrandSlam'] ?? false
           ]
         ]), $p['id']]);
-    // 新增：同步累计到users表
     $stmt = $pdo->prepare("UPDATE users SET points = points + ? WHERE nickname = ?");
     $stmt->execute([$p['score'], $p['name']]);
   }
@@ -205,7 +183,8 @@ if ($allSubmitted) {
 
 echo json_encode(['success'=>true]);
 
-// ===== 工具函数同原有版本 =====
+// ===== 计分&牌型&倒水判定函数 =====
+
 function suitWeight($s) {
   switch($s) {
     case "spades": return 4;
@@ -304,6 +283,7 @@ function calculateTotalBaseScore($p) {
   if (isset($p['special']) && $p['special']) return specialScore($p['special']);
   return getAreaScore($p['head'], 'head') + getAreaScore($p['middle'], 'middle') + getAreaScore($p['tail'], 'tail');
 }
+// ----------- 核心倒水判定严格同步前端 -----------
 function isFoul($head, $middle, $tail) {
   $headRank = areaTypeRank(getAreaType($head, 'head'), 'head');
   $midRank = areaTypeRank(getAreaType($middle, 'middle'), 'middle');
@@ -393,7 +373,6 @@ function compareArea($a, $b, $area) {
   foreach($b as $c) $valsB[]=valueOrder(explode('_',$c)[0]);
   rsort($valsA); rsort($valsB);
   for($i=0;$i<count($valsA);++$i) if ($valsA[$i]!=$valsB[$i]) return $valsA[$i]-$valsB[$i];
-  // 花色
   $suitsA = [];
   foreach($a as $c) $suitsA[]=suitWeight(explode('_',$c)[2]);
   $suitsB = [];
@@ -421,8 +400,8 @@ function getStraightRank($cards) {
   $vals = [];
   foreach($cards as $c) $vals[]=valueOrder(explode('_',$c)[0]);
   sort($vals);
-  if ($vals==[10,11,12,13,14]) return 14.9; // 最大
-  if ($vals==[2,3,4,5,14]) return 5.5; // 第二大
+  if ($vals==[10,11,12,13,14]) return 14.9;
+  if ($vals==[2,3,4,5,14]) return 5.5;
   if ($vals==[9,10,11,12,13]) return 13;
   if ($vals==[8,9,10,11,12]) return 12;
   return max($vals);
