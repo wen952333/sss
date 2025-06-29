@@ -111,7 +111,7 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 比牌结果弹窗
+  // 比牌结果弹窗（只弹一次）
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed && players.length === 4 && !hasShownResult) {
@@ -120,7 +120,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 完全修复：准备按钮逻辑
+  // 重点：准备按钮逻辑修正
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
