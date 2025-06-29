@@ -42,7 +42,7 @@ export default function Play() {
       if (!data.success) throw new Error(data.message || '操作失败');
       return data;
     } catch (e) {
-      alert(e.message || '网络异常');
+      // alert(e.message || '网络异常'); // <-- 已移除错误提示
       throw e;
     }
   }
