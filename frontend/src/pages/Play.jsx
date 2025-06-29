@@ -28,11 +28,25 @@ export default function Play() {
   const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
+  const [countdown, setCountdown] = useState(null);
 
   const isFirstSplit = useRef(true);
+  const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // 登录校验和查分
+  // 全局异常fetch
+  async function apiFetch(url, opts) {
+    try {
+      const res = await fetch(url, opts);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || '操作失败');
+      return data;
+    } catch (e) {
+      alert(e.message || '网络异常');
+      throw e;
+    }
+  }
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -44,97 +58,100 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
-  // 房间玩家定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 手牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [roomId]);
 
-  // 轮询比牌结果（只要 allPlayed 为 true，自动弹窗且展示所有玩家分牌）
+  // 理牌倒计时逻辑
+  useEffect(() => {
+    if (myCards.length === 13 && !submitted) {
+      setCountdown(180);
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setCountdown(c => {
+          if (c === 1) {
+            handleSmartSplit();
+            handleStartCompare();
+            clearInterval(timerRef.current);
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [myCards, submitted]);
+
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed) {
       fetchAllResults();
     }
-    // eslint-disable-next-line
   }, [submitted, allPlayed]);
 
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
-    const res = await fetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
-    const data = await res.json();
-    if (data.success) {
-      setPlayers(data.players);
-      setRoomStatus(data.status);
-      const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-      setIsReady(me && me.submitted);
-    }
+    const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
+    setPlayers(data.players);
+    setRoomStatus(data.status);
+    const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+    setIsReady(me && me.submitted);
   }
 
   async function fetchMyPoints() {
     const phone = localStorage.getItem('phone');
     if (!phone) return;
-    const res = await fetch('https://9526.ip-ddns.com/api/find_user.php', {
+    const data = await apiFetch('https://9526.ip-ddns.com/api/find_user.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
     });
-    const data = await res.json();
-    if (data.success) setMyPoints(data.user.points || 0);
-    else setMyPoints(0);
+    setMyPoints(data.user.points || 0);
   }
 
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
-    const res = await fetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
-    const data = await res.json();
-    if (data.success) {
-      setSubmitted(!!data.submitted);
-      setMyResult(data.result || null);
-      setAllPlayed(!!data.allPlayed);
+    const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
+    setSubmitted(!!data.submitted);
+    setMyResult(data.result || null);
+    setAllPlayed(!!data.allPlayed);
 
-      // 关键：理牌只允许首次自动填充
-      if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
+    if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
+      setHead(data.cards.slice(0, 3));
+      setMiddle(data.cards.slice(3, 8));
+      setTail(data.cards.slice(8, 13));
+      setMyCards([]);
+    } else if (!data.submitted && Array.isArray(data.cards)) {
+      if (isFirstSplit.current && head.length === 0 && middle.length === 0 && tail.length === 0) {
         setHead(data.cards.slice(0, 3));
         setMiddle(data.cards.slice(3, 8));
         setTail(data.cards.slice(8, 13));
         setMyCards([]);
-      } else if (!data.submitted && Array.isArray(data.cards)) {
-        if (isFirstSplit.current && head.length === 0 && middle.length === 0 && tail.length === 0) {
-          setHead(data.cards.slice(0, 3));
-          setMiddle(data.cards.slice(3, 8));
-          setTail(data.cards.slice(8, 13));
-          setMyCards([]); // 全部分过去
-          isFirstSplit.current = false;
-        } // 用户手动理牌后，不覆盖
+        isFirstSplit.current = false;
       }
     }
   }
 
-  // 获取所有玩家分牌（利用 room_results.php 返回玩家完整分牌和结果）
   async function fetchAllResults() {
     const token = localStorage.getItem('token');
-    const res = await fetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
-    const data = await res.json();
-    if (data.success && Array.isArray(data.players)) {
+    const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
+    if (Array.isArray(data.players)) {
       setResultModalData(data.players);
       setShowResult(true);
     }
   }
 
-  // 退出房间
   async function handleExitRoom() {
     const token = localStorage.getItem('token');
-    await fetch('https://9526.ip-ddns.com/api/leave_room.php', {
+    await apiFetch('https://9526.ip-ddns.com/api/leave_room.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
@@ -142,10 +159,9 @@ export default function Play() {
     navigate('/');
   }
 
-  // 准备
   async function handleReady() {
     const token = localStorage.getItem('token');
-    await fetch('https://9526.ip-ddns.com/api/ready.php', {
+    await apiFetch('https://9526.ip-ddns.com/api/ready.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
@@ -153,9 +169,7 @@ export default function Play() {
     setIsReady(true);
   }
 
-  // 智能分牌（循环5种分法）
   function handleSmartSplit() {
-    // 合并所有未分配的牌
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
     let splits = allSplits.length ? allSplits : getSmartSplits(all);
@@ -170,7 +184,6 @@ export default function Play() {
     setSubmitMsg('');
   }
 
-  // 牌点击：高亮/取消高亮（在手牌或三墩中都可选）
   function handleCardClick(card, area, e) {
     if (submitted) return;
     if (e) e.stopPropagation();
@@ -182,7 +195,6 @@ export default function Play() {
     });
   }
 
-  // 点击任意墩，将高亮选中的牌移入该墩（无数量限制）
   function moveTo(dest) {
     if (submitted) return;
     if (!selected.cards.length) return;
@@ -207,7 +219,6 @@ export default function Play() {
     setSubmitMsg('');
   }
 
-  // 开始比牌（提交分牌）
   async function handleStartCompare() {
     if (submitted) return;
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
@@ -216,12 +227,11 @@ export default function Play() {
     }
     const cards = [...head, ...middle, ...tail];
     const token = localStorage.getItem('token');
-    const res = await fetch('https://9526.ip-ddns.com/api/play.php', {
+    const data = await apiFetch('https://9526.ip-ddns.com/api/play.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token, cards }),
     });
-    const data = await res.json();
     if (data.success) {
       setSubmitted(true);
       setSubmitMsg('已提交，等待其他玩家...');
@@ -230,10 +240,25 @@ export default function Play() {
     }
   }
 
-  // 绿色暗影主色
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
-  // 渲染玩家座位
+  function renderCountdown() {
+    if (countdown !== null && !submitted && countdown > 0) {
+      return (
+        <div style={{
+          color: countdown <= 10 ? 'red' : '#23e67a',
+          fontWeight: 700,
+          fontSize: 18,
+          textAlign: 'center',
+          marginBottom: 10
+        }}>
+          理牌倒计时：{countdown} 秒{countdown <= 10 ? '（即将自动理牌）' : ''}
+        </div>
+      );
+    }
+    return null;
+  }
+
   function renderPlayerSeat(name, idx, isMe, submitted) {
     return (
       <div
@@ -388,7 +413,6 @@ export default function Play() {
     );
   }
 
-  // 渲染13张手牌
   function renderMyCards() {
     return <div className="cards-area">
       {myCards.map(card =>
@@ -407,7 +431,6 @@ export default function Play() {
     </div>;
   }
 
-  // 比牌弹窗（展示所有玩家结果，利用 room_results.php 返回全玩家分牌&结果）
   function renderResultModal() {
     if (!showResult) return null;
     const scale = 0.9;
@@ -511,6 +534,7 @@ export default function Play() {
             积分：{myPoints}
           </div>
         </div>
+        {renderCountdown()}
         {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
           {players.map((p, idx) =>
@@ -587,7 +611,6 @@ export default function Play() {
         </div>
         {renderResultModal()}
       </div>
-      {/* 移动端自适应，防止溢出 */}
       <style>{`
         @media (max-width: 480px) {
           .play-seat {
