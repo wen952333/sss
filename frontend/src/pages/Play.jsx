@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const OUTER_MAX_WIDTH = 420;
@@ -24,8 +23,6 @@ export default function Play() {
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
-  const [allSplits, setAllSplits] = useState([]);
-  const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
@@ -34,7 +31,7 @@ export default function Play() {
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // 全局异常fetch
+  // 通用fetch
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -102,8 +99,6 @@ export default function Play() {
     if (showResult) {
       setIsReady(true);
       setSubmitted(false);
-      setAllSplits([]);
-      setSplitIndex(0);
     }
   }, [showResult]);
 
@@ -123,7 +118,7 @@ export default function Play() {
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // 只有在房间waiting阶段且我未submitted时，可以点准备
+    // 只有在房间waiting阶段且我未submitted时，可以点准备；或者比牌弹窗弹出
     if (data.status === 'waiting' && me && !me.submitted) {
       setIsReady(true);
     } else if (showResult) {
@@ -144,7 +139,7 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
-  // fetchMyCards 不改
+  // 只要 cards 有 13 张都进入理牌区
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -203,22 +198,29 @@ export default function Play() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(false); // 点击后立即变灰色
+    setIsReady(false);
   }
 
-  function handleSmartSplit() {
+  // 调用后端智能分牌
+  async function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
-    setHead(split.head);
-    setMiddle(split.middle);
-    setTail(split.tail);
-    setSelected({ area: '', cards: [] });
-    setSubmitMsg('');
+    const token = localStorage.getItem('token');
+    const res = await fetch('https://9526.ip-ddns.com/api/smart_split.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, cards: all }),
+    });
+    const data = await res.json();
+    if (data.success && data.split) {
+      setHead(data.split.head);
+      setMiddle(data.split.middle);
+      setTail(data.split.tail);
+      setSelected({ area: '', cards: [] });
+      setSubmitMsg('');
+    } else {
+      setSubmitMsg('智能分牌失败，请重试');
+    }
   }
 
   function handleCardClick(card, area, e) {
