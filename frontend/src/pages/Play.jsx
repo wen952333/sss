@@ -29,6 +29,7 @@ export default function Play() {
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
+  const [hasShownResult, setHasShownResult] = useState(false); // 新增
 
   const isFirstSplit = useRef(true);
   const timerRef = useRef(null);
@@ -42,7 +43,7 @@ export default function Play() {
       if (!data.success) throw new Error(data.message || '操作失败');
       return data;
     } catch (e) {
-      // alert(e.message || '网络异常'); // <-- 已移除错误提示
+      alert(e.message || '网络异常');
       throw e;
     }
   }
@@ -90,13 +91,21 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
-  // 修正：只有4人才弹比牌弹窗
+  // 新局重置hasShownResult
+  useEffect(() => {
+    if (myCards.length === 13 && !submitted) {
+      setHasShownResult(false);
+    }
+  }, [myCards, submitted]);
+
+  // 修正：只有4人且未弹过窗才弹比牌弹窗
   useEffect(() => {
     if (!submitted) return;
-    if (allPlayed && players.length === 4) { // 必须4人
+    if (allPlayed && players.length === 4 && !hasShownResult) {
       fetchAllResults();
+      setHasShownResult(true);
     }
-  }, [submitted, allPlayed, players]);
+  }, [submitted, allPlayed, players, hasShownResult]);
 
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
@@ -145,7 +154,16 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
     if (Array.isArray(data.players)) {
-      setResultModalData(data.players);
+      // 转换为和TryPlay一致的字段（name, head, middle, tail, score, isFoul）
+      const resultPlayers = data.players.map(p => ({
+        name: p.name,
+        head: p.head || [],
+        middle: p.middle || [],
+        tail: p.tail || [],
+        score: typeof p.score === 'number' ? p.score : (p.result ? p.result.score : 0),
+        isFoul: typeof p.isFoul === 'boolean' ? p.isFoul : (p.result ? p.result.isFoul : false)
+      }));
+      setResultModalData(resultPlayers);
       setShowResult(true);
     }
   }
@@ -432,6 +450,7 @@ export default function Play() {
     </div>;
   }
 
+  // Result modal UI 与 TryPlay 完全一致
   function renderResultModal() {
     if (!showResult) return null;
     const scale = 0.9;
@@ -447,8 +466,8 @@ export default function Play() {
           background: '#fff',
           borderRadius: 15,
           padding: 24,
-          minWidth: 320,
-          minHeight: 240,
+          minWidth: 400,
+          minHeight: 270,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -459,8 +478,11 @@ export default function Play() {
           {data.map((p, idx) => (
             <div key={p.name} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: p.name === myName ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
-                {p.name}（{(p.result && p.result.score) || 0}分）
-                {p.result && p.result.isFoul && <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>}
+                {p.name}
+                {p.isFoul && (
+                  <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>
+                )}
+                （{p.score || 0}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
                 {renderPaiDunCards(p.head || [], 'none', { width: cardW, height: cardH })}
@@ -546,15 +568,8 @@ export default function Play() {
         {renderPaiDun(head, '头道', 'head', '#23e67a')}
         {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
-        {/* 我的手牌 */}
-        <div style={{ margin: '16px 0 8px 0' }}>
-          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-            你的手牌（点击选中，点击上方牌墩移动）
-          </div>
-          {renderMyCards()}
-        </div>
-        {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
+        {/* 按钮区紧贴尾道 */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 0 }}>
           <button
             style={{
               flex: 1,
@@ -606,6 +621,10 @@ export default function Play() {
             disabled={submitted}
             onClick={handleStartCompare}
           >开始比牌</button>
+        </div>
+        {/* 手牌区保留，无说明文字 */}
+        <div style={{ margin: '12px 0 8px 0' }}>
+          {renderMyCards()}
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {submitMsg}
