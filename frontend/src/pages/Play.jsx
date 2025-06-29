@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const OUTER_MAX_WIDTH = 420;
@@ -27,7 +26,6 @@ export default function Play() {
 
   const navigate = useNavigate();
 
-  // 登录校验和查分
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -39,14 +37,12 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
-  // 房间玩家定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 手牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
@@ -92,18 +88,16 @@ export default function Play() {
         setTail(data.cards.slice(8, 13));
         setMyCards([]);
       } else if (!data.submitted && Array.isArray(data.cards)) {
-        // 自动分牌仅在三墩都为空时做一次
         if (head.length === 0 && middle.length === 0 && tail.length === 0) {
           setHead(data.cards.slice(0, 3));
           setMiddle(data.cards.slice(3, 8));
           setTail(data.cards.slice(8, 13));
-          setMyCards([]); // 全部分过去
+          setMyCards([]);
         }
       }
     }
   }
 
-  // 退出房间
   async function handleExitRoom() {
     const token = localStorage.getItem('token');
     await fetch('https://9526.ip-ddns.com/api/leave_room.php', {
@@ -114,7 +108,6 @@ export default function Play() {
     navigate('/');
   }
 
-  // 准备
   async function handleReady() {
     const token = localStorage.getItem('token');
     await fetch('https://9526.ip-ddns.com/api/ready.php', {
@@ -125,7 +118,6 @@ export default function Play() {
     setIsReady(true);
   }
 
-  // 牌点击：高亮/取消高亮（在手牌或三墩中都可选）
   function handleCardClick(card, area, e) {
     if (submitted) return;
     if (e) e.stopPropagation();
@@ -137,7 +129,6 @@ export default function Play() {
     });
   }
 
-  // 点击任意墩，将高亮选中的牌移入该墩（无数量限制）
   function moveTo(dest) {
     if (submitted) return;
     if (!selected.cards.length) return;
@@ -162,7 +153,6 @@ export default function Play() {
     setSubmitMsg('');
   }
 
-  // 开始比牌（提交分牌）
   async function handleStartCompare() {
     if (submitted) return;
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
@@ -186,34 +176,39 @@ export default function Play() {
     }
   }
 
-  // 绿色暗影主色
-  const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
-
-  // 渲染玩家座位
+  // 新增：绿色准备横幅
   function renderPlayerSeat(name, idx, isMe, submitted) {
+    // 高亮“你”且准备后绿色，未准备为灰色
+    let bg = isMe
+      ? (submitted ? '#23e67a' : '#1c6e41')
+      : '#2a556e';
+    let color = isMe
+      ? (submitted ? '#fff' : '#23e67a')
+      : '#fff';
+    let border = isMe && submitted ? '2.5px solid #23e67a' : 'none';
     return (
       <div
         key={name}
         className="play-seat"
         style={{
-          border: 'none',
+          border,
           borderRadius: 10,
           marginRight: 8,
           width: '22%',
           minWidth: 70,
-          color: isMe ? '#23e67a' : '#fff',
-          background: isMe ? '#1c6e41' : '#2a556e',
+          color,
+          background: bg,
           textAlign: 'center',
           padding: '12px 0',
           fontWeight: 700,
           fontSize: 17,
-          boxShadow: greenShadow,
+          boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
           boxSizing: 'border-box'
         }}
       >
         <div>{name}</div>
         <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
-          {isMe ? '你' : (submitted ? '已提交' : '未提交')}
+          {isMe ? (submitted ? '你（已准备）' : '你') : (submitted ? '已提交' : '未提交')}
         </div>
       </div>
     );
@@ -264,7 +259,7 @@ export default function Play() {
                   : '2.5px solid #eaeaea',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
-                  : greenShadow,
+                  : '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
                 cursor: submitted ? 'not-allowed' : 'pointer',
                 background: '#fff',
                 transition: 'border .13s, box-shadow .13s'
@@ -289,7 +284,7 @@ export default function Play() {
           height: PAI_DUN_HEIGHT,
           marginBottom: 20,
           position: 'relative',
-          boxShadow: greenShadow,
+          boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
           display: 'flex',
           alignItems: 'center',
           boxSizing: 'border-box',
@@ -344,7 +339,6 @@ export default function Play() {
     );
   }
 
-  // 渲染13张手牌
   function renderMyCards() {
     return <div className="cards-area">
       {myCards.map(card =>
@@ -363,13 +357,11 @@ export default function Play() {
     </div>;
   }
 
-  // 比牌弹窗
   function renderResultModal() {
     if (!showResult) return null;
     const scale = 0.9;
     const cardW = CARD_WIDTH * scale;
     const cardH = CARD_HEIGHT * scale;
-    // 展示我的三道和得分（后端可扩展多人比牌结果）
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -422,7 +414,7 @@ export default function Play() {
         margin: '30px auto',
         background: '#185a30',
         borderRadius: 22,
-        boxShadow: greenShadow,
+        boxShadow: '0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a',
         padding: 16,
         border: 'none',
         position: 'relative',
@@ -476,10 +468,9 @@ export default function Play() {
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
         {/* 我的手牌 */}
         <div style={{ margin: '16px 0 8px 0' }}>
-          {/* 说明区块移除 */}
           {renderMyCards()}
         </div>
-        {/* 按钮区（只保留准备和开始比牌，去掉智能分牌） */}
+        {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
           <button
             style={{
