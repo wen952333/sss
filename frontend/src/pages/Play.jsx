@@ -29,12 +29,12 @@ export default function Play() {
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
+  const [hasShownResult, setHasShownResult] = useState(false);
 
-  const isFirstSplit = useRef(true);
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // 全局异常fetch
+  // fetch工具
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -47,6 +47,7 @@ export default function Play() {
     }
   }
 
+  // 登录检测
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -58,19 +59,21 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
+  // 房间信息定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
-  }, [roomId]);
+  }, [roomId, showResult]);
 
+  // 我的牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 理牌倒计时逻辑
+  // 理牌倒计时
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setCountdown(180);
@@ -90,20 +93,50 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
+  // 比牌弹窗弹出时，准备按钮恢复可点
+  useEffect(() => {
+    if (showResult) {
+      setIsReady(true);
+      setSubmitted(false);
+      setAllSplits([]);
+      setSplitIndex(0);
+    }
+  }, [showResult]);
+
+  // 新牌局重置比牌弹窗
+  useEffect(() => {
+    if (myCards.length === 13 && !submitted) {
+      setHasShownResult(false);
+      setSplitIndex(0);
+    }
+  }, [myCards, submitted]);
+
+  // 比牌结果弹窗（只弹一次）
   useEffect(() => {
     if (!submitted) return;
-    if (allPlayed) {
+    if (allPlayed && players.length === 4 && !hasShownResult) {
       fetchAllResults();
+      setHasShownResult(true);
     }
-  }, [submitted, allPlayed]);
+  }, [submitted, allPlayed, players, hasShownResult]);
 
+  // 重点：准备按钮逻辑修正
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    setIsReady(me && me.submitted);
+    // 只有在“房间等待阶段”且“自己未准备”，准备按钮绿色可点
+    // 其余阶段（理牌/比牌中）准备按钮灰色不可点
+    // 比牌结果弹窗(showResult)时按钮绿色可点
+    if (showResult) {
+      setIsReady(true);
+    } else if (data.status === 'waiting' && me && !me.submitted) {
+      setIsReady(true);
+    } else {
+      setIsReady(false);
+    }
   }
 
   async function fetchMyPoints() {
@@ -117,6 +150,7 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
+  // 只要 cards 有 13 张都进入理牌区
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -124,19 +158,16 @@ export default function Play() {
     setMyResult(data.result || null);
     setAllPlayed(!!data.allPlayed);
 
-    if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
+    if (Array.isArray(data.cards) && data.cards.length === 13) {
       setHead(data.cards.slice(0, 3));
       setMiddle(data.cards.slice(3, 8));
       setTail(data.cards.slice(8, 13));
       setMyCards([]);
-    } else if (!data.submitted && Array.isArray(data.cards)) {
-      if (isFirstSplit.current && head.length === 0 && middle.length === 0 && tail.length === 0) {
-        setHead(data.cards.slice(0, 3));
-        setMiddle(data.cards.slice(3, 8));
-        setTail(data.cards.slice(8, 13));
-        setMyCards([]);
-        isFirstSplit.current = false;
-      }
+    } else {
+      setHead([]);
+      setMiddle([]);
+      setTail([]);
+      setMyCards([]);
     }
   }
 
@@ -144,7 +175,17 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
     if (Array.isArray(data.players)) {
-      setResultModalData(data.players);
+      const resultPlayers = data.players.map(p => {
+        let head = Array.isArray(p.head) ? p.head.slice(0, 3) : [];
+        let middle = Array.isArray(p.middle) ? p.middle.slice(0, 5) : [];
+        let tail = Array.isArray(p.tail) ? p.tail.slice(0, 5) : [];
+        let score = typeof p.score === "number" ? p.score :
+          (p.result && typeof p.result.score === "number" ? p.result.score : 0);
+        let isFoul = typeof p.isFoul === "boolean" ? p.isFoul :
+          (p.result && typeof p.result.isFoul === "boolean" ? p.result.isFoul : false);
+        return { name: p.name, head, middle, tail, score, isFoul };
+      });
+      setResultModalData(resultPlayers);
       setShowResult(true);
     }
   }
@@ -160,15 +201,17 @@ export default function Play() {
   }
 
   async function handleReady() {
+    if (!isReady) return;
     const token = localStorage.getItem('token');
     await apiFetch('https://9526.ip-ddns.com/api/ready.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(true);
+    setIsReady(false);
   }
 
+  // 智能分牌
   function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
@@ -260,6 +303,8 @@ export default function Play() {
   }
 
   function renderPlayerSeat(name, idx, isMe, submitted) {
+    let statusText = submitted ? '已准备' : '未准备';
+    let statusColor = submitted ? '#23e67a' : '#fff';
     return (
       <div
         key={name}
@@ -281,8 +326,14 @@ export default function Play() {
         }}
       >
         <div>{name}</div>
-        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
-          {isMe ? '你' : (submitted ? '已提交' : '未提交')}
+        <div style={{
+          marginTop: 4,
+          fontSize: 13,
+          fontWeight: 600,
+          color: isMe ? (submitted ? '#23e67a' : '#fff') : statusColor,
+          letterSpacing: '1px'
+        }}>
+          {isMe ? '你' : statusText}
         </div>
       </div>
     );
@@ -335,7 +386,7 @@ export default function Play() {
                   ? '0 0 16px 2px #ff4444cc'
                   : greenShadow,
                 cursor: submitted ? 'not-allowed' : 'pointer',
-                background: '#fff',
+                background: '#185a30',
                 transition: 'border .13s, box-shadow .13s'
               }}
               onClick={e => { if (!submitted) handleCardClick(card, area, e); }}
@@ -446,8 +497,8 @@ export default function Play() {
           background: '#fff',
           borderRadius: 15,
           padding: 24,
-          minWidth: 320,
-          minHeight: 240,
+          minWidth: 400,
+          minHeight: 270,
           boxShadow: '0 8px 40px #0002',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -458,8 +509,11 @@ export default function Play() {
           {data.map((p, idx) => (
             <div key={p.name} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: p.name === myName ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
-                {p.name}（{(p.result && p.result.score) || 0}分）
-                {p.result && p.result.isFoul && <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>}
+                {p.name}
+                {p.isFoul && (
+                  <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>
+                )}
+                （{p.score || 0}分）
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
                 {renderPaiDunCards(p.head || [], 'none', { width: cardW, height: cardH })}
@@ -545,31 +599,24 @@ export default function Play() {
         {renderPaiDun(head, '头道', 'head', '#23e67a')}
         {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
-        {/* 我的手牌 */}
-        <div style={{ margin: '16px 0 8px 0' }}>
-          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-            你的手牌（点击选中，点击上方牌墩移动）
-          </div>
-          {renderMyCards()}
-        </div>
         {/* 按钮区 */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 0 }}>
           <button
             style={{
               flex: 1,
-              background: isReady || submitted ? '#b0b0b0' : '#dddddd',
+              background: isReady ? '#23e67a' : '#b0b0b0',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: isReady || submitted ? 'not-allowed' : 'pointer',
-              boxShadow: isReady || submitted ? 'none' : '0 2px 9px #23e67a22',
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              boxShadow: isReady ? '0 2px 9px #23e67a22' : 'none',
               transition: 'background 0.16s'
             }}
             onClick={handleReady}
-            disabled={isReady || submitted}
+            disabled={!isReady}
           >准备</button>
           <button
             style={{
@@ -605,6 +652,10 @@ export default function Play() {
             disabled={submitted}
             onClick={handleStartCompare}
           >开始比牌</button>
+        </div>
+        {/* 手牌区 */}
+        <div style={{ margin: '12px 0 8px 0' }}>
+          {renderMyCards()}
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
           {submitMsg}
