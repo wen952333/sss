@@ -200,7 +200,7 @@ export default function TryPlay() {
                   ? '0 0 16px 2px #ff4444cc'
                   : 'none',
                 cursor: isReady ? 'pointer' : 'not-allowed',
-                background: '#fff',
+                background: '#185a30',
                 transition: 'border .13s, box-shadow .13s'
               }}
               onClick={e => { if (isReady) handleCardClick(card, area, e); }}
