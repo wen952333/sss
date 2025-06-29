@@ -1,63 +1,300 @@
 /**
- * sssScore.robust.js - 十三水健壮最终版计分器
- * 这份代码本身经过严格审查，没有变量作用域问题。
- * 如果再次出现 'Cannot access 'i'...' 错误，问题100%存在于调用此文件的外部代码中。
+ * sssScore.final.no_homerun.js - 十三水最终版比牌计分器 (无全垒打)
+ * 
+ * --- 核心功能与规则 ---
+ * 1.  牌型体系:
+ *     - 普通牌型: 同花顺 > 铁支 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 对子 > 高牌。
+ *     - 特殊牌型: 一条龙 > 三同花/三顺子 > 六对半。
+ * 2.  特殊顺子规则:
+ *     - A-K-Q-J-10 为最大顺子/同花顺。
+ *     - A-2-3-4-5 为第二大顺子/同花顺。
+ * 3.  无平局规则:
+ *     - 普通牌型比牌时，如点数完全相同，则按“关键牌”的花色决定胜负。
+ *     - 花色顺序: 黑桃 > 红桃 > 梅花 > 方块。
+ * 4.  特殊牌型结算:
+ *     - 特殊牌型 vs 普通牌型: 按特殊牌型分数结算。
+ *     - 特殊牌型 vs 特殊牌型: 计为平局 (0分)。
+ * 5.  倒水 (相公) 规则:
+ *     - 倒水方直接输给未倒水方，赔付对方牌力对应的总分。
+ *     - 双方都倒水则为平局。
+ * 6.  计分体系:
+ *     - 支持各道加分牌 (马牌)。
+ *     - 支持“打枪” (三道全胜得分x2)。
+ *     - [已移除] 全垒打规则。
  */
 
-const VALUE_ORDER = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'jack': 11, 'queen': 12, 'king': 13, 'ace': 14 };
+// --- 常量定义区 ---
+const VALUE_ORDER = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  '10': 10, 'jack': 11, 'queen': 12, 'king': 13, 'ace': 14
+};
 const SUIT_ORDER = { spades: 4, hearts: 3, clubs: 2, diamonds: 1 };
-const SCORES = { HEAD: { '三条': 3 }, MIDDLE: { '铁支': 8, '同花顺': 10, '葫芦': 2 }, TAIL: { '铁支': 4, '同花顺': 5 }, SPECIAL: { '一条龙': 13, '三同花': 4, '三顺子': 4, '六对半': 3 }, GUNSHOT_MULTIPLIER: 2, HOMERUN_MULTIPLIER: 2 };
 
+// --- 规则配置区 ---
+const SCORES = {
+  // 各道牌型加分
+  HEAD: { '三条': 3 },
+  MIDDLE: { '铁支': 8, '同花顺': 10, '葫芦': 2 },
+  TAIL: { '铁支': 4, '同花顺': 5 },
+  // 特殊牌型基础分
+  SPECIAL: { '一条龙': 13, '三同花': 4, '三顺子': 4, '六对半': 3 },
+  // 翻倍规则
+  GUNSHOT_MULTIPLIER: 2,
+  // HOMERUN_MULTIPLIER: 2, // 已移除
+};
+
+
+// --- 主计算函数 (已移除全垒打逻辑) ---
 export function calcSSSAllScores(players) {
   const N = players.length;
   if (N < 2) return new Array(N).fill(0);
+
   let marks = new Array(N).fill(0);
-  const playerInfos = players.map(p => { const isFoul = isFoul(p.head, p.middle, p.tail); const specialType = isFoul ? null : getSpecialType(p); return { ...p, isFoul, specialType }; });
-  const gunshotLog = Array.from({ length: N }, () => new Array(N).fill(false));
+  
+  const playerInfos = players.map(p => {
+    const isFoul = isFoul(p.head, p.middle, p.tail);
+    const specialType = isFoul ? null : getSpecialType(p);
+    return { ...p, isFoul, specialType };
+  });
+
+  // 两两比较计分
   for (let i = 0; i < N; ++i) {
     for (let j = i + 1; j < N; ++j) {
-      const p1 = playerInfos[i], p2 = playerInfos[j]; let pairScore = 0;
-      if (p1.isFoul && !p2.isFoul) { pairScore = -calculateTotalScore(p2); }
-      else if (!p1.isFoul && p2.isFoul) { pairScore = calculateTotalScore(p1); }
-      else if (p1.isFoul && p2.isFoul) { pairScore = 0; }
-      else if (p1.specialType && p2.specialType) { pairScore = 0; }
-      else if (p1.specialType && !p2.specialType) { pairScore = SCORES.SPECIAL[p1.specialType] || 0; }
-      else if (!p1.specialType && p2.specialType) { pairScore = -(SCORES.SPECIAL[p2.specialType] || 0); }
+      const p1 = playerInfos[i];
+      const p2 = playerInfos[j];
+      
+      let pairScore = 0; // p1 相对于 p2 的得分
+
+      // 1. 倒水处理
+      if (p1.isFoul && !p2.isFoul) {
+        pairScore = -calculateTotalBaseScore(p2);
+      } else if (!p1.isFoul && p2.isFoul) {
+        pairScore = calculateTotalBaseScore(p1);
+      } else if (p1.isFoul && p2.isFoul) {
+        pairScore = 0;
+      }
+      // 2. 特殊牌型处理
+      else if (p1.specialType && p2.specialType) {
+        pairScore = 0;
+      }
+      else if (p1.specialType && !p2.specialType) {
+        pairScore = SCORES.SPECIAL[p1.specialType] || 0;
+      }
+      else if (!p1.specialType && p2.specialType) {
+        pairScore = -(SCORES.SPECIAL[p2.specialType] || 0);
+      }
+      // 3. 普通牌型三道比较
       else {
-        let p1_win_count = 0, p2_win_count = 0;
-        for (const area of ['head', 'middle', 'tail']) {
-          const cmp = compareArea(p1[area], p2[area]);
-          if (cmp > 0) { p1_win_count++; pairScore += getAreaScore(p1[area], area); }
-          else if (cmp < 0) { p2_win_count++; pairScore -= getAreaScore(p2[area], area); }
+        let p1_win_count = 0;
+        let p2_win_count = 0;
+        
+        const areas = ['head', 'middle', 'tail'];
+        for (const area of areas) {
+          const cmp = compareArea(p1[area], p2[area], area);
+          if (cmp > 0) {
+            p1_win_count++;
+            pairScore += getAreaScore(p1[area], area);
+          } else if (cmp < 0) {
+            p2_win_count++;
+            pairScore -= getAreaScore(p2[area], area);
+          }
         }
-        if (p1_win_count === 3) { pairScore *= SCORES.GUNSHOT_MULTIPLIER; gunshotLog[i][j] = true; }
-        else if (p2_win_count === 3) { pairScore *= SCORES.GUNSHOT_MULTIPLIER; gunshotLog[j][i] = true; }
+        // "打枪" 判断
+        if (p1_win_count === 3 || p2_win_count === 3) {
+          pairScore *= SCORES.GUNSHOT_MULTIPLIER;
+        }
       }
-      marks[i] += pairScore; marks[j] -= pairScore;
+
+      marks[i] += pairScore;
+      marks[j] -= pairScore;
     }
   }
-  if (SCORES.HOMERUN_MULTIPLIER > 1) {
-    const homeRunScores = new Array(N).fill(0);
-    for (let playerIdx = 0; playerIdx < N; ++playerIdx) {
-      if (N > 1 && gunshotLog[playerIdx].filter(Boolean).length === N - 1) {
-        const bonus = marks[playerIdx] * (SCORES.HOMERUN_MULTIPLIER - 1);
-        homeRunScores[playerIdx] += bonus;
-        for (let opponentIdx = 0; opponentIdx < N; opponentIdx++) { if (playerIdx !== opponentIdx) homeRunScores[opponentIdx] -= bonus / (N - 1); }
-      }
-    }
-    for (let finalIdx = 0; finalIdx < N; finalIdx++) { marks[finalIdx] += homeRunScores[finalIdx]; }
-  }
+
+  // 全垒打逻辑已完全移除
+  
   return marks;
 }
-function calculateTotalScore(p) { if (p.specialType) return SCORES.SPECIAL[p.specialType] || 0; return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail'); }
-function getAreaScore(cards, area) { const type = getAreaType(cards); return SCORES[area.toUpperCase()]?.[type] || 1; }
-function isFoul(head, middle, tail) { const headRank = areaTypeRank(getAreaType(head)), midRank = areaTypeRank(getAreaType(middle)), tailRank = areaTypeRank(getAreaType(tail)); if (headRank > midRank || midRank > tailRank) return true; if (headRank === midRank && compareArea(head, middle) > 0) return true; if (midRank === tailRank && compareArea(middle, tail) > 0) return true; return false; }
-function getSpecialType(p) { const midType = getAreaType(p.middle), tailType = getAreaType(p.tail); if (['铁支', '同花顺'].includes(midType) || ['铁支', '同花顺'].includes(tailType)) return null; const all = [...p.head, ...p.middle, ...p.tail]; if (new Set(all.map(c => c.split('_')[0])).size === 13) return '一条龙'; const groupedAll = getGroupedValues(all); if (groupedAll['2']?.length === 6 && !groupedAll['3'] && !groupedAll['4']) return '六对半'; if (isFlush(p.head) && isFlush(p.middle) && isFlush(p.tail)) return '三同花'; if (isStraight(p.head) && isStraight(p.middle) && isStraight(p.tail)) return '三顺子'; return null; }
-function compareArea(a, b) { const typeA = getAreaType(a), typeB = getAreaType(b), rankA = areaTypeRank(typeA), rankB = areaTypeRank(typeB); if (rankA !== rankB) return rankA - rankB; const groupedA = getGroupedValues(a), groupedB = getGroupedValues(b); switch (typeA) { case '同花顺': case '顺子': { const sRankA = getStraightRank(a), sRankB = getStraightRank(b); if (sRankA !== sRankB) return sRankA - sRankB; break; } case '铁支': case '葫芦': case '三条': { const mainA = groupedA[4]?.[0] || groupedA[3]?.[0], mainB = groupedB[4]?.[0] || groupedB[3]?.[0]; if (mainA !== mainB) return mainA - mainB; if (typeA === '葫芦') { const secA = groupedA[2][0], secB = groupedB[2][0]; if (secA !== secB) return secA - secB; } break; } case '两对': { const pA = groupedA[2], pB = groupedB[2]; if (pA[0] !== pB[0]) return pA[0] - pB[0]; if (pA[1] !== pB[1]) return pA[1] - pB[1]; break; } } const sortedA = sortCards(a), sortedB = sortCards(b); for (let k = 0; k < a.length; ++k) { if (sortedA[k].value !== sortedB[k].value) return sortedA[k].value - sortedB[k].value; } for (let k = 0; k < a.length; ++k) { if (sortedA[k].suit !== sortedB[k].suit) return sortedA[k].suit - sortedB[k].suit; } return 0; }
-function getAreaType(cards) { if (!cards || cards.length === 0) return '高牌'; const isF = isFlush(cards), isS = isStraight(cards); if (isF && isS) return "同花顺"; if (isF) return "同花"; if (isS) return "顺子"; const grouped = getGroupedValues(cards); if (grouped['4']) return "铁支"; if (grouped['3'] && grouped['2']) return "葫芦"; if (grouped['3']) return "三条"; if (grouped['2']?.length === 2) return "两对"; if (grouped['2']) return "对子"; return "高牌"; }
-function areaTypeRank(type) { const ranks = { '同花顺': 9, '铁支': 8, '葫芦': 7, '同花': 6, '顺子': 5, '三条': 4, '两对': 3, '对子': 2, '高牌': 1 }; return ranks[type] || 0; }
-function isStraight(cards) { let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b); if (vals.length !== cards.length) return false; const isA2345 = JSON.stringify(vals) === JSON.stringify([2,3,4,5,14]); return (vals[vals.length - 1] - vals[0] === cards.length - 1) || isA2345; }
-function isFlush(cards) { if (!cards || cards.length < 3) return false; const firstSuit = cards[0].split('_')[2]; return cards.every(c => c.split('_')[2] === firstSuit); }
-function getStraightRank(cards) { let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b); if (vals.includes(14) && vals.includes(13)) return 14; if (vals.includes(14) && vals.includes(2)) return 13.5; return vals[vals.length - 1]; }
-function getGroupedValues(cards) { const counts = {}; cards.forEach(card => { const val = VALUE_ORDER[card.split('_')[0]]; counts[val] = (counts[val] || 0) + 1; }); const groups = {}; for (const val in counts) { const count = counts[val]; if (!groups[count]) groups[count] = []; groups[count].push(Number(val)); } for(const count in groups) { groups[count].sort((a,b) => b-a); } return groups; }
-function sortCards(cards) { return cards.map(cardStr => { const [value, , suit] = cardStr.split('_'); return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] }; }).sort((a, b) => b.value - a.value || b.suit - a.suit); }
+
+
+// --- 核心辅助函数 ---
+
+/** 计算一个玩家三道或特殊牌型的基础总分（用于倒水赔付） */
+function calculateTotalBaseScore(p) {
+    if (p.specialType) {
+        return SCORES.SPECIAL[p.specialType] || 0;
+    }
+    return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail');
+}
+
+/** 判定是否倒水 */
+function isFoul(head, middle, tail) {
+  const headRank = areaTypeRank(getAreaType(head, 'head'));
+  const midRank = areaTypeRank(getAreaType(middle, 'middle'));
+  const tailRank = areaTypeRank(getAreaType(tail, 'tail'));
+  
+  if (headRank > midRank || midRank > tailRank) return true;
+  if (headRank === midRank && compareArea(head, middle, 'head') > 0) return true;
+  if (midRank === tailRank && compareArea(middle, tail, 'middle') > 0) return true;
+  return false;
+}
+
+/** 识别特殊牌型 */
+function getSpecialType(p) {
+  const midType = getAreaType(p.middle, 'middle');
+  const tailType = getAreaType(p.tail, 'tail');
+  if (['铁支', '同花顺'].includes(midType) || ['铁支', '同花顺'].includes(tailType)) {
+      return null;
+  }
+
+  const all = [...p.head, ...p.middle, ...p.tail];
+  
+  const uniqVals = new Set(all.map(c => c.split('_')[0]));
+  if (uniqVals.size === 13) return '一条龙';
+  
+  const groupedAll = getGroupedValues(all);
+  if (groupedAll['2']?.length === 6 && !groupedAll['3'] && !groupedAll['4']) {
+    return '六对半';
+  }
+  
+  if (isFlush(p.head) && isFlush(p.middle) && isFlush(p.tail)) return '三同花';
+  if (isStraight(p.head) && isStraight(p.middle) && isStraight(p.tail)) return '三顺子';
+
+  return null;
+}
+
+/** 单墩比大小 (包含花色比较) */
+function compareArea(a, b, area) {
+  const typeA = getAreaType(a, area);
+  const typeB = getAreaType(b, area);
+  const rankA = areaTypeRank(typeA);
+  const rankB = areaTypeRank(typeB);
+  
+  if (rankA !== rankB) return rankA - rankB;
+
+  const groupedA = getGroupedValues(a);
+  const groupedB = getGroupedValues(b);
+
+  switch (typeA) {
+    case '同花顺':
+    case '顺子': {
+      const straightRankA = getStraightRank(a);
+      const straightRankB = getStraightRank(b);
+      if (straightRankA !== straightRankB) return straightRankA - straightRankB;
+      break;
+    }
+    case '铁支':
+    case '葫芦':
+    case '三条': {
+      const mainRankA = groupedA[4]?.[0] || groupedA[3]?.[0];
+      const mainRankB = groupedB[4]?.[0] || groupedB[3]?.[0];
+      if (mainRankA !== mainRankB) return mainRankA - mainRankB;
+      if (typeA === '葫芦') {
+          const secondRankA = groupedA[2][0];
+          const secondRankB = groupedB[2][0];
+          if(secondRankA !== secondRankB) return secondRankA - secondRankB;
+      }
+      break; 
+    }
+    case '两对': {
+      const pairsA = groupedA[2];
+      const pairsB = groupedB[2];
+      if (pairsA[0] !== pairsB[0]) return pairsA[0] - pairsB[0];
+      if (pairsA[1] !== pairsB[1]) return pairsA[1] - pairsB[1];
+      break;
+    }
+  }
+
+  const sortedCardsA = sortCards(a);
+  const sortedCardsB = sortCards(b);
+  
+  for (let i = 0; i < a.length; ++i) {
+    if (sortedCardsA[i].value !== sortedCardsB[i].value) {
+        return sortedCardsA[i].value - sortedCardsB[i].value;
+    }
+  }
+  
+  for (let i = 0; i < a.length; ++i) {
+    if (sortedCardsA[i].suit !== sortedCardsB[i].suit) {
+        return sortedCardsA[i].suit - sortedCardsB[i].suit;
+    }
+  }
+
+  return 0;
+}
+
+
+// --- 底层工具函数 ---
+
+function getAreaType(cards) {
+  const isF = isFlush(cards);
+  const isS = isStraight(cards);
+  if (isF && isS) return "同花顺";
+  if (isF) return "同花";
+  if (isS) return "顺子";
+
+  const grouped = getGroupedValues(cards);
+  if (grouped['4']) return "铁支";
+  if (grouped['3'] && grouped['2']) return "葫芦";
+  if (grouped['3']) return "三条";
+  if (grouped['2']?.length === 2) return "两对";
+  if (grouped['2']) return "对子";
+  
+  return "高牌";
+}
+
+function areaTypeRank(type) {
+  const ranks = { '同花顺': 9, '铁支': 8, '葫芦': 7, '同花': 6, '顺子': 5, '三条': 4, '两对': 3, '对子': 2, '高牌': 1 };
+  return ranks[type] || 0;
+}
+
+function getAreaScore(cards, area) {
+  const type = getAreaType(cards, area);
+  const areaUpper = area.toUpperCase();
+  return SCORES[areaUpper]?.[type] || 1;
+}
+
+function isStraight(cards) {
+  let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b);
+  if (vals.length !== cards.length) return false;
+  const isA2345 = JSON.stringify(vals) === JSON.stringify([2,3,4,5,14]);
+  const isNormalStraight = (vals[vals.length - 1] - vals[0] === cards.length - 1);
+  return isNormalStraight || isA2345;
+}
+
+function isFlush(cards) {
+  if (!cards || cards.length === 0) return false;
+  const firstSuit = cards[0].split('_')[2];
+  return cards.every(c => c.split('_')[2] === firstSuit);
+}
+
+function getStraightRank(cards) {
+    let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b);
+    if (vals.includes(14) && vals.includes(13)) return 14;
+    if (vals.includes(14) && vals.includes(2)) return 13.5;
+    return vals[vals.length - 1];
+}
+
+function getGroupedValues(cards) {
+    const counts = {};
+    cards.forEach(card => {
+        const val = VALUE_ORDER[card.split('_')[0]];
+        counts[val] = (counts[val] || 0) + 1;
+    });
+    const groups = {};
+    for (const val in counts) {
+        const count = counts[val];
+        if (!groups[count]) groups[count] = [];
+        groups[count].push(Number(val));
+    }
+    for(const count in groups) {
+        groups[count].sort((a,b) => b-a);
+    }
+    return groups;
+}
+
+function sortCards(cards) {
+    return cards.map(cardStr => {
+        const [value, , suit] = cardStr.split('_');
+        return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] };
+    }).sort((a, b) => b.value - a.value || b.suit - a.suit);
+}
