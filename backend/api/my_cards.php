@@ -26,6 +26,7 @@ echo json_encode([
 
 function allPlayersSubmitted($roomId, $pdo) {
   $rows = $pdo->query("SELECT submitted FROM players WHERE room_id='$roomId'")->fetchAll();
+  if (count($rows) < 4) return false; // 必须4人
   foreach ($rows as $r) if (!$r['submitted']) return false;
   return true;
 }
