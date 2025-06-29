@@ -39,6 +39,8 @@ foreach ($allPlayers as $p) {
 if ($allReady && count($allPlayers) === 4) {
     // 更新房间状态
     $pdo->prepare("UPDATE rooms SET status='started' WHERE room_id=?")->execute([$roomId]);
+    // 新增：重置所有人的 submitted=0（准备->理牌阶段，避免直接弹出比牌界面）
+    $pdo->prepare("UPDATE players SET submitted=0 WHERE room_id=?")->execute([$roomId]);
 
     // 生成一副牌并洗牌
     $cards = [];
