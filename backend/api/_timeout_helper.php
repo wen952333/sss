@@ -1,14 +1,12 @@
 <?php
 /**
- * 统一自动超时踢人和理牌工具
- * 用法: require_once '_timeout_helper.php'; handleTimeoutsAndAutoPlay($roomId, $pdo);
- * 要求players表有 join_time, deal_time, finish_time 字段，cards字段存13张，submitted字段标记是否已理牌
+ * 超时踢人+智能分牌工具
  */
 function handleTimeoutsAndAutoPlay($roomId, $pdo) {
     $now = time();
     $players = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($players as $p) {
-        // 1. 未准备超时踢出（入场超45秒、局后未准备超45秒）
+        // 1. 未准备超时踢出
         if (!$p['submitted'] && isset($p['join_time']) && strtotime($p['join_time']) + 45 < $now) {
             $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
             continue;
@@ -31,22 +29,24 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
 }
 
 /**
- * 智能分牌（不倒水，点数较高，性能友好）
+ * 更智能的十三水分牌（借鉴前端SmartSplit.js权重）
  * 返回 [head, middle, tail]，每个为数组
  */
 function smartSplitNoFoul($cards13) {
     $combs = combinations($cards13, 3);
     $best = null;
-    $bestScore = -1;
+    $bestScore = -999999;
+    $count = 0;
+    $LIMIT = 3500;
     foreach ($combs as $head) {
         $left = array_diff($cards13, $head);
         foreach (combinations($left, 5) as $middle) {
+            $count++;
+            if ($count > $LIMIT) break 2;
             $tail = array_diff($left, $middle);
             if (count($tail) !== 5) continue;
             if (isFoul($head, $middle, $tail)) continue;
-            $score = array_sum(array_map('cardValue', $head))
-                   + array_sum(array_map('cardValue', $middle))
-                   + array_sum(array_map('cardValue', $tail));
+            $score = sss_split_score($head, $middle, $tail);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = [$head, $middle, $tail];
@@ -62,17 +62,69 @@ function smartSplitNoFoul($cards13) {
     ];
 }
 
-/** ----------- 核心倒水判定严格同步前端 ----------- */
+// 权重评分，借鉴SmartSplit.js
+function sss_split_score($head, $mid, $tail) {
+    $score =
+        handTypeScore($tail, 'tail') * 120 +
+        handTypeScore($mid, 'middle') * 16 +
+        handTypeScore($head, 'head') * 2;
+
+    $headType = areaType($head, 'head');
+    if ($headType == "三条") $score += 30;
+    else if ($headType == "对子") $score += 12;
+    else $score -= 15;
+
+    $midType = areaType($mid, 'middle');
+    if ($midType == "同花顺") $score += 30;
+    if ($midType == "铁支") $score += 32;
+    if ($midType == "葫芦") $score += 18;
+    if ($midType == "顺子") $score += 10;
+    if ($midType == "三条") $score += 5;
+    if ($midType == "两对") $score += 2;
+    if ($midType == "对子") $score -= 5;
+
+    $tailType = areaType($tail, 'tail');
+    if ($tailType == "铁支") $score += 45;
+    if ($tailType == "同花顺") $score += 38;
+    if ($tailType == "葫芦") $score += 18;
+    if ($tailType == "顺子") $score += 8;
+
+    if ($headType == "高牌" && ($midType == "高牌" || $tailType == "高牌")) $score -= 40;
+
+    $score += array_sum(array_map('cardValue', $head)) * 0.5
+            + array_sum(array_map('cardValue', $mid)) * 0.7
+            + array_sum(array_map('cardValue', $tail)) * 1.2;
+
+    if ($tailType == "铁支" && !in_array($midType, ["顺子", "同花顺", "铁支"])) $score += 12;
+    if ($headType == "对子" || $headType == "三条") {
+        $vals = array_map('cardValue', $head);
+        $score += max($vals) * 1.3;
+    }
+    return $score;
+}
+function handTypeScore($cards, $area) {
+    $t = areaType($cards, $area);
+    switch ($t) {
+        case "铁支": return 8;
+        case "同花顺": return 7;
+        case "葫芦": return 6;
+        case "同花": return 5;
+        case "顺子": return 4;
+        case "三条": return 3;
+        case "两对": return 2;
+        case "对子": return 1;
+        case "高牌": return 0;
+        default: return 0;
+    }
+}
+
+// ----- 基础函数（与原有一致） -----
 function isFoul($head, $middle, $tail) {
     $headRank = areaTypeRank(areaType($head, 'head'), 'head');
     $midRank = areaTypeRank(areaType($middle, 'middle'), 'middle');
     $tailRank = areaTypeRank(areaType($tail, 'tail'), 'tail');
-    if ($headRank > $midRank || $midRank > $tailRank) return true;
-    if ($headRank == $midRank && compareArea($head, $middle, 'head') > 0) return true;
-    if ($midRank == $tailRank && compareArea($middle, $tail, 'middle') > 0) return true;
-    return false;
+    return !($headRank <= $midRank && $midRank <= $tailRank);
 }
-/** 牌型分数（和前端一致，简化版） */
 function areaType($cards, $area) {
     $vals = array_map(function($c){return explode('_',$c)[0];}, $cards);
     $suits = array_map(function($c){return explode('_',$c)[2];}, $cards);
@@ -121,8 +173,6 @@ function countDuplicates($arr, $n) {
     foreach ($vals as $v) if ($v == $n) $cnt++;
     return $cnt;
 }
-
-/** 生成所有 n 选 k 的组合，结果为二维数组 */
 function combinations($arr, $k) {
     $ret = [];
     $n = count($arr);
@@ -132,7 +182,6 @@ function combinations($arr, $k) {
         $comb = [];
         foreach ($indexes as $i) $comb[] = $arr[$i];
         $ret[] = $comb;
-        // 找下一个组合
         for ($i = $k - 1; $i >= 0; $i--) {
             if ($indexes[$i] != $i + $n - $k) break;
         }
@@ -152,94 +201,4 @@ function cardValue($card) {
     if ($v === 'jack') return 11;
     return intval($v);
 }
-
-// --------- compareArea（与play.php一致） ---------
-function compareArea($a, $b, $area) {
-    $typeA = areaType($a, $area);
-    $typeB = areaType($b, $area);
-    $rankA = areaTypeRank($typeA, $area);
-    $rankB = areaTypeRank($typeB, $area);
-    if ($rankA !== $rankB) return $rankA - $rankB;
-    $groupA = getGroupedValues($a);
-    $groupB = getGroupedValues($b);
-    // 顺子/同花顺先比最大点
-    if ($typeA=='顺子'||$typeA=='同花顺') {
-        $maxA = getStraightRank($a);
-        $maxB = getStraightRank($b);
-        if ($maxA != $maxB) return $maxA-$maxB;
-    }
-    // 铁支/三条/对子比主点,再比副
-    if (in_array($typeA,['铁支','三条','对子'])) {
-        $mainA = $groupA[$typeA=='铁支'?4:($typeA=='三条'?3:2)][0];
-        $mainB = $groupB[$typeA=='铁支'?4:($typeA=='三条'?3:2)][0];
-        if ($mainA != $mainB) return $mainA-$mainB;
-        $subA = [];
-        foreach($a as $c){ $v=cardValue($c); if ($v!=$mainA) $subA[]=$v; }
-        $subB = [];
-        foreach($b as $c){ $v=cardValue($c); if ($v!=$mainB) $subB[]=$v; }
-        rsort($subA); rsort($subB);
-        for($i=0;$i<count($subA);++$i) if ($subA[$i]!=$subB[$i]) return $subA[$i]-$subB[$i];
-        return 0;
-    }
-    // 葫芦
-    if ($typeA=='葫芦') {
-        $tA=$groupA[3][0]; $tB=$groupB[3][0];
-        if ($tA!=$tB) return $tA-$tB;
-        $pA=$groupA[2][0]; $pB=$groupB[2][0];
-        if ($pA!=$pB) return $pA-$pB;
-        return 0;
-    }
-    // 两对
-    if ($typeA=='两对') {
-        $pairsA = $groupA[2]; $pairsB = $groupB[2];
-        if ($pairsA[0]!=$pairsB[0]) return $pairsA[0]-$pairsB[0];
-        if ($pairsA[1]!=$pairsB[1]) return $pairsA[1]-$pairsB[1];
-        $subA = isset($groupA[1]) ? $groupA[1][0] : 0;
-        $subB = isset($groupB[1]) ? $groupB[1][0] : 0;
-        if ($subA != $subB) return $subA-$subB;
-        return 0;
-    }
-    // 同花
-    if ($typeA=='同花') {
-        $valsA = [];
-        foreach($a as $c) $valsA[]=cardValue($c);
-        $valsB = [];
-        foreach($b as $c) $valsB[]=cardValue($c);
-        rsort($valsA); rsort($valsB);
-        for($i=0;$i<count($valsA);++$i) if ($valsA[$i]!=$valsB[$i]) return $valsA[$i]-$valsB[$i];
-        return 0;
-    }
-    // 其它高牌
-    $valsA = [];
-    foreach($a as $c) $valsA[]=cardValue($c);
-    $valsB = [];
-    foreach($b as $c) $valsB[]=cardValue($c);
-    rsort($valsA); rsort($valsB);
-    for($i=0;$i<count($valsA);++$i) if ($valsA[$i]!=$valsB[$i]) return $valsA[$i]-$valsB[$i];
-    return 0;
-}
-function getGroupedValues($cards) {
-    $cnt = [];
-    foreach($cards as $c) {
-        $v = cardValue($c);
-        if (!isset($cnt[$v])) $cnt[$v]=0;
-        $cnt[$v]++;
-    }
-    $groups = [];
-    foreach($cnt as $val=>$count) {
-        if (!isset($groups[$count])) $groups[$count]=[];
-        $groups[$count][]=$val;
-    }
-    foreach($groups as $count=>$arr) rsort($groups[$count]);
-    return $groups;
-}
-function getStraightRank($cards) {
-    $vals = [];
-    foreach($cards as $c) $vals[]=cardValue($c);
-    sort($vals);
-    if ($vals==[10,11,12,13,14]) return 14.9;
-    if ($vals==[2,3,4,5,14]) return 5.5;
-    if ($vals==[9,10,11,12,13]) return 13;
-    if ($vals==[8,9,10,11,12]) return 12;
-    return max($vals);
-}
+?>
