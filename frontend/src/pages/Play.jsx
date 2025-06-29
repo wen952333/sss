@@ -29,7 +29,7 @@ export default function Play() {
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [hasShownResult, setHasShownResult] = useState(false); // 新增
+  const [hasShownResult, setHasShownResult] = useState(false);
 
   const isFirstSplit = useRef(true);
   const timerRef = useRef(null);
@@ -279,6 +279,9 @@ export default function Play() {
   }
 
   function renderPlayerSeat(name, idx, isMe, submitted) {
+    // 新版状态文字与颜色
+    let statusText = submitted ? '已准备' : '未准备';
+    let statusColor = submitted ? '#23e67a' : '#fff';
     return (
       <div
         key={name}
@@ -300,8 +303,14 @@ export default function Play() {
         }}
       >
         <div>{name}</div>
-        <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
-          {isMe ? '你' : (submitted ? '已提交' : '未提交')}
+        <div style={{
+          marginTop: 4,
+          fontSize: 13,
+          fontWeight: 600,
+          color: isMe ? (submitted ? '#23e67a' : '#fff') : statusColor,
+          letterSpacing: '1px'
+        }}>
+          {isMe ? '你' : statusText}
         </div>
       </div>
     );
@@ -573,7 +582,7 @@ export default function Play() {
           <button
             style={{
               flex: 1,
-              background: isReady || submitted ? '#b0b0b0' : '#dddddd',
+              background: isReady || submitted ? '#b0b0b0' : '#23e67a',
               color: '#fff',
               fontWeight: 700,
               border: 'none',
