@@ -24,16 +24,17 @@ export default function Play() {
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
+  const [allSplits, setAllSplits] = useState([]);
+  const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [hasShownResult, setHasShownResult] = useState(false);
-  const [splitIndex, setSplitIndex] = useState(0);
 
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // 通用fetch
+  // fetch工具
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -46,6 +47,7 @@ export default function Play() {
     }
   }
 
+  // 登录检测
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -57,19 +59,21 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
+  // 房间信息定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId, showResult]);
 
+  // 我的牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 理牌倒计时逻辑
+  // 理牌倒计时
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setCountdown(180);
@@ -89,7 +93,17 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
-  // 新局重置 hasShownResult
+  // 比牌弹窗弹出时，准备按钮恢复可点
+  useEffect(() => {
+    if (showResult) {
+      setIsReady(true);
+      setSubmitted(false);
+      setAllSplits([]);
+      setSplitIndex(0);
+    }
+  }, [showResult]);
+
+  // 新牌局重置比牌弹窗
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setHasShownResult(false);
@@ -97,16 +111,7 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 弹窗弹出时，恢复准备按钮为绿色可点
-  useEffect(() => {
-    if (showResult) {
-      setIsReady(true);
-      setSubmitted(false);
-      setSplitIndex(0);
-    }
-  }, [showResult]);
-
-  // 只在未弹过窗时弹出比牌界面
+  // 比牌结果弹窗
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed && players.length === 4 && !hasShownResult) {
@@ -115,16 +120,16 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 完全修复的准备按钮逻辑
+  // 完全修复：准备按钮逻辑
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // 进入房间且status为waiting且自己未准备，准备按钮绿色可点
-    // 理牌/比牌阶段（status=started）准备按钮灰色不可点
-    // 比牌结果弹窗（showResult）准备按钮绿色可点
+    // 只有在“房间等待阶段”且“自己未准备”，准备按钮绿色可点
+    // 其余阶段（理牌/比牌中）准备按钮灰色不可点
+    // 比牌结果弹窗(showResult)时按钮绿色可点
     if (showResult) {
       setIsReady(true);
     } else if (data.status === 'waiting' && me && !me.submitted) {
@@ -153,7 +158,6 @@ export default function Play() {
     setMyResult(data.result || null);
     setAllPlayed(!!data.allPlayed);
 
-    // cards 有 13 张，无论 submitted 状态立即分配理牌区
     if (Array.isArray(data.cards) && data.cards.length === 13) {
       setHead(data.cards.slice(0, 3));
       setMiddle(data.cards.slice(3, 8));
@@ -204,15 +208,15 @@ export default function Play() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(false); // 点击后立即变灰
+    setIsReady(false);
   }
 
-  // 智能分牌仍用前端，后端请自行切换
+  // 智能分牌
   function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    let splits = getSmartSplits(all);
-    if (!splits.length) return;
+    let splits = allSplits.length ? allSplits : getSmartSplits(all);
+    if (!allSplits.length) setAllSplits(splits);
     const idx = (splitIndex + 1) % splits.length;
     setSplitIndex(idx);
     const split = splits[idx];
@@ -595,7 +599,7 @@ export default function Play() {
         {renderPaiDun(head, '头道', 'head', '#23e67a')}
         {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
-        {/* 按钮区紧贴尾道 */}
+        {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 0 }}>
           <button
             style={{
@@ -649,7 +653,7 @@ export default function Play() {
             onClick={handleStartCompare}
           >开始比牌</button>
         </div>
-        {/* 手牌区保留，无说明文字 */}
+        {/* 手牌区 */}
         <div style={{ margin: '12px 0 8px 0' }}>
           {renderMyCards()}
         </div>
