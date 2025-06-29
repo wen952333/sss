@@ -90,12 +90,13 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
+  // 修正：只有4人才弹比牌弹窗
   useEffect(() => {
     if (!submitted) return;
-    if (allPlayed) {
+    if (allPlayed && players.length === 4) { // 必须4人
       fetchAllResults();
     }
-  }, [submitted, allPlayed]);
+  }, [submitted, allPlayed, players]);
 
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
