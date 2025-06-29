@@ -273,3 +273,4 @@ function sortCards(cards) {
     return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] };
   }).sort((a, b) => b.value - a.value || b.suit - a.suit);
 }
+export { isFoul };
