@@ -120,37 +120,15 @@ export default function Play() {
     }
   }
 
-  // 获取所有玩家分牌（利用 room_info.php 返回玩家列表，逐个查 my_cards.php）
+  // 获取所有玩家分牌（利用 room_results.php 返回玩家完整分牌和结果）
   async function fetchAllResults() {
     const token = localStorage.getItem('token');
-    const playerNames = players.map(p => p.name);
-    const all = [];
-    for (let i = 0; i < playerNames.length; ++i) {
-      const name = playerNames[i];
-      // 假设 nickname 唯一
-      // 用当前登录token查自己，查其他人可用自己的token + roomId + name
-      // 但my_cards.php只查本人的牌，所以这里只能显示自己的+本地缓存
-      // 为演示效果，这里只显示自己的结果，建议后端扩展接口返回所有玩家结果
-      if (name === myName) {
-        all.push({
-          name,
-          head,
-          middle,
-          tail,
-          result: myResult && myResult[0] ? myResult[0] : {},
-        });
-      } else {
-        all.push({
-          name,
-          head: [],
-          middle: [],
-          tail: [],
-          result: {},
-        });
-      }
+    const res = await fetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.players)) {
+      setResultModalData(data.players);
+      setShowResult(true);
     }
-    setResultModalData(all);
-    setShowResult(true);
   }
 
   // 退出房间
@@ -429,13 +407,12 @@ export default function Play() {
     </div>;
   }
 
-  // 比牌弹窗（展示所有玩家结果，后端接口建议扩展后再完善）
+  // 比牌弹窗（展示所有玩家结果，利用 room_results.php 返回全玩家分牌&结果）
   function renderResultModal() {
     if (!showResult) return null;
     const scale = 0.9;
     const cardW = CARD_WIDTH * scale;
     const cardH = CARD_HEIGHT * scale;
-    // 展示所有玩家的三道和得分（目前只展示自己，建议后端扩展接口后完善all玩家分牌）
     const data = resultModalData || [];
     return (
       <div style={{
@@ -456,9 +433,10 @@ export default function Play() {
           position: 'relative'
         }}>
           {data.map((p, idx) => (
-            <div key={p.name} style={{ textAlign: 'center', borderBottom: '1px solid #eee', gridColumn: idx < 2 ? '1' : '2' }}>
+            <div key={p.name} style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: 700, color: p.name === myName ? '#23e67a' : '#4f8cff', marginBottom: 8 }}>
                 {p.name}（{(p.result && p.result.score) || 0}分）
+                {p.result && p.result.isFoul && <span style={{ color: 'red', fontWeight: 800, marginLeft: 6 }}>（倒水）</span>}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 3 }}>
                 {renderPaiDunCards(p.head || [], 'none', { width: cardW, height: cardH })}
