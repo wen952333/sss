@@ -21,11 +21,15 @@ $players = [];
 foreach ($rows as $row) {
     $cards = json_decode($row['cards'], true);
     $result = json_decode($row['result'], true);
+
+    // 防御：只当cards为长度13且每项为字符串时才处理
+    $isValidCards = is_array($cards) && count($cards) === 13 && count(array_filter($cards, 'is_string')) === 13;
+
     $players[] = [
         'name'   => $row['name'],
-        'head'   => is_array($cards) && count($cards) === 13 ? array_slice($cards, 0, 3) : [],
-        'middle' => is_array($cards) && count($cards) === 13 ? array_slice($cards, 3, 8) : [],
-        'tail'   => is_array($cards) && count($cards) === 13 ? array_slice($cards, 8, 13) : [],
+        'head'   => $isValidCards ? array_slice($cards, 0, 3) : [],
+        'middle' => $isValidCards ? array_slice($cards, 3, 5) : [],
+        'tail'   => $isValidCards ? array_slice($cards, 8, 5) : [],
         'result' => is_array($result) && isset($result[0]) ? $result[0] : (object)[],
     ];
 }
