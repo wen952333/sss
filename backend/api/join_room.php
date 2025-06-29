@@ -12,18 +12,18 @@ $room = $pdo->query("SELECT * FROM rooms WHERE room_id='{$data['roomId']}'")->fe
 if (!$room) die(json_encode(['success'=>false,'message'=>'房间不存在']));
 if (!in_array($room['status'], ['waiting', 'started'])) die(json_encode(['success'=>false,'message'=>'房间不可加入']));
 
-// 加锁防并发（MySQL事务+排他锁，防止超员和重名）
 try {
     $pdo->beginTransaction();
 
     // 防止重名或重复加入
-    $stmtCheck = $pdo->prepare("SELECT * FROM players WHERE room_id=? AND name=?");
+    $stmtCheck = $pdo->prepare("SELECT * FROM players WHERE room_id=? AND name=? FOR UPDATE");
     $stmtCheck->execute([$data['roomId'], $data['name']]);
     if ($stmtCheck->fetch()) {
         $pdo->rollBack();
         die(json_encode(['success'=>false,'message'=>'该昵称已在房间中']));
     }
 
+    // 房间人数限制，防并发超员
     $stmtCnt = $pdo->prepare("SELECT COUNT(*) as cnt FROM players WHERE room_id = ? FOR UPDATE");
     $stmtCnt->execute([$data['roomId']]);
     $rowCnt = $stmtCnt->fetch();
