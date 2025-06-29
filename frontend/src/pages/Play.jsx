@@ -19,8 +19,8 @@ export default function Play() {
   const [middle, setMiddle] = useState([]);
   const [tail, setTail] = useState([]);
   const [submitMsg, setSubmitMsg] = useState('');
-  const [submitted, setSubmitted] = useState(false); // 理牌已提交
-  const [isReady, setIsReady] = useState(false);     // “准备”按钮可用性
+  const [submitted, setSubmitted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
@@ -62,7 +62,7 @@ export default function Play() {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
-  }, [roomId]);
+  }, [roomId, showResult]);
 
   useEffect(() => {
     fetchMyCards();
@@ -97,7 +97,7 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 弹窗弹出时，恢复准备按钮可用（绿色）
+  // 弹窗弹出时恢复准备按钮
   useEffect(() => {
     if (showResult) {
       setIsReady(true);
@@ -116,15 +116,21 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 更新玩家状态（只要比牌弹窗未弹出，都不可点击准备按钮）
+  // 修正后的准备按钮逻辑
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // 只有比牌弹窗弹出时（showResult），才允许准备按钮可点
-    setIsReady(showResult);
+    // 只有在房间waiting阶段且我未submitted时，可以点准备
+    if (data.status === 'waiting' && me && !me.submitted) {
+      setIsReady(true);
+    } else if (showResult) {
+      setIsReady(true);
+    } else {
+      setIsReady(false);
+    }
   }
 
   async function fetchMyPoints() {
@@ -138,7 +144,7 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
-  // 修正版 fetchMyCards：只要 cards 有 13 张都进入理牌区
+  // fetchMyCards 不改
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -164,12 +170,10 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
     if (Array.isArray(data.players)) {
-      // 保证有 name, head, middle, tail, score, isFoul 字段，且每墩只3/5/5张
       const resultPlayers = data.players.map(p => {
         let head = Array.isArray(p.head) ? p.head.slice(0, 3) : [];
         let middle = Array.isArray(p.middle) ? p.middle.slice(0, 5) : [];
         let tail = Array.isArray(p.tail) ? p.tail.slice(0, 5) : [];
-        // 分数与倒水兼容result对象和顶层
         let score = typeof p.score === "number" ? p.score :
           (p.result && typeof p.result.score === "number" ? p.result.score : 0);
         let isFoul = typeof p.isFoul === "boolean" ? p.isFoul :
@@ -199,7 +203,7 @@ export default function Play() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(false); // 点击后立即变灰
+    setIsReady(false); // 点击后立即变灰色
   }
 
   function handleSmartSplit() {
@@ -293,7 +297,6 @@ export default function Play() {
   }
 
   function renderPlayerSeat(name, idx, isMe, submitted) {
-    // 新版状态文字与颜色
     let statusText = submitted ? '已准备' : '未准备';
     let statusColor = submitted ? '#23e67a' : '#fff';
     return (
@@ -483,7 +486,7 @@ export default function Play() {
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-          background: '#fff',
+          background: '#185a30',
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
@@ -655,7 +658,7 @@ export default function Play() {
         @media (max-width: 480px) {
           .play-seat {
             margin-right: 4px !important;
-            width: ${Math.floor(OUTER_MAX_WIDTH/4)-4}px !important;
+            width: 24% !important;
             min-width: 0 !important;
           }
           .card-img {
