@@ -48,20 +48,18 @@ export function calcSSSAllScores(players) {
   if (N < 2) return new Array(N).fill(0);
 
   let marks = new Array(N).fill(0);
-  
+
   const playerInfos = players.map(p => {
-    const isFoul = isFoul(p.head, p.middle, p.tail);
-    const specialType = isFoul ? null : getSpecialType(p);
-    return { ...p, isFoul, specialType };
+    const foul = isFoul(p.head, p.middle, p.tail);
+    const specialType = foul ? null : getSpecialType(p);
+    return { ...p, isFoul: foul, specialType };
   });
 
-  // 两两比较计分
   for (let i = 0; i < N; ++i) {
     for (let j = i + 1; j < N; ++j) {
       const p1 = playerInfos[i];
       const p2 = playerInfos[j];
-      
-      let pairScore = 0; // p1 相对于 p2 的得分
+      let pairScore = 0;
 
       // 1. 倒水处理
       if (p1.isFoul && !p2.isFoul) {
@@ -74,11 +72,9 @@ export function calcSSSAllScores(players) {
       // 2. 特殊牌型处理
       else if (p1.specialType && p2.specialType) {
         pairScore = 0;
-      }
-      else if (p1.specialType && !p2.specialType) {
+      } else if (p1.specialType && !p2.specialType) {
         pairScore = SCORES.SPECIAL[p1.specialType] || 0;
-      }
-      else if (!p1.specialType && p2.specialType) {
+      } else if (!p1.specialType && p2.specialType) {
         pairScore = -(SCORES.SPECIAL[p2.specialType] || 0);
       }
       // 3. 普通牌型三道比较
@@ -92,33 +88,29 @@ export function calcSSSAllScores(players) {
             pairScore -= getAreaScore(p2[area], area);
           }
         }
-        // "打枪" 判断逻辑已完全移除
       }
-
       marks[i] += pairScore;
       marks[j] -= pairScore;
     }
   }
-  
   return marks;
 }
 
 
 // --- 核心辅助函数 ---
-// (此部分代码无需改动，与上一版完全相同)
 
 function calculateTotalBaseScore(p) {
-    if (p.specialType) {
-        return SCORES.SPECIAL[p.specialType] || 0;
-    }
-    return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail');
+  if (p.specialType) {
+    return SCORES.SPECIAL[p.specialType] || 0;
+  }
+  return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail');
 }
 
 function isFoul(head, middle, tail) {
   const headRank = areaTypeRank(getAreaType(head, 'head'));
   const midRank = areaTypeRank(getAreaType(middle, 'middle'));
   const tailRank = areaTypeRank(getAreaType(tail, 'tail'));
-  
+
   if (headRank > midRank || midRank > tailRank) return true;
   if (headRank === midRank && compareArea(head, middle, 'head') > 0) return true;
   if (midRank === tailRank && compareArea(middle, tail, 'middle') > 0) return true;
@@ -129,19 +121,19 @@ function getSpecialType(p) {
   const midType = getAreaType(p.middle, 'middle');
   const tailType = getAreaType(p.tail, 'tail');
   if (['铁支', '同花顺'].includes(midType) || ['铁支', '同花顺'].includes(tailType)) {
-      return null;
+    return null;
   }
 
   const all = [...p.head, ...p.middle, ...p.tail];
-  
+
   const uniqVals = new Set(all.map(c => c.split('_')[0]));
   if (uniqVals.size === 13) return '一条龙';
-  
+
   const groupedAll = getGroupedValues(all);
   if (groupedAll['2']?.length === 6 && !groupedAll['3'] && !groupedAll['4']) {
     return '六对半';
   }
-  
+
   if (isFlush(p.head) && isFlush(p.middle) && isFlush(p.tail)) return '三同花';
   if (isStraight(p.head) && isStraight(p.middle) && isStraight(p.tail)) return '三顺子';
 
@@ -153,7 +145,7 @@ function compareArea(a, b, area) {
   const typeB = getAreaType(b, area);
   const rankA = areaTypeRank(typeA);
   const rankB = areaTypeRank(typeB);
-  
+
   if (rankA !== rankB) return rankA - rankB;
 
   const groupedA = getGroupedValues(a);
@@ -174,11 +166,11 @@ function compareArea(a, b, area) {
       const mainRankB = groupedB[4]?.[0] || groupedB[3]?.[0];
       if (mainRankA !== mainRankB) return mainRankA - mainRankB;
       if (typeA === '葫芦') {
-          const secondRankA = groupedA[2][0];
-          const secondRankB = groupedB[2][0];
-          if(secondRankA !== secondRankB) return secondRankA - secondRankB;
+        const secondRankA = groupedA[2][0];
+        const secondRankB = groupedB[2][0];
+        if (secondRankA !== secondRankB) return secondRankA - secondRankB;
       }
-      break; 
+      break;
     }
     case '两对': {
       const pairsA = groupedA[2];
@@ -191,16 +183,16 @@ function compareArea(a, b, area) {
 
   const sortedCardsA = sortCards(a);
   const sortedCardsB = sortCards(b);
-  
+
   for (let i = 0; i < a.length; ++i) {
     if (sortedCardsA[i].value !== sortedCardsB[i].value) {
-        return sortedCardsA[i].value - sortedCardsB[i].value;
+      return sortedCardsA[i].value - sortedCardsB[i].value;
     }
   }
-  
+
   for (let i = 0; i < a.length; ++i) {
     if (sortedCardsA[i].suit !== sortedCardsB[i].suit) {
-        return sortedCardsA[i].suit - sortedCardsB[i].suit;
+      return sortedCardsA[i].suit - sortedCardsB[i].suit;
     }
   }
 
@@ -209,7 +201,6 @@ function compareArea(a, b, area) {
 
 
 // --- 底层工具函数 ---
-// (此部分代码无需改动，与上一版完全相同)
 
 function getAreaType(cards) {
   const isF = isFlush(cards);
@@ -238,9 +229,9 @@ function getAreaScore(cards, area) {
 }
 
 function isStraight(cards) {
-  let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b);
+  let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a, b) => a - b);
   if (vals.length !== cards.length) return false;
-  const isA2345 = JSON.stringify(vals) === JSON.stringify([2,3,4,5,14]);
+  const isA2345 = JSON.stringify(vals) === JSON.stringify([2, 3, 4, 5, 14]);
   const isNormalStraight = (vals[vals.length - 1] - vals[0] === cards.length - 1);
   return isNormalStraight || isA2345;
 }
@@ -252,33 +243,33 @@ function isFlush(cards) {
 }
 
 function getStraightRank(cards) {
-    let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a,b) => a-b);
-    if (vals.includes(14) && vals.includes(13)) return 14;
-    if (vals.includes(14) && vals.includes(2)) return 13.5;
-    return vals[vals.length - 1];
+  let vals = [...new Set(cards.map(c => VALUE_ORDER[c.split('_')[0]]))].sort((a, b) => a - b);
+  if (vals.includes(14) && vals.includes(13)) return 14;
+  if (vals.includes(14) && vals.includes(2)) return 13.5;
+  return vals[vals.length - 1];
 }
 
 function getGroupedValues(cards) {
-    const counts = {};
-    cards.forEach(card => {
-        const val = VALUE_ORDER[card.split('_')[0]];
-        counts[val] = (counts[val] || 0) + 1;
-    });
-    const groups = {};
-    for (const val in counts) {
-        const count = counts[val];
-        if (!groups[count]) groups[count] = [];
-        groups[count].push(Number(val));
-    }
-    for(const count in groups) {
-        groups[count].sort((a,b) => b-a);
-    }
-    return groups;
+  const counts = {};
+  cards.forEach(card => {
+    const val = VALUE_ORDER[card.split('_')[0]];
+    counts[val] = (counts[val] || 0) + 1;
+  });
+  const groups = {};
+  for (const val in counts) {
+    const count = counts[val];
+    if (!groups[count]) groups[count] = [];
+    groups[count].push(Number(val));
+  }
+  for (const count in groups) {
+    groups[count].sort((a, b) => b - a);
+  }
+  return groups;
 }
 
 function sortCards(cards) {
-    return cards.map(cardStr => {
-        const [value, , suit] = cardStr.split('_');
-        return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] };
-    }).sort((a, b) => b.value - a.value || b.suit - a.suit);
+  return cards.map(cardStr => {
+    const [value, , suit] = cardStr.split('_');
+    return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] };
+  }).sort((a, b) => b.value - a.value || b.suit - a.suit);
 }
