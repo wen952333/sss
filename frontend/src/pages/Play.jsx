@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const OUTER_MAX_WIDTH = 420;
@@ -168,29 +169,19 @@ export default function Play() {
     setIsReady(true);
   }
 
-  // 修改此函数：调用后端智能分牌
-  async function handleSmartSplit() {
+  function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    const token = localStorage.getItem('token');
-    // 为了支持多种分法，每次点splitIndex+1
-    const nextIndex = (splitIndex + 1) % 5; // 可根据后端实际可切换分法数量调整
-    setSplitIndex(nextIndex);
-    const res = await fetch('https://9526.ip-ddns.com/api/smart_split.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, cards: all, splitIndex: nextIndex }),
-    });
-    const data = await res.json();
-    if (data.success && data.split) {
-      setHead(data.split.head);
-      setMiddle(data.split.middle);
-      setTail(data.split.tail);
-      setSelected({ area: '', cards: [] });
-      setSubmitMsg('');
-    } else {
-      setSubmitMsg('智能分牌失败，请重试');
-    }
+    let splits = allSplits.length ? allSplits : getSmartSplits(all);
+    if (!allSplits.length) setAllSplits(splits);
+    const idx = (splitIndex + 1) % splits.length;
+    setSplitIndex(idx);
+    const split = splits[idx];
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
+    setSelected({ area: '', cards: [] });
+    setSubmitMsg('');
   }
 
   function handleCardClick(card, area, e) {
