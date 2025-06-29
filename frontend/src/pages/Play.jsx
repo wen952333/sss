@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const OUTER_MAX_WIDTH = 420;
@@ -27,6 +28,7 @@ export default function Play() {
   const [resultModalData, setResultModalData] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [hasShownResult, setHasShownResult] = useState(false);
+  const [splitIndex, setSplitIndex] = useState(0);
 
   const timerRef = useRef(null);
   const navigate = useNavigate();
@@ -91,14 +93,16 @@ export default function Play() {
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setHasShownResult(false);
+      setSplitIndex(0);
     }
   }, [myCards, submitted]);
 
-  // 弹窗弹出时恢复准备按钮
+  // 弹窗弹出时，恢复准备按钮为绿色可点
   useEffect(() => {
     if (showResult) {
       setIsReady(true);
       setSubmitted(false);
+      setSplitIndex(0);
     }
   }, [showResult]);
 
@@ -111,17 +115,19 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 修正后的准备按钮逻辑
+  // 完全修复的准备按钮逻辑
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // 只有在房间waiting阶段且我未submitted时，可以点准备；或者比牌弹窗弹出
-    if (data.status === 'waiting' && me && !me.submitted) {
+    // 进入房间且status为waiting且自己未准备，准备按钮绿色可点
+    // 理牌/比牌阶段（status=started）准备按钮灰色不可点
+    // 比牌结果弹窗（showResult）准备按钮绿色可点
+    if (showResult) {
       setIsReady(true);
-    } else if (showResult) {
+    } else if (data.status === 'waiting' && me && !me.submitted) {
       setIsReady(true);
     } else {
       setIsReady(false);
@@ -198,29 +204,23 @@ export default function Play() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, token }),
     });
-    setIsReady(false);
+    setIsReady(false); // 点击后立即变灰
   }
 
-  // 调用后端智能分牌
-  async function handleSmartSplit() {
+  // 智能分牌仍用前端，后端请自行切换
+  function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch('https://9526.ip-ddns.com/api/smart_split.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, cards: all }),
-    });
-    const data = await res.json();
-    if (data.success && data.split) {
-      setHead(data.split.head);
-      setMiddle(data.split.middle);
-      setTail(data.split.tail);
-      setSelected({ area: '', cards: [] });
-      setSubmitMsg('');
-    } else {
-      setSubmitMsg('智能分牌失败，请重试');
-    }
+    let splits = getSmartSplits(all);
+    if (!splits.length) return;
+    const idx = (splitIndex + 1) % splits.length;
+    setSplitIndex(idx);
+    const split = splits[idx];
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
+    setSelected({ area: '', cards: [] });
+    setSubmitMsg('');
   }
 
   function handleCardClick(card, area, e) {
@@ -375,7 +375,9 @@ export default function Play() {
                 width: cardSize?.width ?? CARD_WIDTH,
                 height: cardSize?.height ?? CARD_HEIGHT,
                 borderRadius: 5,
-                border: 'none',
+                border: isSelected
+                  ? '2.5px solid #ff4444'
+                  : '2.5px solid #eaeaea',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
                   : greenShadow,
@@ -467,7 +469,7 @@ export default function Play() {
           alt={card}
           className="card-img"
           style={{
-            border: 'none',
+            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : '2.5px solid transparent',
             boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
           }}
           onClick={e => handleCardClick(card, 'hand', e)}
@@ -488,7 +490,7 @@ export default function Play() {
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-          background: '#185a30',
+          background: '#fff',
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
