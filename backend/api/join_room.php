@@ -13,6 +13,14 @@ if (!$room) die(json_encode(['success'=>false,'message'=>'房间不存在']));
 // 允许 waiting 和 started 状态都能加入
 if (!in_array($room['status'], ['waiting', 'started'])) die(json_encode(['success'=>false,'message'=>'房间不可加入']));
 
+// 新增：防止超员（最多4人）
+$stmtCnt = $pdo->prepare("SELECT COUNT(*) as cnt FROM players WHERE room_id = ?");
+$stmtCnt->execute([$data['roomId']]);
+$rowCnt = $stmtCnt->fetch();
+if (intval($rowCnt['cnt']) >= 4) {
+    die(json_encode(['success'=>false,'message'=>'房间已满']));
+}
+
 $stmt = $pdo->prepare("INSERT INTO players (room_id, name, is_owner) VALUES (?, ?, 0)");
 $stmt->execute([$data['roomId'], $data['name']]);
 
