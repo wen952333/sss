@@ -375,7 +375,7 @@ export default function Play() {
                   ? '0 0 16px 2px #ff4444cc'
                   : greenShadow,
                 cursor: submitted ? 'not-allowed' : 'pointer',
-                background: '#fff',
+                background: '#185a30',
                 transition: 'border .13s, box-shadow .13s'
               }}
               onClick={e => { if (!submitted) handleCardClick(card, area, e); }}
