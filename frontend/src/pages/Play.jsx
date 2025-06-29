@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSmartSplits } from './SmartSplit';
 import './Play.css';
 
 const OUTER_MAX_WIDTH = 420;
@@ -24,7 +23,6 @@ export default function Play() {
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
-  const [allSplits, setAllSplits] = useState([]);
   const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
@@ -98,7 +96,6 @@ export default function Play() {
     if (showResult) {
       setIsReady(true);
       setSubmitted(false);
-      setAllSplits([]);
       setSplitIndex(0);
     }
   }, [showResult]);
@@ -127,9 +124,6 @@ export default function Play() {
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // 只有在“房间等待阶段”且“自己未准备”，准备按钮绿色可点
-    // 其余阶段（理牌/比牌中）准备按钮灰色不可点
-    // 比牌结果弹窗(showResult)时按钮绿色可点
     if (showResult) {
       setIsReady(true);
     } else if (data.status === 'waiting' && me && !me.submitted) {
@@ -211,20 +205,28 @@ export default function Play() {
     setIsReady(false);
   }
 
-  // 智能分牌
-  function handleSmartSplit() {
+  // 智能分牌：调用后端
+  async function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
-    setHead(split.head);
-    setMiddle(split.middle);
-    setTail(split.tail);
-    setSelected({ area: '', cards: [] });
-    setSubmitMsg('');
+    const token = localStorage.getItem('token');
+    const nextIndex = (splitIndex + 1) % 5;
+    setSplitIndex(nextIndex);
+    const res = await fetch('https://9526.ip-ddns.com/api/smart_split.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, cards: all, splitIndex: nextIndex }),
+    });
+    const data = await res.json();
+    if (data.success && data.split) {
+      setHead(data.split.head);
+      setMiddle(data.split.middle);
+      setTail(data.split.tail);
+      setSelected({ area: '', cards: [] });
+      setSubmitMsg('');
+    } else {
+      setSubmitMsg('智能分牌失败，请重试');
+    }
   }
 
   function handleCardClick(card, area, e) {
