@@ -38,7 +38,6 @@ const SCORES = {
   TAIL: { '铁支': 4, '同花顺': 5 },
   // 特殊牌型基础分
   SPECIAL: { '一条龙': 13, '三同花': 4, '三顺子': 4, '六对半': 3 },
-  // 翻倍规则已全部移除
 };
 
 
@@ -106,7 +105,7 @@ function calculateTotalBaseScore(p) {
   return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail');
 }
 
-function isFoul(head, middle, tail) {
+export function isFoul(head, middle, tail) {
   const headRank = areaTypeRank(getAreaType(head, 'head'));
   const midRank = areaTypeRank(getAreaType(middle, 'middle'));
   const tailRank = areaTypeRank(getAreaType(tail, 'tail'));
@@ -140,6 +139,7 @@ function getSpecialType(p) {
   return null;
 }
 
+// ========= 比牌逻辑（新版：同花顺先比花色，花色相同再比点数） =========
 function compareArea(a, b, area) {
   const typeA = getAreaType(a, area);
   const typeB = getAreaType(b, area);
@@ -148,17 +148,81 @@ function compareArea(a, b, area) {
 
   if (rankA !== rankB) return rankA - rankB;
 
+  // --- 新：同花顺先比花色，花色相同再比顺子点数 ---
+  if (typeA === '同花顺' && typeB === '同花顺') {
+    const suitA = a[0].split('_')[2];
+    const suitB = b[0].split('_')[2];
+    if (SUIT_ORDER[suitA] !== SUIT_ORDER[suitB]) {
+      return SUIT_ORDER[suitA] - SUIT_ORDER[suitB];
+    }
+    // 花色相同再比顺子点数
+    const straightRankA = getStraightRank(a);
+    const straightRankB = getStraightRank(b);
+    if (straightRankA !== straightRankB) return straightRankA - straightRankB;
+    // 点数和花色都一样，极端情况下再比单张点数和花色
+    const sortedA = sortCards(a);
+    const sortedB = sortCards(b);
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].value !== sortedB[i].value) {
+        return sortedA[i].value - sortedB[i].value;
+      }
+    }
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].suit !== sortedB[i].suit) {
+        return sortedA[i].suit - sortedB[i].suit;
+      }
+    }
+    return 0;
+  }
+
+  // --- 都是同花但不是同花顺：先比花色，再比最大单张 ---
+  if (typeA === '同花' && typeB === '同花') {
+    const suitA = a[0].split('_')[2];
+    const suitB = b[0].split('_')[2];
+    if (SUIT_ORDER[suitA] !== SUIT_ORDER[suitB]) {
+      return SUIT_ORDER[suitA] - SUIT_ORDER[suitB];
+    }
+    // 花色相同再比最大单张
+    const sortedA = sortCards(a);
+    const sortedB = sortCards(b);
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].value !== sortedB[i].value) {
+        return sortedA[i].value - sortedB[i].value;
+      }
+    }
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].suit !== sortedB[i].suit) {
+        return sortedA[i].suit - sortedB[i].suit;
+      }
+    }
+    return 0;
+  }
+
+  // --- 顺子：点数先比，再比最大张花色 ---
+  if (typeA === '顺子' && typeB === '顺子') {
+    const straightRankA = getStraightRank(a);
+    const straightRankB = getStraightRank(b);
+    if (straightRankA !== straightRankB) return straightRankA - straightRankB;
+    const sortedA = sortCards(a);
+    const sortedB = sortCards(b);
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].value !== sortedB[i].value) {
+        return sortedA[i].value - sortedB[i].value;
+      }
+    }
+    for (let i = 0; i < a.length; ++i) {
+      if (sortedA[i].suit !== sortedB[i].suit) {
+        return sortedA[i].suit - sortedB[i].suit;
+      }
+    }
+    return 0;
+  }
+
+  // 其它牌型
   const groupedA = getGroupedValues(a);
   const groupedB = getGroupedValues(b);
 
   switch (typeA) {
-    case '同花顺':
-    case '顺子': {
-      const straightRankA = getStraightRank(a);
-      const straightRankB = getStraightRank(b);
-      if (straightRankA !== straightRankB) return straightRankA - straightRankB;
-      break;
-    }
     case '铁支':
     case '葫芦':
     case '三条': {
@@ -202,7 +266,7 @@ function compareArea(a, b, area) {
 
 // --- 底层工具函数 ---
 
-function getAreaType(cards) {
+function getAreaType(cards, area) {
   const isF = isFlush(cards);
   const isS = isStraight(cards);
   if (isF && isS) return "同花顺";
@@ -273,4 +337,3 @@ function sortCards(cards) {
     return { value: VALUE_ORDER[value], suit: SUIT_ORDER[suit] };
   }).sort((a, b) => b.value - a.value || b.suit - a.suit);
 }
-export { isFoul };
