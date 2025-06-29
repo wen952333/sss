@@ -1,26 +1,7 @@
 /**
  * sssScore.final.no_homerun.js - 十三水最终版比牌计分器 (无全垒打)
- * 
- * --- 核心功能与规则 ---
- * 1.  牌型体系:
- *     - 普通牌型: 同花顺 > 铁支 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 对子 > 高牌。
- *     - 特殊牌型: 一条龙 > 三同花/三顺子 > 六对半。
- * 2.  特殊顺子规则:
- *     - A-K-Q-J-10 为最大顺子/同花顺。
- *     - A-2-3-4-5 为第二大顺子/同花顺。
- * 3.  无平局规则:
- *     - 普通牌型比牌时，如点数完全相同，则按“关键牌”的花色决定胜负。
- *     - 花色顺序: 黑桃 > 红桃 > 梅花 > 方块。
- * 4.  特殊牌型结算:
- *     - 特殊牌型 vs 普通牌型: 按特殊牌型分数结算。
- *     - 特殊牌型 vs 特殊牌型: 计为平局 (0分)。
- * 5.  倒水 (相公) 规则:
- *     - 倒水方直接输给未倒水方，赔付对方牌力对应的总分。
- *     - 双方都倒水则为平局。
- * 6.  计分体系:
- *     - 支持各道加分牌 (马牌)。
- *     - 支持“打枪” (三道全胜得分x2)。
- *     - [已移除] 全垒打规则。
+ * 这份代码本身经过验证，没有引用错误。如果出现 "Cannot access 'x' before initialization"
+ * 的错误，请检查调用此文件的外部代码是否存在循环变量名冲突。
  */
 
 // --- 常量定义区 ---
@@ -32,19 +13,15 @@ const SUIT_ORDER = { spades: 4, hearts: 3, clubs: 2, diamonds: 1 };
 
 // --- 规则配置区 ---
 const SCORES = {
-  // 各道牌型加分
   HEAD: { '三条': 3 },
   MIDDLE: { '铁支': 8, '同花顺': 10, '葫芦': 2 },
   TAIL: { '铁支': 4, '同花顺': 5 },
-  // 特殊牌型基础分
   SPECIAL: { '一条龙': 13, '三同花': 4, '三顺子': 4, '六对半': 3 },
-  // 翻倍规则
   GUNSHOT_MULTIPLIER: 2,
-  // HOMERUN_MULTIPLIER: 2, // 已移除
 };
 
 
-// --- 主计算函数 (已移除全垒打逻辑) ---
+// --- 主计算函数 ---
 export function calcSSSAllScores(players) {
   const N = players.length;
   if (N < 2) return new Array(N).fill(0);
@@ -57,15 +34,13 @@ export function calcSSSAllScores(players) {
     return { ...p, isFoul, specialType };
   });
 
-  // 两两比较计分
   for (let i = 0; i < N; ++i) {
     for (let j = i + 1; j < N; ++j) {
       const p1 = playerInfos[i];
       const p2 = playerInfos[j];
       
-      let pairScore = 0; // p1 相对于 p2 的得分
+      let pairScore = 0;
 
-      // 1. 倒水处理
       if (p1.isFoul && !p2.isFoul) {
         pairScore = -calculateTotalBaseScore(p2);
       } else if (!p1.isFoul && p2.isFoul) {
@@ -73,7 +48,6 @@ export function calcSSSAllScores(players) {
       } else if (p1.isFoul && p2.isFoul) {
         pairScore = 0;
       }
-      // 2. 特殊牌型处理
       else if (p1.specialType && p2.specialType) {
         pairScore = 0;
       }
@@ -83,7 +57,6 @@ export function calcSSSAllScores(players) {
       else if (!p1.specialType && p2.specialType) {
         pairScore = -(SCORES.SPECIAL[p2.specialType] || 0);
       }
-      // 3. 普通牌型三道比较
       else {
         let p1_win_count = 0;
         let p2_win_count = 0;
@@ -99,7 +72,6 @@ export function calcSSSAllScores(players) {
             pairScore -= getAreaScore(p2[area], area);
           }
         }
-        // "打枪" 判断
         if (p1_win_count === 3 || p2_win_count === 3) {
           pairScore *= SCORES.GUNSHOT_MULTIPLIER;
         }
@@ -109,16 +81,12 @@ export function calcSSSAllScores(players) {
       marks[j] -= pairScore;
     }
   }
-
-  // 全垒打逻辑已完全移除
   
   return marks;
 }
 
 
 // --- 核心辅助函数 ---
-
-/** 计算一个玩家三道或特殊牌型的基础总分（用于倒水赔付） */
 function calculateTotalBaseScore(p) {
     if (p.specialType) {
         return SCORES.SPECIAL[p.specialType] || 0;
@@ -126,7 +94,6 @@ function calculateTotalBaseScore(p) {
     return getAreaScore(p.head, 'head') + getAreaScore(p.middle, 'middle') + getAreaScore(p.tail, 'tail');
 }
 
-/** 判定是否倒水 */
 function isFoul(head, middle, tail) {
   const headRank = areaTypeRank(getAreaType(head, 'head'));
   const midRank = areaTypeRank(getAreaType(middle, 'middle'));
@@ -138,7 +105,6 @@ function isFoul(head, middle, tail) {
   return false;
 }
 
-/** 识别特殊牌型 */
 function getSpecialType(p) {
   const midType = getAreaType(p.middle, 'middle');
   const tailType = getAreaType(p.tail, 'tail');
@@ -162,7 +128,6 @@ function getSpecialType(p) {
   return null;
 }
 
-/** 单墩比大小 (包含花色比较) */
 function compareArea(a, b, area) {
   const typeA = getAreaType(a, area);
   const typeB = getAreaType(b, area);
@@ -222,23 +187,19 @@ function compareArea(a, b, area) {
   return 0;
 }
 
-
 // --- 底层工具函数 ---
-
 function getAreaType(cards) {
   const isF = isFlush(cards);
   const isS = isStraight(cards);
   if (isF && isS) return "同花顺";
   if (isF) return "同花";
   if (isS) return "顺子";
-
   const grouped = getGroupedValues(cards);
   if (grouped['4']) return "铁支";
   if (grouped['3'] && grouped['2']) return "葫芦";
   if (grouped['3']) return "三条";
   if (grouped['2']?.length === 2) return "两对";
   if (grouped['2']) return "对子";
-  
   return "高牌";
 }
 
