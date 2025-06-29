@@ -35,7 +35,6 @@ export default function Play() {
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // 全局异常fetch
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -98,7 +97,7 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 修正：只有4人且未弹过窗才弹比牌弹窗
+  // 只在未弹过窗时弹出比牌界面
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed && players.length === 4 && !hasShownResult) {
@@ -127,6 +126,7 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
+  // 修正版 fetchMyCards：只要 cards 有 13 张都进入理牌区
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -134,19 +134,17 @@ export default function Play() {
     setMyResult(data.result || null);
     setAllPlayed(!!data.allPlayed);
 
-    if (data.submitted && Array.isArray(data.cards) && data.cards.length === 13) {
+    // cards 有 13 张，无论 submitted 状态立即分配理牌区
+    if (Array.isArray(data.cards) && data.cards.length === 13) {
       setHead(data.cards.slice(0, 3));
       setMiddle(data.cards.slice(3, 8));
       setTail(data.cards.slice(8, 13));
       setMyCards([]);
-    } else if (!data.submitted && Array.isArray(data.cards)) {
-      if (isFirstSplit.current && head.length === 0 && middle.length === 0 && tail.length === 0) {
-        setHead(data.cards.slice(0, 3));
-        setMiddle(data.cards.slice(3, 8));
-        setTail(data.cards.slice(8, 13));
-        setMyCards([]);
-        isFirstSplit.current = false;
-      }
+    } else {
+      setHead([]);
+      setMiddle([]);
+      setTail([]);
+      setMyCards([]);
     }
   }
 
@@ -154,7 +152,7 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_results.php?roomId=${roomId}&token=${token}`);
     if (Array.isArray(data.players)) {
-      // 转换为和TryPlay一致的字段（name, head, middle, tail, score, isFoul）
+      // 保证有 name, head, middle, tail, score, isFoul 字段
       const resultPlayers = data.players.map(p => ({
         name: p.name,
         head: p.head || [],
@@ -278,8 +276,9 @@ export default function Play() {
     return null;
   }
 
+  // 新版玩家区
   function renderPlayerSeat(name, idx, isMe, submitted) {
-    // 新版状态文字与颜色
+    // 状态文字、颜色规则
     let statusText = submitted ? '已准备' : '未准备';
     let statusColor = submitted ? '#23e67a' : '#fff';
     return (
@@ -459,7 +458,6 @@ export default function Play() {
     </div>;
   }
 
-  // Result modal UI 与 TryPlay 完全一致
   function renderResultModal() {
     if (!showResult) return null;
     const scale = 0.9;
