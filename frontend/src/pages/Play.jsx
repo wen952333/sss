@@ -483,7 +483,7 @@ export default function Play() {
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-          background: '#fff',
+          background: '#185a30',
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
