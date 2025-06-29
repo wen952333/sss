@@ -24,8 +24,6 @@ export default function Play() {
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
-  const [allSplits, setAllSplits] = useState([]);
-  const [splitIndex, setSplitIndex] = useState(0);
 
   const navigate = useNavigate();
 
@@ -125,23 +123,6 @@ export default function Play() {
       body: JSON.stringify({ roomId, token }),
     });
     setIsReady(true);
-  }
-
-  // 智能分牌（循环5种分法）
-  function handleSmartSplit() {
-    // 合并所有未分配的牌
-    const all = [...myCards, ...head, ...middle, ...tail];
-    if (all.length !== 13) return;
-    let splits = allSplits.length ? allSplits : getSmartSplits(all);
-    if (!allSplits.length) setAllSplits(splits);
-    const idx = (splitIndex + 1) % splits.length;
-    setSplitIndex(idx);
-    const split = splits[idx];
-    setHead(split.head);
-    setMiddle(split.middle);
-    setTail(split.tail);
-    setSelected({ area: '', cards: [] });
-    setSubmitMsg('');
   }
 
   // 牌点击：高亮/取消高亮（在手牌或三墩中都可选）
@@ -495,12 +476,10 @@ export default function Play() {
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
         {/* 我的手牌 */}
         <div style={{ margin: '16px 0 8px 0' }}>
-          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-            你的手牌（点击选中，点击上方牌墩移动）
-          </div>
+          {/* 说明区块移除 */}
           {renderMyCards()}
         </div>
-        {/* 按钮区 */}
+        {/* 按钮区（只保留准备和开始比牌，去掉智能分牌） */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 14 }}>
           <button
             style={{
@@ -519,23 +498,6 @@ export default function Play() {
             onClick={handleReady}
             disabled={isReady || submitted}
           >准备</button>
-          <button
-            style={{
-              flex: 1,
-              background: '#23e67a',
-              color: '#fff',
-              fontWeight: 700,
-              border: 'none',
-              borderRadius: 10,
-              padding: '13px 0',
-              fontSize: 18,
-              cursor: submitted ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 9px #23e67a44',
-              transition: 'background 0.16s'
-            }}
-            onClick={handleSmartSplit}
-            disabled={submitted}
-          >智能分牌</button>
           <button
             style={{
               flex: 1,
