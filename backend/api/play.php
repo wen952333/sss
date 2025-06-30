@@ -17,8 +17,9 @@ $user = verifyToken($token);
 if (!$user || $user['roomId'] !== $roomId) die(json_encode(['success'=>false, 'code'=>401]));
 
 $pdo = getDb();
-$pdo->prepare("UPDATE players SET cards=?, submitted=1 WHERE room_id=? AND name=?")
-    ->execute([json_encode($cards), $roomId, $user['name']]);
+// 写入理牌提交时间
+$pdo->prepare("UPDATE players SET cards=?, submitted=1, finish_time=? WHERE room_id=? AND name=?")
+    ->execute([json_encode($cards), date('Y-m-d H:i:s'), $roomId, $user['name']]);
 
 // 检查是否全部玩家都提交，则结算
 $all = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll();
@@ -317,6 +318,7 @@ function compareArea($a, $b, $area) {
   $rankA = areaTypeRank($typeA, $area);
   $rankB = areaTypeRank($typeB, $area);
   if ($rankA !== $rankB) return $rankA - $rankB;
+
   $groupA = getGroupedValues($a);
   $groupB = getGroupedValues($b);
   // 顺子/同花顺先比最大点
