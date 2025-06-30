@@ -2,7 +2,6 @@
 require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
-require_once '_timeout_helper.php';
 
 header('Content-Type: application/json');
 
@@ -17,7 +16,6 @@ if (!$user || $user['roomId'] !== $roomId) {
 }
 
 $pdo = getDb();
-handleTimeoutsAndAutoPlay($roomId, $pdo);
 
 // 设置当前玩家为已准备
 $stmt = $pdo->prepare("UPDATE players SET submitted=1 WHERE room_id=? AND name=?");
