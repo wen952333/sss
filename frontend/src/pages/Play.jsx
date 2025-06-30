@@ -26,11 +26,13 @@ export default function Play() {
   const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
-  const [prepCountdown, setPrepCountdown] = useState(null);     // 新增：准备倒计时
-  const [dealCountdown, setDealCountdown] = useState(null);     // 新增：理牌倒计时
+  // ========== 新增倒计时 ==========
+  const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
+  const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
+  // ========== ==========
+
   const [hasShownResult, setHasShownResult] = useState(false);
 
-  const timerRef = useRef(null);
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
   const navigate = useNavigate();
@@ -74,7 +76,7 @@ export default function Play() {
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 计时器：准备倒计时
+  // 准备倒计时
   useEffect(() => {
     if (prepCountdown === null) {
       clearInterval(prepTimerRef.current);
@@ -93,7 +95,7 @@ export default function Play() {
     return () => clearInterval(prepTimerRef.current);
   }, [prepCountdown]);
 
-  // 计时器：理牌倒计时
+  // 理牌倒计时
   useEffect(() => {
     if (dealCountdown === null) {
       clearInterval(dealTimerRef.current);
@@ -112,6 +114,7 @@ export default function Play() {
       });
     }, 1000);
     return () => clearInterval(dealTimerRef.current);
+    // eslint-disable-next-line
   }, [dealCountdown]);
 
   // 比牌弹窗弹出时，准备按钮恢复可点
@@ -333,7 +336,7 @@ export default function Play() {
 
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
-  // === 新增：倒计时UI ===
+  // ========== 新增：只显示数字倒计时，居中不遮挡 ==========
   function renderCountdown() {
     // 优先理牌倒计时
     if (dealCountdown !== null && !submitted && dealCountdown > 0) {
@@ -345,14 +348,16 @@ export default function Play() {
           transform: 'translateX(-50%)',
           zIndex: 1001,
           background: '#fff',
-          color: '#185a30',
-          fontWeight: 700,
-          fontSize: 18,
-          borderRadius: 8,
-          padding: '6px 16px',
-          boxShadow: '0 2px 10px #23e67a33'
+          color: dealCountdown <= 10 ? 'red' : '#185a30',
+          fontWeight: 900,
+          fontSize: 28,
+          borderRadius: 10,
+          padding: '2px 18px',
+          boxShadow: '0 2px 10px #23e67a33',
+          minWidth: 50,
+          textAlign: 'center'
         }}>
-          理牌倒计时：<span style={{ color: dealCountdown <= 10 ? 'red' : '#185a30' }}>{dealCountdown}</span> 秒
+          {dealCountdown}
         </div>
       );
     }
@@ -366,14 +371,16 @@ export default function Play() {
           transform: 'translateX(-50%)',
           zIndex: 1001,
           background: '#fff',
-          color: '#185a30',
-          fontWeight: 700,
-          fontSize: 18,
-          borderRadius: 8,
-          padding: '6px 16px',
-          boxShadow: '0 2px 10px #23e67a33'
+          color: prepCountdown <= 10 ? 'red' : '#185a30',
+          fontWeight: 900,
+          fontSize: 28,
+          borderRadius: 10,
+          padding: '2px 18px',
+          boxShadow: '0 2px 10px #23e67a33',
+          minWidth: 50,
+          textAlign: 'center'
         }}>
-          准备倒计时：<span style={{ color: prepCountdown <= 10 ? 'red' : '#185a30' }}>{prepCountdown}</span> 秒
+          {prepCountdown}
         </div>
       );
     }
@@ -606,7 +613,15 @@ export default function Play() {
           ))}
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
-          }} onClick={() => setShowResult(false)}>×</button>
+          }} onClick={async () => {
+            setShowResult(false);
+            // 主动通知后端自己已关闭比牌弹窗
+            await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomId, token: localStorage.getItem('token') }),
+            });
+          }}>×</button>
         </div>
       </div>
     );
@@ -633,7 +648,7 @@ export default function Play() {
         minHeight: 650,
         boxSizing: 'border-box'
       }}>
-        {/* 头部：退出房间+积分+倒计时 */}
+        {/* 头部：退出房间+积分+倒计时UI */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14, position: 'relative', minHeight: 42 }}>
           <button
             style={{
