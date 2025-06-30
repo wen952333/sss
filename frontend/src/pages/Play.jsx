@@ -32,7 +32,6 @@ export default function Play() {
   const timerRef = useRef(null);
   const navigate = useNavigate();
 
-  // fetch工具
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -45,7 +44,6 @@ export default function Play() {
     }
   }
 
-  // 登录检测
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -57,21 +55,18 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
-  // 房间信息定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId, showResult]);
 
-  // 我的牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 理牌倒计时
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setCountdown(180);
@@ -91,7 +86,6 @@ export default function Play() {
     return () => clearInterval(timerRef.current);
   }, [myCards, submitted]);
 
-  // 比牌弹窗弹出时，准备按钮恢复可点
   useEffect(() => {
     if (showResult) {
       setIsReady(true);
@@ -100,7 +94,6 @@ export default function Play() {
     }
   }, [showResult]);
 
-  // 新牌局重置比牌弹窗
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setHasShownResult(false);
@@ -108,7 +101,6 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
-  // 比牌结果弹窗（只弹一次）
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed && players.length === 4 && !hasShownResult) {
@@ -117,14 +109,12 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 重点：准备按钮逻辑修正
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // ----核心：未满4人时也能点准备----
     if (showResult) {
       setIsReady(true);
     } else if (data.status === 'waiting' && me && !me.submitted) {
@@ -145,7 +135,6 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
-  // 只要 cards 有 13 张都进入理牌区
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -206,7 +195,6 @@ export default function Play() {
     setIsReady(false);
   }
 
-  // 智能分牌：调用后端
   async function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
@@ -531,7 +519,15 @@ export default function Play() {
           ))}
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
-          }} onClick={() => setShowResult(false)}>×</button>
+          }} onClick={async () => {
+            setShowResult(false);
+            // 主动通知后端自己已关闭比牌弹窗
+            await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomId, token: localStorage.getItem('token') }),
+            });
+          }}>×</button>
         </div>
       </div>
     );
