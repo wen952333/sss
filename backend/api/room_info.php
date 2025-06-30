@@ -57,5 +57,6 @@ echo json_encode([
   'status' => $room['status'],
   'me' => $user['name'],
   'type' => $room['type'],
-  'score' => intval($room['score'])
+  'score' => intval($room['score']),
+  'ready_reset_time' => $room['ready_reset_time'] ?? null // 关键：新增这一行
 ]);
