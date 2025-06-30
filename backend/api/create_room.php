@@ -3,11 +3,10 @@ require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
 
-header('Content-Type: application/json');
-
 // ===== bot专用：强制校验bot_secret =====
 define('BOT_SECRET', 'P1yqxnHxJfoTvlyp'); // 此处与bot.php一致
 
+header('Content-Type: application/json');
 $data = json_decode(file_get_contents('php://input'), true);
 
 // 只有通过bot_secret的请求才能创建房间
@@ -27,8 +26,9 @@ $roomId = substr(md5(uniqid('', true)), 0, 6);
 // 连接数据库
 $pdo = getDb();
 try {
-    $stmt1 = $pdo->prepare("INSERT INTO rooms (room_id, status, type, score) VALUES (?, ?, ?, ?)");
-    $stmt1->execute([$roomId, 'waiting', $type, $score]);
+    // 修正：插入时带上ready_reset_time字段
+    $stmt1 = $pdo->prepare("INSERT INTO rooms (room_id, status, type, score, ready_reset_time) VALUES (?, ?, ?, ?, ?)");
+    $stmt1->execute([$roomId, 'waiting', $type, $score, date('Y-m-d H:i:s')]);
     // 不再插入players表，房间初始为空
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => '数据库写入失败: ' . $e->getMessage()]);
