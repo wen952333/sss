@@ -32,8 +32,9 @@ try {
         die(json_encode(['success'=>false,'message'=>'房间已满']));
     }
 
-    $stmt = $pdo->prepare("INSERT INTO players (room_id, name, is_owner) VALUES (?, ?, 0)");
-    $stmt->execute([$data['roomId'], $data['name']]);
+    // 关键：插入 join_time
+    $stmt = $pdo->prepare("INSERT INTO players (room_id, name, is_owner, join_time) VALUES (?, ?, 0, ?)");
+    $stmt->execute([$data['roomId'], $data['name'], date('Y-m-d H:i:s')]);
     $pdo->commit();
 
     $token = createToken(['roomId'=>$data['roomId'], 'name'=>$data['name']]);
