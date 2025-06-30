@@ -126,6 +126,23 @@ export default function TryPlay() {
     setIsReady(false);
   }
 
+  // 新增：智能分牌按钮功能
+  function handleSmartSplit() {
+    if (!isReady) return;
+    // 合并三墩
+    const all = [...head, ...middle, ...tail];
+    if (all.length !== 13) {
+      setMsg('请先准备并确保已发牌');
+      return;
+    }
+    // 重新智能分牌
+    const split = aiSmartSplit(all);
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
+    setMsg('已智能分牌');
+  }
+
   function renderPlayerSeat(name, idx, isMe) {
     return (
       <div
@@ -420,6 +437,23 @@ export default function TryPlay() {
             }}
             onClick={handleReady}
           >{isReady ? '取消准备' : '准备'}</button>
+          <button
+            style={{
+              flex: 1,
+              background: '#23e67a',
+              color: '#fff',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: 10,
+              padding: '13px 0',
+              fontSize: 18,
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              boxShadow: '0 2px 9px #23e67a44',
+              transition: 'background 0.16s'
+            }}
+            onClick={handleSmartSplit}
+            disabled={!isReady}
+          >智能分牌</button>
           <button
             style={{
               flex: 1,
