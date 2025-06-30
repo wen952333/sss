@@ -8,8 +8,26 @@ $data = json_decode(file_get_contents('php://input'), true);
 if (!$data['name'] || !$data['roomId']) die(json_encode(['success'=>false,'message'=>'参数缺失']));
 
 $pdo = getDb();
+
+// ==== 新增：自动清理10分钟未满4人房间玩家 ====
 $room = $pdo->query("SELECT * FROM rooms WHERE room_id='{$data['roomId']}'")->fetch();
 if (!$room) die(json_encode(['success'=>false,'message'=>'房间不存在']));
+// 只在waiting阶段检测踢人
+if ($room['status'] === 'waiting' && !empty($room['ready_reset_time'])) {
+    $passed = time() - strtotime($room['ready_reset_time']);
+    if ($passed >= 600) { // 10分钟
+        $cnt = $pdo->query("SELECT COUNT(*) as cnt FROM players WHERE room_id='{$data['roomId']}'")->fetch()['cnt'];
+        if ($cnt < 4 && $cnt > 0) {
+            // 清空players表
+            $pdo->prepare("DELETE FROM players WHERE room_id=?")->execute([$data['roomId']]);
+            // 重置ready_reset_time，防止再次触发
+            $pdo->prepare("UPDATE rooms SET ready_reset_time=NULL WHERE room_id=?")->execute([$data['roomId']]);
+        }
+    }
+}
+// 重新获取room信息，防止刚清理后players出错
+$room = $pdo->query("SELECT * FROM rooms WHERE room_id='{$data['roomId']}'")->fetch();
+
 if (!in_array($room['status'], ['waiting', 'started'])) die(json_encode(['success'=>false,'message'=>'房间不可加入']));
 
 // 修正：如果房间是waiting且ready_reset_time为空，则初始化为当前时间
