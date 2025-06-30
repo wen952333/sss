@@ -41,7 +41,6 @@ export default function Play() {
       if (!data.success) throw new Error(data.message || '操作失败');
       return data;
     } catch (e) {
-      alert(e.message || '网络异常');
       throw e;
     }
   }
@@ -71,7 +70,7 @@ export default function Play() {
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 准备倒计时：只用服务端ready_reset_time矫正，避免抖动
+  // 准备倒计时
   useEffect(() => {
     if (prepCountdown === null) {
       clearInterval(prepTimerRef.current);
@@ -129,51 +128,59 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 用服务端ready_reset_time校准倒计时，并检测me是否存在
+  // 关键：防止房间不存在死循环
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
-    const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
-    setPlayers(data.players);
-    setRoomStatus(data.status);
-    const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-    // === 关键：如果me为空，弹出提示并跳回房间页或登录页 ===
-    if (!me) {
-      alert('你已不在房间，请重新加入');
-      navigate(`/room/${roomId}`);
-      return;
-    }
-    // --- 用ready_reset_time精准校准倒计时 ---
-    if (data.status === 'waiting' && me && !me.submitted) {
-      let readyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
-      let now = Date.now();
-      if (readyResetTime) {
-        let remain = 45 - Math.floor((now - readyResetTime) / 1000);
-        if (remain < 0) remain = 0;
-        setPrepCountdown(remain);
-      } else {
-        setPrepCountdown(45);
+    try {
+      const res = await fetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || '房间已被删除或不存在');
+        navigate('/');
+        return;
       }
-      setDealCountdown(null);
-    } else {
-      setPrepCountdown(null);
-      clearInterval(prepTimerRef.current);
-    }
-
-    // 理牌倒计时逻辑
-    if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
-      if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
-      setPrepCountdown(null);
-    } else if (!(data.status === 'started' && me && !me.submitted)) {
-      setDealCountdown(null);
-      clearInterval(dealTimerRef.current);
-    }
-
-    if (showResult) {
-      setIsReady(true);
-    } else if (data.status === 'waiting' && me && !me.submitted) {
-      setIsReady(true);
-    } else {
-      setIsReady(false);
+      setPlayers(data.players);
+      setRoomStatus(data.status);
+      const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+      if (!me) {
+        alert('你已不在房间，请重新加入');
+        navigate(`/room/${roomId}`);
+        return;
+      }
+      // 用ready_reset_time精准校准倒计时
+      if (data.status === 'waiting' && me && !me.submitted) {
+        let readyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
+        let now = Date.now();
+        if (readyResetTime) {
+          let remain = 45 - Math.floor((now - readyResetTime) / 1000);
+          if (remain < 0) remain = 0;
+          setPrepCountdown(remain);
+        } else {
+          setPrepCountdown(45);
+        }
+        setDealCountdown(null);
+      } else {
+        setPrepCountdown(null);
+        clearInterval(prepTimerRef.current);
+      }
+      // 理牌倒计时逻辑
+      if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
+        if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
+        setPrepCountdown(null);
+      } else if (!(data.status === 'started' && me && !me.submitted)) {
+        setDealCountdown(null);
+        clearInterval(dealTimerRef.current);
+      }
+      if (showResult) {
+        setIsReady(true);
+      } else if (data.status === 'waiting' && me && !me.submitted) {
+        setIsReady(true);
+      } else {
+        setIsReady(false);
+      }
+    } catch (e) {
+      alert('网络错误或房间已删除');
+      navigate('/');
     }
   }
 
