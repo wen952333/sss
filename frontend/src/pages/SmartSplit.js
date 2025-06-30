@@ -1,347 +1,11 @@
-// 最强智能十三水分牌，支持：特殊牌型检测(一条龙/六对半/三顺/三同花)、极限剪枝、智能评分、永不倒水
+// 智能十三水AI分牌 - 800行极致版
+// 1. 特殊牌型优先 2. 组合剪枝 3. 评分体系极优 4. 绝不倒水 5. compareArea内置
 
-const SPLIT_ENUM_LIMIT = 3000; // 极限枚举量限制，防卡死
+// ==== 常量与工具 ====
+const SPLIT_ENUM_LIMIT = 6000; // 防极端爆炸
+const BEAM_HEAD = 18, BEAM_TAIL = 12;
 
-// ========== 特殊牌型检测 ==========
-function detectSpecialType(cards13) {
-  // 一条龙：13种点全有
-  const uniqVals = new Set(cards13.map(c => c.split('_')[0]));
-  if (uniqVals.size === 13) {
-    const sorted = cards13.slice().sort((a, b) => cardValue(a) - cardValue(b));
-    return {
-      head: sorted.slice(0, 3),
-      middle: sorted.slice(3, 8),
-      tail: sorted.slice(8, 13)
-    };
-  }
-  // 六对半
-  const valMap = {};
-  for (const c of cards13) {
-    const v = c.split('_')[0];
-    valMap[v] = (valMap[v] || 0) + 1;
-  }
-  const pairs = Object.values(valMap).filter(c => c === 2).length;
-  const triplet = Object.values(valMap).filter(c => c === 3).length;
-  if (pairs === 6 && triplet === 0) {
-    // 简单平均分配，未必最优
-    let all = [...cards13];
-    let head = all.splice(0, 3);
-    let middle = all.splice(0, 5);
-    let tail = all;
-    return { head, middle, tail };
-  }
-  // 三同花
-  const suits = {};
-  for (const c of cards13) {
-    const s = c.split('_')[2];
-    suits[s] = suits[s] || [];
-    suits[s].push(c);
-  }
-  const suitGroups = Object.values(suits).filter(g => g.length >= 3);
-  if (suitGroups.length >= 3) {
-    suitGroups.sort((a, b) => b.length - a.length);
-    const head = suitGroups[0].slice(0, 3);
-    const mid = suitGroups[1].slice(0, 5);
-    const tail = suitGroups[2].slice(0, 5);
-    return { head, middle: mid, tail };
-  }
-  // 三顺子（分三套顺子且全牌用尽）
-  const allStraights = findAllStraights(cards13);
-  if (allStraights.length >= 3) {
-    for (let i = 0; i < allStraights.length; ++i)
-      for (let j = i + 1; j < allStraights.length; ++j)
-        for (let k = j + 1; k < allStraights.length; ++k) {
-          const union = [...allStraights[i], ...allStraights[j], ...allStraights[k]];
-          if (new Set(union).size === 13) {
-            return {
-              head: allStraights[i].slice(0, 3),
-              middle: allStraights[j].slice(0, 5),
-              tail: allStraights[k].slice(0, 5)
-            };
-          }
-        }
-  }
-  return null;
-}
-
-function findAllStraights(cards) {
-  // 返回所有5张顺子组合
-  const vals = cards.map(cardValue);
-  const uniq = [...new Set(vals)].sort((a, b) => a - b);
-  let result = [];
-  for (let i = 0; i <= uniq.length - 5; i++) {
-    let ok = true;
-    for (let j = 1; j < 5; j++) if (uniq[i + j] !== uniq[i] + j) ok = false;
-    if (ok) {
-      const straightVals = uniq.slice(i, i + 5);
-      const straightCards = cards.filter(c => straightVals.includes(cardValue(c)));
-      if (straightCards.length >= 5) result.push(straightCards.slice(0, 5));
-    }
-  }
-  // A2345
-  if (uniq.includes(14) && uniq.includes(2)) {
-    const lowVals = [14, 2, 3, 4, 5];
-    if (lowVals.every(v => uniq.includes(v))) {
-      const straightCards = cards.filter(c => lowVals.includes(cardValue(c)));
-      if (straightCards.length >= 5) result.push(straightCards.slice(0, 5));
-    }
-  }
-  return result;
-}
-
-// ========== 主入口 ==========
-export function getSmartSplits(cards13) {
-  if (!Array.isArray(cards13) || cards13.length !== 13) return [];
-  // 1. 特殊牌型优先
-  const special = detectSpecialType(cards13);
-  if (special) return [special];
-  // 2. 枚举所有合法分法，按综合分值排序，取前5
-  let allSplits = generateAllValidSplits(cards13);
-  if (!allSplits.length) {
-    return [balancedSplit(cards13)];
-  }
-  allSplits.sort((a, b) => b.score - a.score);
-  return allSplits.slice(0, 5).map(s => ({ head: s.head, middle: s.middle, tail: s.tail }));
-}
-
-export function aiSmartSplit(cards13) {
-  const splits = getSmartSplits(cards13);
-  return splits[0] || { head: cards13.slice(0, 3), middle: cards13.slice(3, 8), tail: cards13.slice(8, 13) };
-}
-export function fillAiPlayers(playersArr) {
-  return playersArr.map(p =>
-    p.isAI && Array.isArray(p.cards13) && p.cards13.length === 13
-      ? { ...p, ...aiSmartSplit(p.cards13) }
-      : p
-  );
-}
-export function getPlayerSmartSplits(cards13) {
-  return getSmartSplits(cards13);
-}
-
-// ========== 智能枚举+剪枝 ==========
-function generateAllValidSplits(cards13) {
-  let headComb = topHeadCombinations(cards13, 12);
-  let tailComb = topTailCombinations(cards13, 14);
-  let splits = [];
-  let tried = 0;
-  let seen = new Set();
-  for (const head of headComb) {
-    let left10 = cards13.filter(c => !head.includes(c));
-    for (const tail of tailComb) {
-      if (!tail.every(c => left10.includes(c))) continue;
-      let middle = left10.filter(c => !tail.includes(c));
-      if (middle.length !== 5) continue;
-      const key = [...head, ...middle, ...tail].sort().join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (isFoul(head, middle, tail)) continue;
-      splits.push({
-        head, middle, tail,
-        score: scoreSplit(head, middle, tail)
-      });
-      tried++;
-      if (tried >= SPLIT_ENUM_LIMIT) break;
-    }
-    if (tried >= SPLIT_ENUM_LIMIT) break;
-  }
-  return splits;
-}
-
-// 头道三条/对子/高牌优先
-function topHeadCombinations(cards, N = 12) {
-  let combs = [];
-  let byVal = groupByValue(cards);
-  for (const v in byVal) if (byVal[v].length >= 3) {
-    combs.push(byVal[v].slice(0, 3));
-  }
-  for (const v in byVal) if (byVal[v].length >= 2) {
-    let others = cards.filter(c => !byVal[v].includes(c));
-    if (others.length > 0) {
-      let rest = others.sort((a, b) => cardValue(b) - cardValue(a));
-      combs.push([...byVal[v].slice(0, 2), rest[0]]);
-    }
-  }
-  combs.push(cards.slice().sort((a, b) => cardValue(b) - cardValue(a)).slice(0, 3));
-  const keys = new Set();
-  combs = combs.filter(c => {
-    const k = c.slice().sort().join(',');
-    if (keys.has(k)) return false;
-    keys.add(k);
-    return true;
-  });
-  combs.sort((a, b) => headScore(a) - headScore(b)).reverse();
-  return combs.slice(0, N);
-}
-
-// 尾道炸弹/顺子/葫芦/同花优先
-function topTailCombinations(cards, N = 14) {
-  let combs = [];
-  let byVal = groupByValue(cards);
-  for (const v in byVal) if (byVal[v].length >= 4) {
-    let left = cards.filter(c => !byVal[v].includes(c));
-    combs.push([...byVal[v].slice(0, 4), left[0]]);
-  }
-  let bySuit = groupBySuit(cards);
-  for (const s in bySuit) if (bySuit[s].length >= 5) {
-    combs.push(bySuit[s].slice(0, 5));
-  }
-  let straights = findStraights(cards);
-  combs.push(...straights);
-  for (const t in byVal) if (byVal[t].length >= 3) {
-    for (const p in byVal) if (p !== t && byVal[p].length >= 2) {
-      combs.push([...byVal[t].slice(0, 3), ...byVal[p].slice(0, 2)]);
-    }
-  }
-  combs.push(cards.slice().sort((a, b) => cardValue(b) - cardValue(a)).slice(0, 5));
-  const keys = new Set();
-  combs = combs.filter(c => {
-    const k = c.slice().sort().join(',');
-    if (keys.has(k)) return false;
-    keys.add(k);
-    return true;
-  });
-  combs.sort((a, b) => tailScore(a) - tailScore(b)).reverse();
-  return combs.slice(0, N);
-}
-
-// ========== 评分体系 ==========
-function scoreSplit(head, mid, tail) {
-  let score =
-    handTypeScore(tail, 'tail') * 120 +
-    handTypeScore(mid, 'middle') * 16 +
-    handTypeScore(head, 'head') * 2;
-  const headType = handType(head, 'head');
-  if (headType === "三条") score += 30;
-  else if (headType === "对子") score += 12;
-  else score -= 15;
-  const midType = handType(mid, 'middle');
-  if (midType === "同花顺") score += 30;
-  if (midType === "铁支") score += 32;
-  if (midType === "葫芦") score += 18;
-  if (midType === "顺子") score += 10;
-  if (midType === "三条") score += 5;
-  if (midType === "两对") score += 2;
-  if (midType === "对子") score -= 5;
-  const tailType = handType(tail, 'tail');
-  if (tailType === "铁支") score += 45;
-  if (tailType === "同花顺") score += 38;
-  if (tailType === "葫芦") score += 18;
-  if (tailType === "顺子") score += 8;
-  if (headType === "高牌" && (midType === "高牌" || tailType === "高牌")) score -= 40;
-  score += getTotalValue(head) * 0.5 + getTotalValue(mid) * 0.7 + getTotalValue(tail) * 1.2;
-  if (tailType === "铁支" && (midType !== "顺子" && midType !== "同花顺" && midType !== "铁支")) score += 12;
-  if (headType === "对子" || headType === "三条") {
-    const vals = head.map(card => cardValue(card));
-    score += Math.max(...vals) * 1.3;
-  }
-  return score;
-}
-
-function headScore(head) {
-  const t = handType(head, 'head');
-  return handTypeScore(head, 'head') * 10 + getTotalValue(head) + (t === '三条'?55:t==='对子'?20:0);
-}
-function tailScore(tail) {
-  const t = handType(tail, 'tail');
-  return handTypeScore(tail, 'tail') * 20 + getTotalValue(tail) + (t === '铁支'?50:t==='同花顺'?40:0);
-}
-
-// ========== 判型/判倒水 ==========
-function handTypeScore(cards, area) {
-  const t = handType(cards, area);
-  switch (t) {
-    case "铁支": return 8;
-    case "同花顺": return 7;
-    case "葫芦": return 6;
-    case "同花": return 5;
-    case "顺子": return 4;
-    case "三条": return 3;
-    case "两对": return 2;
-    case "对子": return 1;
-    case "高牌": return 0;
-    default: return 0;
-  }
-}
-function handTypeRank(cards, area) {
-  if (area === 'head') {
-    const t = handType(cards, area);
-    if (t === "三条") return 4;
-    if (t === "对子") return 2;
-    return 1;
-  }
-  return handTypeScore(cards, area);
-}
-function isFoul(head, middle, tail) {
-  const headRank = handTypeRank(head, 'head');
-  const midRank = handTypeRank(middle, 'middle');
-  const tailRank = handTypeRank(tail, 'tail');
-  return !(headRank <= midRank && midRank <= tailRank);
-}
-function handType(cards, area) {
-  if (!cards || cards.length < 3) return "高牌";
-  const vals = cards.map(card => card.split('_')[0]);
-  const suits = cards.map(card => card.split('_')[2]);
-  const uniqVals = Array.from(new Set(vals));
-  const uniqSuits = Array.from(new Set(suits));
-  if (cards.length === 5) {
-    if (Object.values(groupBy(vals)).some(a => a.length === 4)) return "铁支";
-    if (uniqSuits.length === 1 && isStraight(vals)) return "同花顺";
-    if (Object.values(groupBy(vals)).some(a => a.length === 3) && Object.values(groupBy(vals)).some(a => a.length === 2)) return "葫芦";
-    if (uniqSuits.length === 1) return "同花";
-    if (isStraight(vals)) return "顺子";
-    if (Object.values(groupBy(vals)).some(a => a.length === 3)) return "三条";
-    if (Object.values(groupBy(vals)).filter(a => a.length === 2).length === 2) return "两对";
-    if (Object.values(groupBy(vals)).some(a => a.length === 2)) return "对子";
-    return "高牌";
-  }
-  if (cards.length === 3) {
-    if (uniqVals.length === 1) return "三条";
-    if (Object.values(groupBy(vals)).some(a => a.length === 2)) return "对子";
-    return "高牌";
-  }
-  return "高牌";
-}
-function isStraight(vals) {
-  const order = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
-  let idxs = vals.map(v => order.indexOf(v)).sort((a,b)=>a-b);
-  for (let i = 1; i < idxs.length; i++) if (idxs[i] !== idxs[i - 1] + 1) break;
-  else if (i === idxs.length - 1) return true;
-  if (idxs.includes(12) && idxs[0] === 0 && idxs[1] === 1) {
-    const t = idxs.slice();
-    t[t.indexOf(12)] = -1;
-    t.sort((a, b) => a - b);
-    for (let i = 1; i < t.length; i++) if (t[i] !== t[i - 1] + 1) return false;
-    return true;
-  }
-  return false;
-}
-function groupBy(arr) {
-  const g = {};
-  arr.forEach(x => { g[x] = g[x] || []; g[x].push(x); });
-  return g;
-}
-function groupByValue(cards) {
-  const g = {};
-  for (const card of cards) {
-    const v = cardValue(card);
-    g[v] = g[v] || [];
-    g[v].push(card);
-  }
-  return g;
-}
-function groupBySuit(cards) {
-  const g = {};
-  for (const card of cards) {
-    const s = card.split('_')[2];
-    g[s] = g[s] || [];
-    g[s].push(card);
-  }
-  return g;
-}
-function getTotalValue(cards) {
-  return cards.reduce((sum, card) => sum + cardValue(card), 0);
-}
+// 牌面点数与花色
 function cardValue(card) {
   const v = card.split('_')[0];
   if (v === 'ace') return 14;
@@ -350,29 +14,340 @@ function cardValue(card) {
   if (v === 'jack') return 11;
   return parseInt(v, 10);
 }
-function findStraights(cards) {
-  const vals = cards.map(cardValue);
-  const uniq = [...new Set(vals)].sort((a, b) => a - b);
-  const res = [];
-  for (let i = 0; i <= uniq.length - 5; i++) {
-    let ok = true;
-    for (let j = 1; j < 5; j++) if (uniq[i + j] !== uniq[i] + j) ok = false;
-    if (ok) {
-      const straightVals = uniq.slice(i, i + 5);
-      const straightCards = cards.filter(c => straightVals.includes(cardValue(c)));
-      if (straightCards.length >= 5) res.push(straightCards.slice(0, 5));
-    }
+function cardSuit(card) {
+  return card.split('_')[2];
+}
+function getTotalValue(cards) {
+  return cards.reduce((sum, c) => sum + cardValue(c), 0);
+}
+function uniq(arr) { return [...new Set(arr)]; }
+function groupBy(arr, fn=x=>x) {
+  const g={}; arr.forEach(x=>{const k=fn(x);g[k]=g[k]||[];g[k].push(x);}); return g;
+}
+
+// n选k组合
+function combinations(arr, k) {
+  let res = [];
+  function comb(path, start) {
+    if (path.length===k) return res.push(path);
+    for (let i=start;i<arr.length;++i) comb([...path,arr[i]],i+1);
   }
-  if (uniq.includes(14) && uniq.includes(2)) {
-    const lowVals = [14,2,3,4,5];
-    if (lowVals.every(v => uniq.includes(v))) {
-      const straightCards = cards.filter(c => lowVals.includes(cardValue(c)));
-      if (straightCards.length >= 5) res.push(straightCards.slice(0, 5));
-    }
-  }
+  comb([],0);
   return res;
 }
+function sortCards(cards) {
+  return [...cards].sort((a,b)=>cardValue(b)-cardValue(a)||cardSuit(b).localeCompare(cardSuit(a)));
+}
+
+// ==== 特殊牌型检测 ====
+function detectDragon(cards13) {
+  const vals = uniq(cards13.map(cardValue));
+  if (vals.length === 13) {
+    const sorted = sortCards(cards13);
+    return { head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13), type: '一条龙' };
+  }
+  return null;
+}
+function detectSixPairs(cards13) {
+  const byVal = groupBy(cards13, cardValue);
+  const pairs = Object.values(byVal).filter(g=>g.length===2);
+  if (pairs.length===6) {
+    let head = pairs[0].concat(pairs[1][0]);
+    let used = new Set(head), rest = cards13.filter(c=>!used.has(c));
+    let mid = pairs[1].slice(1).concat(pairs[2], pairs[3][0]);
+    used = new Set([...head, ...mid]);
+    let tail = cards13.filter(c=>!used.has(c));
+    if (head.length===3&&mid.length===5&&tail.length===5)
+      return {head,middle:mid,tail,type:'六对半'};
+  }
+  return null;
+}
+function detectThreeStraight(cards13) {
+  const comb3 = combinations(cards13,3);
+  for(const head of comb3) {
+    if(!isStraight(head))continue;
+    const left10 = cards13.filter(c=>!head.includes(c));
+    for(const mid of combinations(left10,5)){
+      if(!isStraight(mid))continue;
+      const tail = left10.filter(c=>!mid.includes(c));
+      if(!isStraight(tail))continue;
+      return {head,middle:mid,tail,type:'三顺子'};
+    }
+  }
+  return null;
+}
+function detectThreeFlush(cards13) {
+  const comb3 = combinations(cards13,3);
+  for(const head of comb3) {
+    if(!isFlush(head))continue;
+    const left10 = cards13.filter(c=>!head.includes(c));
+    for(const mid of combinations(left10,5)){
+      if(!isFlush(mid))continue;
+      const tail = left10.filter(c=>!mid.includes(c));
+      if(!isFlush(tail))continue;
+      return {head,middle:mid,tail,type:'三同花'};
+    }
+  }
+  return null;
+}
+function detectAllSpecialSplits(cards13) {
+  return detectDragon(cards13)
+    || detectSixPairs(cards13)
+    || detectThreeStraight(cards13)
+    || detectThreeFlush(cards13)
+    || null;
+}
+function isStraight(cards) {
+  const vals = uniq(cards.map(cardValue)).sort((a,b)=>a-b);
+  if (vals.length!==cards.length) return false;
+  for(let i=1;i<vals.length;++i) if(vals[i]!==vals[i-1]+1)return false;
+  if(vals.includes(14)&&vals[0]===2&&vals[1]===3){
+    const t = vals.slice(); t[t.indexOf(14)]=1; t.sort((a,b)=>a-b);
+    for(let i=1;i<t.length;++i)if(t[i]!==t[i-1]+1)return false;
+    return true;
+  }
+  return true;
+}
+function isFlush(cards) {
+  if(!cards.length)return false;
+  const suit=cardSuit(cards[0]);
+  return cards.every(c=>cardSuit(c)===suit);
+}
+
+// ==== 牌型判定/倒水/评分 ==== 
+function handType(cards, area) {
+  if(!cards||cards.length<3)return"高牌";
+  const vals=cards.map(cardValue), suits=cards.map(cardSuit),
+        uniqVals=uniq(vals), uniqSuits=uniq(suits);
+  if(cards.length===5){
+    if(Object.values(groupBy(vals)).some(a=>a.length===4))return"铁支";
+    if(uniqSuits.length===1&&isStraight(cards))return"同花顺";
+    if(Object.values(groupBy(vals)).some(a=>a.length===3)&&Object.values(groupBy(vals)).some(a=>a.length===2))return"葫芦";
+    if(uniqSuits.length===1)return"同花";
+    if(isStraight(cards))return"顺子";
+    if(Object.values(groupBy(vals)).some(a=>a.length===3))return"三条";
+    if(Object.values(groupBy(vals)).filter(a=>a.length===2).length===2)return"两对";
+    if(Object.values(groupBy(vals)).some(a=>a.length===2))return"对子";
+    return"高牌";
+  }
+  if(cards.length===3){
+    if(uniqVals.length===1)return"三条";
+    if(Object.values(groupBy(vals)).some(a=>a.length===2))return"对子";
+    return"高牌";
+  }
+  return"高牌";
+}
+function handTypeScore(cards,area){
+  const t=handType(cards,area);
+  switch(t){
+    case"铁支":return 8;case"同花顺":return 7;case"葫芦":return 6;case"同花":return 5;case"顺子":return 4;
+    case"三条":return 3;case"两对":return 2;case"对子":return 1;default:return 0;
+  }
+}
+function handTypeRank(cards,area){
+  if(area==='head'){
+    const t=handType(cards,area);
+    if(t==="三条")return 4;if(t==="对子")return 2;return 1;
+  }
+  return handTypeScore(cards,area);
+}
+function isFoul(head,mid,tail){
+  const headRank=handTypeRank(head,'head');
+  const midRank=handTypeRank(mid,'middle');
+  const tailRank=handTypeRank(tail,'tail');
+  if(!(headRank<=midRank&&midRank<=tailRank))return true;
+  if(headRank===midRank&&compareArea(head,mid,'head')>0)return true;
+  if(midRank===tailRank&&compareArea(mid,tail,'middle')>0)return true;
+  return false;
+}
+function scoreSplit(head,mid,tail,style='max'){
+  let score=
+    handTypeScore(tail,'tail')*140+
+    handTypeScore(mid,'middle')*18+
+    handTypeScore(head,'head')*3;
+  const headType=handType(head,'head');
+  if(headType==="三条")score+=38;else if(headType==="对子")score+=15;else score-=18;
+  const midType=handType(mid,'middle');
+  if(midType==="同花顺")score+=35;if(midType==="铁支")score+=42;if(midType==="葫芦")score+=25;
+  if(midType==="顺子")score+=13;if(midType==="三条")score+=9;if(midType==="两对")score+=4;if(midType==="对子")score-=6;
+  const tailType=handType(tail,'tail');
+  if(tailType==="铁支")score+=60;if(tailType==="同花顺")score+=52;if(tailType==="葫芦")score+=28;if(tailType==="顺子")score+=15;
+  if(headType==="高牌"&&(midType==="高牌"||tailType==="高牌"))score-=55;
+  score+=getTotalValue(head)*0.7+getTotalValue(mid)*0.9+getTotalValue(tail)*1.4;
+  if(tailType==="铁支"&&(midType!=="顺子"&&midType!=="同花顺"&&midType!=="铁支"))score+=15;
+  if(headType==="对子"||headType==="三条"){
+    const vals=head.map(cardValue);score+=Math.max(...vals)*1.5;
+  }
+  if(isSpecialType(head,mid,tail))score+=85;
+  return score;
+}
+function isSpecialType(head,mid,tail){
+  const all=[...head,...mid,...tail],uniqVals=uniq(all.map(cardValue));
+  if(uniqVals.length===13)return true;
+  const cnt={};for(const c of all){const v=cardValue(c);cnt[v]=(cnt[v]||0)+1;}
+  if(Object.values(cnt).filter(x=>x===2).length===6)return true;
+  const suit=c=>cardSuit(c);
+  if([head,mid,tail].every(arr=>arr.every(x=>suit(x)===suit(arr[0]))))return true;
+  if([head,mid,tail].every(arr=>isStraight(arr)))return true;
+  return false;
+}
+
+// ==== compareArea内置（同步sssScore.js核心） ====
+function compareArea(a,b,area){
+  const typeA=handType(a,area),typeB=handType(b,area);
+  const rankA=handTypeRank(a,area),rankB=handTypeRank(b,area);
+  if(rankA!==rankB)return rankA-rankB;
+  const groupedA=groupBy(a.map(cardValue)),groupedB=groupBy(b.map(cardValue));
+  // 顺子/同花顺
+  if((typeA==="顺子"||typeA==="同花顺")){
+    const valsA=a.map(cardValue).sort((a,b)=>a-b),valsB=b.map(cardValue).sort((a,b)=>a-b);
+    const maxA=valsA[valsA.length-1],maxB=valsB[valsB.length-1];
+    if(maxA!==maxB)return maxA-maxB;
+  }
+  // 铁支/三条/对子
+  if(["铁支","三条","对子"].includes(typeA)){
+    const mainA=parseInt(Object.keys(groupedA).find(k=>groupedA[k].length=== (typeA==="铁支"?4:(typeA==="三条"?3:2))),10);
+    const mainB=parseInt(Object.keys(groupedB).find(k=>groupedB[k].length=== (typeA==="铁支"?4:(typeA==="三条"?3:2))),10);
+    if(mainA!==mainB)return mainA-mainB;
+    const subA=a.map(cardValue).filter(v=>v!==mainA).sort((x,y)=>y-x);
+    const subB=b.map(cardValue).filter(v=>v!==mainB).sort((x,y)=>y-x);
+    for(let i=0;i<subA.length;++i)if(subA[i]!==subB[i])return subA[i]-subB[i];
+    return 0;
+  }
+  // 葫芦
+  if(typeA==="葫芦"){
+    const tripleA=parseInt(Object.keys(groupedA).find(k=>groupedA[k].length===3),10);
+    const tripleB=parseInt(Object.keys(groupedB).find(k=>groupedB[k].length===3),10);
+    if(tripleA!==tripleB)return tripleA-tripleB;
+    const pairA=parseInt(Object.keys(groupedA).find(k=>groupedA[k].length===2),10);
+    const pairB=parseInt(Object.keys(groupedB).find(k=>groupedB[k].length===2),10);
+    if(pairA!==pairB)return pairA-pairB;
+    return 0;
+  }
+  // 两对
+  if(typeA==="两对"){
+    const pairsA=Object.keys(groupedA).filter(k=>groupedA[k].length===2).map(Number).sort((a,b)=>b-a);
+    const pairsB=Object.keys(groupedB).filter(k=>groupedB[k].length===2).map(Number).sort((a,b)=>b-a);
+    if(pairsA[0]!==pairsB[0])return pairsA[0]-pairsB[0];
+    if(pairsA[1]!==pairsB[1])return pairsA[1]-pairsB[1];
+    const subA=Object.keys(groupedA).find(k=>groupedA[k].length===1),subB=Object.keys(groupedB).find(k=>groupedB[k].length===1);
+    if(subA&&subB&&subA!==subB)return subA-subB;
+    return 0;
+  }
+  // 同花
+  if(typeA==="同花"){
+    const valsA=a.map(cardValue).sort((a,b)=>b-a),valsB=b.map(cardValue).sort((a,b)=>b-a);
+    for(let i=0;i<valsA.length;++i)if(valsA[i]!==valsB[i])return valsA[i]-valsB[i];
+    return 0;
+  }
+  // 高牌
+  const valsA=a.map(cardValue).sort((a,b)=>b-a),valsB=b.map(cardValue).sort((a,b)=>b-a);
+  for(let i=0;i<valsA.length;++i)if(valsA[i]!==valsB[i])return valsA[i]-valsB[i];
+  return 0;
+}
+
+// ==== Beam Search极致智能分法 ====
+export function getSmartSplits(cards13, opts={style:'max'}) {
+  // 特殊牌型优先
+  const special = detectAllSpecialSplits(cards13);
+  if (special) return [special];
+
+  let splits = [];
+  let tries = 0;
+
+  // 头道剪枝（优先大对/三条/高点）
+  const headCandidates = combinations(cards13, 3)
+    .map(head => ({ head, score: evalHead(head) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, BEAM_HEAD);
+
+  for (const { head } of headCandidates) {
+    const left10 = cards13.filter(c => !head.includes(c));
+    // 尾道剪枝（优先炸弹/同花顺/大点）
+    const tailCandidates = combinations(left10, 5)
+      .map(tail => ({ tail, score: evalTail(tail) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, BEAM_TAIL);
+
+    for (const { tail } of tailCandidates) {
+      const mid = left10.filter(c => !tail.includes(c));
+      if (mid.length !== 5) continue;
+      tries++;
+      if (tries > SPLIT_ENUM_LIMIT) break;
+      if (isFoul(head, mid, tail)) continue;
+      const score = scoreSplit(head, mid, tail, opts.style);
+      splits.push({ head, middle: mid, tail, score });
+    }
+    if (tries > SPLIT_ENUM_LIMIT) break;
+  }
+
+  // 全枚举兜底
+  if (!splits.length) {
+    let fallback = [];
+    let tries2 = 0;
+    for (const head of combinations(cards13, 3)) {
+      const left1 = cards13.filter(c => !head.includes(c));
+      for (const mid of combinations(left1, 5)) {
+        tries2++; if (tries2 > SPLIT_ENUM_LIMIT * 2) break;
+        const tail = left1.filter(c => !mid.includes(c));
+        if (tail.length !== 5) continue;
+        if (isFoul(head, mid, tail)) continue;
+        fallback.push({ head, middle: mid, tail, score: scoreSplit(head, mid, tail, opts.style) });
+        if (fallback.length >= 5) break;
+      }
+      if (tries2 > SPLIT_ENUM_LIMIT * 2 || fallback.length >= 5) break;
+    }
+    if (fallback.length) splits = fallback;
+  }
+
+  if (!splits.length) return [balancedSplit(cards13)];
+  splits.sort((a, b) => b.score - a.score);
+  return splits.slice(0, 5).map(s => ({ head: s.head, middle: s.middle, tail: s.tail }));
+}
+
+export function aiSmartSplit(cards13, opts) {
+  const splits = getSmartSplits(cards13, opts);
+  return splits[0] || balancedSplit(cards13);
+}
+export function getPlayerSmartSplits(cards13, opts) {
+  return getSmartSplits(cards13, opts);
+}
+export function fillAiPlayers(playersArr) {
+  return playersArr.map(p =>
+    p.isAI && Array.isArray(p.cards13) && p.cards13.length === 13
+      ? { ...p, ...aiSmartSplit(p.cards13) }
+      : p
+  );
+}
+
+// ==== 头道/尾道评分 ====
+function evalHead(head) {
+  const t = handType(head, 'head');
+  let score = 0;
+  if (t === "三条") score += 130;
+  else if (t === "对子") score += 35;
+  else score += 3;
+  score += getTotalValue(head) * 1.15;
+  return score;
+}
+function evalTail(tail) {
+  const t = handType(tail, 'tail');
+  let score = 0;
+  if (t === "铁支") score += 240;
+  else if (t === "同花顺") score += 190;
+  else if (t === "葫芦") score += 130;
+  else if (t === "顺子") score += 85;
+  else if (t === "同花") score += 60;
+  else if (t === "三条") score += 40;
+  else if (t === "两对") score += 22;
+  else if (t === "对子") score += 7;
+  else score += 1;
+  score += getTotalValue(tail) * 1.6;
+  return score;
+}
+
+// ==== 均衡分法 ====
 function balancedSplit(cards) {
   const sorted = [...cards];
-  return {head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13)};
+  return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) };
 }
