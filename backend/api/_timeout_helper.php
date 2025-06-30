@@ -7,10 +7,17 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
     $players = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll(PDO::FETCH_ASSOC);
     $room = $pdo->query("SELECT * FROM rooms WHERE room_id='$roomId'")->fetch(PDO::FETCH_ASSOC);
 
-    // 1. 入房未准备45秒自动踢出
-    foreach ($players as $p) {
-        if (!$p['submitted'] && isset($p['join_time']) && strtotime($p['join_time']) + 45 < $now) {
-            $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
+    // ======== 踢人唯一条件：准备阶段未准备45秒自动踢出 ========
+    // 新一轮准备阶段或刚进房，未submitted玩家超过45秒踢出
+    if ($room && $room['status'] === 'waiting') {
+        // 优先用rooms表的ready_reset_time作为本轮准备阶段基准时间
+        $reset = isset($room['ready_reset_time']) ? strtotime($room['ready_reset_time']) : 0;
+        foreach ($players as $p) {
+            // 兼容老库：没有ready_reset_time时用玩家join_time
+            $baseTime = $reset ?: (isset($p['join_time']) ? strtotime($p['join_time']) : 0);
+            if (!$p['submitted'] && $baseTime && $baseTime + 45 < $now) {
+                $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
+            }
         }
     }
 
@@ -39,7 +46,7 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
         }
     }
 
-    // 3. 理牌120秒未提交自动智能分牌
+    // 3. 理牌120秒未提交自动智能分牌（不踢人）
     if ($room && $room['status'] === 'started') {
         foreach ($players as $p) {
             if (!$p['submitted'] && isset($p['deal_time']) && strtotime($p['deal_time']) + 120 < $now) {
@@ -51,10 +58,7 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
                         ->execute([json_encode($autoCards), date('Y-m-d H:i:s', $now), $p['id']]);
                 }
             }
-            // 理牌结束180秒未理牌直接踢出
-            if (!$p['submitted'] && isset($p['deal_time']) && strtotime($p['deal_time']) + 180 < $now) {
-                $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
-            }
+            // ======= 删除理牌180秒未理牌踢人的部分 =======
         }
     }
 
@@ -82,14 +86,7 @@ function handleTimeoutsAndAutoPlay($roomId, $pdo) {
         }
     }
 
-    // 5. 新一轮恢复后45秒未准备自动踢出
-    if ($room && $room['status'] === 'waiting' && isset($room['ready_reset_time'])) {
-        foreach ($players as $p) {
-            if (!$p['submitted'] && strtotime($room['ready_reset_time']) + 45 < $now) {
-                $pdo->prepare("DELETE FROM players WHERE id=?")->execute([$p['id']]);
-            }
-        }
-    }
+    // 5. 新一轮恢复后45秒未准备自动踢出（已合并到第1步，不再重复）
 }
 
 // ... 后续保留原有智能分牌算法 ...
