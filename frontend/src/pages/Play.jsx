@@ -71,7 +71,7 @@ export default function Play() {
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 准备倒计时
+  // 准备倒计时：只用服务端ready_reset_time矫正，避免抖动
   useEffect(() => {
     if (prepCountdown === null) {
       clearInterval(prepTimerRef.current);
@@ -79,11 +79,7 @@ export default function Play() {
     }
     clearInterval(prepTimerRef.current);
     prepTimerRef.current = setInterval(() => {
-      setPrepCountdown((c) => {
-        if (c > 0) return c - 1;
-        clearInterval(prepTimerRef.current);
-        return 0;
-      });
+      setPrepCountdown(c => (c > 0 ? c - 1 : 0));
     }, 1000);
     return () => clearInterval(prepTimerRef.current);
   }, [prepCountdown]);
@@ -141,7 +137,7 @@ export default function Play() {
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
 
-    // 关键：用ready_reset_time来精准倒计时
+    // --- 用ready_reset_time精准校准倒计时 ---
     if (data.status === 'waiting' && me && !me.submitted) {
       let readyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
       let now = Date.now();
@@ -158,6 +154,7 @@ export default function Play() {
       clearInterval(prepTimerRef.current);
     }
 
+    // 理牌倒计时逻辑
     if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
       if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
       setPrepCountdown(null);
@@ -457,7 +454,7 @@ export default function Play() {
                 width: cardSize?.width ?? CARD_WIDTH,
                 height: cardSize?.height ?? CARD_HEIGHT,
                 borderRadius: 5,
-                border: 'none', // === 这里强制无边框 ===
+                border: isSelected ? '2.5px solid #ff4444' : 'none',
                 boxShadow: isSelected
                   ? '0 0 16px 2px #ff4444cc'
                   : greenShadow,
@@ -549,7 +546,7 @@ export default function Play() {
           alt={card}
           className="card-img"
           style={{
-            border: 'none', // === 这里强制无边框 ===
+            border: selected.area === 'hand' && selected.cards.includes(card) ? '2.5px solid #23e67a' : 'none',
             boxShadow: selected.area === 'hand' && selected.cards.includes(card) ? '0 0 12px #23e67a88' : ''
           }}
           onClick={e => handleCardClick(card, 'hand', e)}
