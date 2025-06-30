@@ -2,7 +2,6 @@
 require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
-require_once '_timeout_helper.php';
 
 header('Content-Type: application/json');
 
@@ -17,7 +16,6 @@ if (!$user || $user['roomId'] !== $roomId) {
 }
 
 $pdo = getDb();
-handleTimeoutsAndAutoPlay($roomId, $pdo);
 
 // 查找该玩家
 $stmt = $pdo->prepare("SELECT * FROM players WHERE room_id=? AND name=?");
@@ -25,18 +23,7 @@ $stmt->execute([$roomId, $user['name']]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if ($row) {
-    // 已发牌但未理牌，自动理牌
-    if (!empty($row['cards']) && intval($row['submitted']) === 0) {
-        $cards = json_decode($row['cards'], true);
-        if (is_array($cards) && count($cards) === 13) {
-            // 用后端智能分牌算法保证一定不会倒水
-            list($head, $middle, $tail) = smartSplitNoFoul($cards);
-            $autoCards = array_merge($head, $middle, $tail);
-            $pdo->prepare("UPDATE players SET cards=?, submitted=1 WHERE id=?")
-                ->execute([json_encode($autoCards), $row['id']]);
-        }
-    }
-    // 删除玩家
+    // 直接删除玩家，不再理牌
     $stmt = $pdo->prepare("DELETE FROM players WHERE room_id=? AND name=?");
     $stmt->execute([$roomId, $user['name']]);
 }
