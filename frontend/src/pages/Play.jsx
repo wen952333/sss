@@ -128,7 +128,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 关键：防止房间不存在死循环
+  // fetchPlayers 只保留房间不存在时跳转首页逻辑
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -141,12 +141,8 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
+      // 不再检测 me 是否存在，不再跳转
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-      if (!me) {
-        alert('你已不在房间，请重新加入');
-        navigate(`/room/${roomId}`);
-        return;
-      }
       // 用ready_reset_time精准校准倒计时
       if (data.status === 'waiting' && me && !me.submitted) {
         let readyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
