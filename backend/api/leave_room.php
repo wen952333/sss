@@ -29,9 +29,8 @@ if ($row) {
     if (!empty($row['cards']) && intval($row['submitted']) === 0) {
         $cards = json_decode($row['cards'], true);
         if (is_array($cards) && count($cards) === 13) {
-            $head = array_slice($cards, 0, 3);
-            $middle = array_slice($cards, 3, 8);
-            $tail = array_slice($cards, 8, 13);
+            // 用后端智能分牌算法保证一定不会倒水
+            list($head, $middle, $tail) = smartSplitNoFoul($cards);
             $autoCards = array_merge($head, $middle, $tail);
             $pdo->prepare("UPDATE players SET cards=?, submitted=1 WHERE id=?")
                 ->execute([json_encode($autoCards), $row['id']]);
