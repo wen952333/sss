@@ -41,10 +41,10 @@ export default function TryPlay() {
       // 发牌并进入准备状态
       const deck = getShuffledDeck();
       const [myHand, ...aiHands] = dealHands(deck);
-      const mySplit = aiSmartSplit(myHand);
-      setHead(mySplit.head);
-      setMiddle(mySplit.middle);
-      setTail(mySplit.tail);
+      // 立即按3-5-5分到牌墩
+      setHead(myHand.slice(0, 3));
+      setMiddle(myHand.slice(3, 8));
+      setTail(myHand.slice(8, 13));
       setAiPlayers(fillAiPlayers([
         { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
         { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
@@ -105,6 +105,21 @@ export default function TryPlay() {
     setMsg('');
   }
 
+  function handleSmartSplit() {
+    if (!isReady) return;
+    // 用当前三墩13张牌为输入，智能分牌
+    const all = [...head, ...middle, ...tail];
+    if (all.length !== 13) {
+      setMsg('请先准备并确保已发牌');
+      return;
+    }
+    const split = aiSmartSplit(all);
+    setHead(split.head);
+    setMiddle(split.middle);
+    setTail(split.tail);
+    setMsg('已智能分牌');
+  }
+
   function handleStartCompare() {
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setMsg('请按 3-5-5 张分配');
@@ -124,23 +139,6 @@ export default function TryPlay() {
     setHasCompared(true);
     setMsg('');
     setIsReady(false);
-  }
-
-  // 新增：智能分牌按钮功能
-  function handleSmartSplit() {
-    if (!isReady) return;
-    // 合并三墩
-    const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) {
-      setMsg('请先准备并确保已发牌');
-      return;
-    }
-    // 重新智能分牌
-    const split = aiSmartSplit(all);
-    setHead(split.head);
-    setMiddle(split.middle);
-    setTail(split.tail);
-    setMsg('已智能分牌');
   }
 
   function renderPlayerSeat(name, idx, isMe) {
