@@ -129,14 +129,19 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 用服务端ready_reset_time校准倒计时
+  // 用服务端ready_reset_time校准倒计时，并检测me是否存在
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-
+    // === 关键：如果me为空，弹出提示并跳回房间页或登录页 ===
+    if (!me) {
+      alert('你已不在房间，请重新加入');
+      navigate(`/room/${roomId}`);
+      return;
+    }
     // --- 用ready_reset_time精准校准倒计时 ---
     if (data.status === 'waiting' && me && !me.submitted) {
       let readyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
