@@ -20,6 +20,19 @@ if (!$room) {
   echo json_encode(['success'=>false, 'message'=>'房间不存在']);
   exit();
 }
+
+// ==== 新增：自动清理10分钟未满4人房间玩家 ====
+if ($room['status'] === 'waiting' && !empty($room['ready_reset_time'])) {
+    $passed = time() - strtotime($room['ready_reset_time']);
+    if ($passed >= 600) { // 10分钟
+        $cnt = $pdo->query("SELECT COUNT(*) as cnt FROM players WHERE room_id='$roomId'")->fetch()['cnt'];
+        if ($cnt < 4 && $cnt > 0) {
+            $pdo->prepare("DELETE FROM players WHERE room_id=?")->execute([$roomId]);
+            $pdo->prepare("UPDATE rooms SET ready_reset_time=NULL WHERE room_id=?")->execute([$roomId]);
+        }
+    }
+}
+
 $rows = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll();
 $players = [];
 $allReady = true;
