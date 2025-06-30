@@ -12,6 +12,12 @@ $room = $pdo->query("SELECT * FROM rooms WHERE room_id='{$data['roomId']}'")->fe
 if (!$room) die(json_encode(['success'=>false,'message'=>'房间不存在']));
 if (!in_array($room['status'], ['waiting', 'started'])) die(json_encode(['success'=>false,'message'=>'房间不可加入']));
 
+// 修正：如果房间是waiting且ready_reset_time为空，则初始化为当前时间
+if ($room['status'] === 'waiting' && (empty($room['ready_reset_time']) || $room['ready_reset_time'] === '0000-00-00 00:00:00')) {
+    $pdo->prepare("UPDATE rooms SET ready_reset_time=? WHERE room_id=?")
+        ->execute([date('Y-m-d H:i:s'), $data['roomId']]);
+}
+
 try {
     $pdo->beginTransaction();
 
@@ -32,7 +38,7 @@ try {
         die(json_encode(['success'=>false,'message'=>'房间已满']));
     }
 
-    // 关键：插入 join_time
+    // 插入玩家，带join_time
     $stmt = $pdo->prepare("INSERT INTO players (room_id, name, is_owner, join_time) VALUES (?, ?, 0, ?)");
     $stmt->execute([$data['roomId'], $data['name'], date('Y-m-d H:i:s')]);
     $pdo->commit();
