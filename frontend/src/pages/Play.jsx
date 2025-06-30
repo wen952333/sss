@@ -153,7 +153,8 @@ export default function Play() {
 
     // 处理准备倒计时
     if (data.status === 'waiting' && me && !me.submitted) {
-      if (prepCountdown === null || prepCountdown === 0) setPrepCountdown(45);
+      // -------- 修正点：只在null时设置45 --------
+      if (prepCountdown === null) setPrepCountdown(45);
       setDealCountdown(null);
     } else {
       setPrepCountdown(null);
