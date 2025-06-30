@@ -2,7 +2,6 @@
 require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
-require_once '_timeout_helper.php';
 ini_set('display_errors', 0);
 error_reporting(0);
 header('Content-Type: application/json');
@@ -15,7 +14,6 @@ $user = verifyToken($token);
 if (!$user || $user['roomId'] !== $roomId) die(json_encode(['success'=>false, 'code'=>401]));
 
 $pdo = getDb();
-handleTimeoutsAndAutoPlay($roomId, $pdo);
 
 $room = $pdo->query("SELECT * FROM rooms WHERE room_id='$roomId'")->fetch();
 if (!$room) {
