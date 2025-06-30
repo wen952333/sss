@@ -2,7 +2,6 @@
 require_once '../utils/cors.php';
 require_once '../db/db.php';
 require_once '../utils/auth.php';
-require_once '_timeout_helper.php';
 header('Content-Type: application/json');
 
 $roomId = $_GET['roomId'];
@@ -11,7 +10,6 @@ $user = verifyToken($token);
 if (!$user || $user['roomId'] !== $roomId) die(json_encode(['success'=>false, 'code'=>401]));
 
 $pdo = getDb();
-handleTimeoutsAndAutoPlay($roomId, $pdo);
 
 $row = $pdo->query("SELECT * FROM players WHERE room_id='$roomId' AND name='{$user['name']}'")->fetch();
 $cards = json_decode($row['cards'], true);
