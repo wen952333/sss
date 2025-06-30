@@ -124,6 +124,7 @@ export default function Play() {
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+    // ----核心：未满4人时也能点准备----
     if (showResult) {
       setIsReady(true);
     } else if (data.status === 'waiting' && me && !me.submitted) {
