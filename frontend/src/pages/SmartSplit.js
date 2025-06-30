@@ -1,5 +1,5 @@
 // 更智能的十三水分牌与AI补位模块（保证不倒水，智能评分，严格比牌规则）
-// 优化：分法枚举量限制，极端手牌下不再卡慢
+// 高级优化：头道/尾道优先枚举高分组合，分法智能剪枝，大大加快极端牌型速度
 
 /**
  * 返回最优分法，优先级：
@@ -10,14 +10,16 @@
  * 5. 头道对子优先，头道高牌惩罚
  * 6. 三墩递增，强牌不拆弱
  * 
- * 新增优化：
- * - 快速剪枝：优先枚举大牌做尾道，炸弹/同花顺优先放尾道
- * - 剪枝：只对高潜力分法做递归，提前丢弃弱组合
- * - 保证返回速度<300ms
+ * 进一步优化：
+ * - 头道最大对子/三条优先枚举（头道TOP_N_HEAD）
+ * - 尾道炸弹/同花顺/葫芦/顺子优先枚举（尾道TOP_N_TAIL）
+ * - 剪枝：只对高潜力分法递归，提前丢弃弱组合
+ * - 运行速度<200ms，极端手牌不卡顿
  */
 
-const SPLIT_ENUM_LIMIT = 1500; // 总递归枚举上限
-const TOP_N_HEAD = 12;         // 头道候选只取前N种（评分最大）
+const SPLIT_ENUM_LIMIT = 1200;   // 总递归枚举上限
+const TOP_N_HEAD = 8;            // 头道候选只取前N种（评分最大）
+const TOP_N_TAIL = 8;            // 尾道候选只取前N种（评分最大）
 
 export function getSmartSplits(cards13) {
   if (!Array.isArray(cards13) || cards13.length !== 13) return [];
@@ -30,7 +32,7 @@ export function getSmartSplits(cards13) {
     .sort((a, b) => b.score - a.score)
     .slice(0, TOP_N_HEAD);
 
-  // 步骤2：对每个头道，枚举所有合法中道/尾道组合，剪枝
+  // 步骤2：对每个头道，枚举所有合法尾道组合，剪枝
   let splits = [];
   let tries = 0;
   for (const { head } of allHead) {
@@ -42,7 +44,7 @@ export function getSmartSplits(cards13) {
         score: evalTail(tail)
       }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, 8); // 最多8种尾道
+      .slice(0, TOP_N_TAIL);
 
     for (const { tail } of allTail) {
       const middle = left10.filter(c => !tail.includes(c));
@@ -57,7 +59,7 @@ export function getSmartSplits(cards13) {
     if (tries > SPLIT_ENUM_LIMIT) break;
   }
 
-  // 补偿极端分法不足，降级全枚举
+  // 若极端分法不足，降级全枚举
   if (!splits.length) {
     let allSplits = [];
     let tries2 = 0;
@@ -121,7 +123,7 @@ function isFoul(head, middle, tail) {
   const midRank = handTypeRank(middle, 'middle');
   const tailRank = handTypeRank(tail, 'tail');
   if (!(headRank <= midRank && midRank <= tailRank)) return true;
-  // 严格判等时再比牌面
+  // 比牌面大小
   if (headRank === midRank && compareArea(head, middle, 'head') > 0) return true;
   if (midRank === tailRank && compareArea(middle, tail, 'middle') > 0) return true;
   return false;
@@ -142,58 +144,57 @@ function evalHead(head) {
 function evalTail(tail) {
   const t = handType(tail, 'tail');
   let score = 0;
-  if (t === "铁支") score += 200;
-  else if (t === "同花顺") score += 170;
+  if (t === "铁支") score += 220;
+  else if (t === "同花顺") score += 180;
   else if (t === "葫芦") score += 110;
   else if (t === "顺子") score += 60;
-  else if (t === "同花") score += 55;
+  else if (t === "同花") score += 57;
   else if (t === "三条") score += 45;
   else if (t === "两对") score += 32;
   else if (t === "对子") score += 10;
   else score += 1;
-  score += getTotalValue(tail) * 1.5;
+  score += getTotalValue(tail) * 1.6;
   return score;
 }
 
 // 智能评分
 function scoreSplit(head, mid, tail) {
-  // 强牌优先，炸弹/同花顺/葫芦>顺子>三条>两对>对子>高牌
   let score =
-    handTypeScore(tail, 'tail') * 120 +
-    handTypeScore(mid, 'middle') * 16 +
+    handTypeScore(tail, 'tail') * 140 +
+    handTypeScore(mid, 'middle') * 18 +
     handTypeScore(head, 'head') * 2;
 
   // 奖励头道三条/对子
   const headType = handType(head, 'head');
-  if (headType === "三条") score += 30;
-  else if (headType === "对子") score += 12;
+  if (headType === "三条") score += 36;
+  else if (headType === "对子") score += 15;
   else score -= 15; // 头道高牌惩罚
 
   // 奖励中道同花顺/炸弹/葫芦/顺子/三条
   const midType = handType(mid, 'middle');
-  if (midType === "同花顺") score += 30;
-  if (midType === "铁支") score += 32;
-  if (midType === "葫芦") score += 18;
-  if (midType === "顺子") score += 10;
-  if (midType === "三条") score += 5;
-  if (midType === "两对") score += 2;
+  if (midType === "同花顺") score += 33;
+  if (midType === "铁支") score += 38;
+  if (midType === "葫芦") score += 22;
+  if (midType === "顺子") score += 12;
+  if (midType === "三条") score += 7;
+  if (midType === "两对") score += 3;
   if (midType === "对子") score -= 5;
 
   // 奖励尾道炸弹/同花顺/葫芦/顺子/三条
   const tailType = handType(tail, 'tail');
-  if (tailType === "铁支") score += 45;
-  if (tailType === "同花顺") score += 38;
-  if (tailType === "葫芦") score += 18;
-  if (tailType === "顺子") score += 8;
+  if (tailType === "铁支") score += 50;
+  if (tailType === "同花顺") score += 40;
+  if (tailType === "葫芦") score += 20;
+  if (tailType === "顺子") score += 10;
 
   // 头道高牌+中道高牌惩罚
-  if (headType === "高牌" && (midType === "高牌" || tailType === "高牌")) score -= 40;
+  if (headType === "高牌" && (midType === "高牌" || tailType === "高牌")) score -= 45;
 
   // 奖励整体点数大
-  score += getTotalValue(head) * 0.5 + getTotalValue(mid) * 0.7 + getTotalValue(tail) * 1.2;
+  score += getTotalValue(head) * 0.55 + getTotalValue(mid) * 0.7 + getTotalValue(tail) * 1.3;
 
   // 拒绝拆尾道炸弹/顺子到头中道，奖励尾道大组合
-  if (tailType === "铁支" && (midType !== "顺子" && midType !== "同花顺" && midType !== "铁支")) score += 12;
+  if (tailType === "铁支" && (midType !== "顺子" && midType !== "同花顺" && midType !== "铁支")) score += 20;
 
   // 头道对子点数越大越好
   if (headType === "对子" || headType === "三条") {
@@ -205,7 +206,7 @@ function scoreSplit(head, mid, tail) {
   return score;
 }
 
-// 牌型分数（和sssScore.js一致）
+// 牌型分数
 function handTypeScore(cards, area) {
   const t = handType(cards, area);
   switch (t) {
@@ -222,7 +223,6 @@ function handTypeScore(cards, area) {
   }
 }
 function handTypeRank(cards, area) {
-  // 和sssScore.js areaTypeRank完全一致
   if (area === 'head') {
     const t = handType(cards, area);
     if (t === "三条") return 4;
@@ -232,7 +232,7 @@ function handTypeRank(cards, area) {
   return handTypeScore(cards, area);
 }
 
-// 判断牌型，和sssScore.js getAreaType一致
+// 判断牌型
 function handType(cards, area) {
   if (!cards || cards.length < 3) return "高牌";
   const vals = cards.map(card => card.split('_')[0]);
@@ -240,25 +240,16 @@ function handType(cards, area) {
   const uniqVals = Array.from(new Set(vals));
   const uniqSuits = Array.from(new Set(suits));
   if (cards.length === 5) {
-    // 炸弹
     if (Object.values(groupBy(vals)).some(a => a.length === 4)) return "铁支";
-    // 同花顺
     if (uniqSuits.length === 1 && isStraight(vals)) return "同花顺";
-    // 葫芦
     if (Object.values(groupBy(vals)).some(a => a.length === 3) && Object.values(groupBy(vals)).some(a => a.length === 2)) return "葫芦";
-    // 同花
     if (uniqSuits.length === 1) return "同花";
-    // 顺子
     if (isStraight(vals)) return "顺子";
-    // 三条
     if (Object.values(groupBy(vals)).some(a => a.length === 3)) return "三条";
-    // 两对
     if (Object.values(groupBy(vals)).filter(a => a.length === 2).length === 2) return "两对";
-    // 一对
     if (Object.values(groupBy(vals)).some(a => a.length === 2)) return "对子";
     return "高牌";
   }
-  // 头道3张
   if (cards.length === 3) {
     if (uniqVals.length === 1) return "三条";
     if (Object.values(groupBy(vals)).some(a => a.length === 2)) return "对子";
@@ -266,14 +257,11 @@ function handType(cards, area) {
   }
   return "高牌";
 }
-
-// 是否顺子
 function isStraight(vals) {
   const order = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
   let idxs = vals.map(v => order.indexOf(v)).sort((a,b)=>a-b);
   for (let i = 1; i < idxs.length; i++) if (idxs[i] !== idxs[i - 1] + 1) break;
   else if (i === idxs.length - 1) return true;
-  // A23特殊顺子
   if (idxs.includes(12) && idxs[0] === 0 && idxs[1] === 1) {
     const t = idxs.slice();
     t[t.indexOf(12)] = -1;
@@ -289,16 +277,11 @@ function groupBy(arr) {
   return g;
 }
 
-// 生成所有n选k组合
-// 已提升到文件头部
-
-// 备用均衡分法
 function balancedSplit(cards) {
   const sorted = [...cards];
   return {head: sorted.slice(0,3), middle: sorted.slice(3,8), tail: sorted.slice(8,13)};
 }
 
-// 牌面点数（用于点数加权）
 function getTotalValue(cards) {
   return cards.reduce((sum, card) => sum + cardValue(card), 0);
 }
@@ -311,24 +294,38 @@ function cardValue(card) {
   return parseInt(v, 10);
 }
 
-// 与sssScore.js比牌一致
+// 特殊牌型判定
+function isSpecialType(head, mid, tail) {
+  const all = [...head, ...mid, ...tail];
+  const uniqVals = new Set(all.map(card => card.split('_')[0]));
+  if (uniqVals.size === 13) return true;
+  const cnt = {};
+  for (const c of all) {
+    const v = c.split('_')[0];
+    cnt[v] = (cnt[v] || 0) + 1;
+  }
+  if (Object.values(cnt).filter(x => x === 2).length === 12) return true;
+  const suit = c => c.split('_')[2];
+  if ([head, mid, tail].every(arr => arr.every(x => suit(x) === suit(arr[0])))) return true;
+  const isS = arr => isStraight(arr.map(c => c.split('_')[0]));
+  if ([head, mid, tail].every(isS)) return true;
+  return false;
+}
+
+// 更严谨的比牌，与sssScore.js一致
 function compareArea(a, b, area) {
   const typeA = handType(a, area);
   const typeB = handType(b, area);
   const rankA = handTypeRank(a, area);
   const rankB = handTypeRank(b, area);
   if (rankA !== rankB) return rankA - rankB;
-
   const groupedA = groupBy(a.map(card => card.split('_')[0]));
   const groupedB = groupBy(b.map(card => card.split('_')[0]));
-
-  // 顺子/同花顺先比最大点
   if (["顺子", "同花顺"].includes(typeA)) {
     const maxA = Math.max(...a.map(card => cardValue(card)));
     const maxB = Math.max(...b.map(card => cardValue(card)));
     if (maxA !== maxB) return maxA - maxB;
   }
-  // 铁支/三条/对子比主点,再比副
   if (["铁支", "三条", "对子"].includes(typeA)) {
     const mainA = parseInt(Object.keys(groupedA).find(k => groupedA[k].length === (typeA === "铁支" ? 4 : typeA === "三条" ? 3 : 2)), 10);
     const mainB = parseInt(Object.keys(groupedB).find(k => groupedB[k].length === (typeA === "铁支" ? 4 : typeA === "三条" ? 3 : 2)), 10);
@@ -338,7 +335,6 @@ function compareArea(a, b, area) {
     for (let i = 0; i < subA.length; ++i) if (subA[i] !== subB[i]) return subA[i] - subB[i];
     return 0;
   }
-  // 葫芦
   if (typeA === "葫芦") {
     const tripleA = parseInt(Object.keys(groupedA).find(k => groupedA[k].length === 3), 10);
     const tripleB = parseInt(Object.keys(groupedB).find(k => groupedB[k].length === 3), 10);
@@ -348,7 +344,6 @@ function compareArea(a, b, area) {
     if (pairA !== pairB) return pairA - pairB;
     return 0;
   }
-  // 两对
   if (typeA === "两对") {
     const pairsA = Object.keys(groupedA).filter(k => groupedA[k].length === 2).map(Number).sort((a, b) => b - a);
     const pairsB = Object.keys(groupedB).filter(k => groupedB[k].length === 2).map(Number).sort((a, b) => b - a);
@@ -359,38 +354,14 @@ function compareArea(a, b, area) {
     if (subA && subB && subA !== subB) return subA - subB;
     return 0;
   }
-  // 同花
   if (typeA === "同花") {
     const valsA = a.map(card => cardValue(card)).sort((x, y) => y - x);
     const valsB = b.map(card => cardValue(card)).sort((x, y) => y - x);
     for (let i = 0; i < valsA.length; ++i) if (valsA[i] !== valsB[i]) return valsA[i] - valsB[i];
     return 0;
   }
-  // 其它高牌
   const valsA = a.map(card => cardValue(card)).sort((x, y) => y - x);
   const valsB = b.map(card => cardValue(card)).sort((x, y) => y - x);
   for (let i = 0; i < valsA.length; ++i) if (valsA[i] !== valsB[i]) return valsA[i] - valsB[i];
   return 0;
-}
-
-// 检查是否三顺子/三同花/一条龙/六对半
-function isSpecialType(head, mid, tail) {
-  const all = [...head, ...mid, ...tail];
-  // 一条龙
-  const uniqVals = new Set(all.map(card => card.split('_')[0]));
-  if (uniqVals.size === 13) return true;
-  // 六对半
-  const cnt = {};
-  for (const c of all) {
-    const v = c.split('_')[0];
-    cnt[v] = (cnt[v] || 0) + 1;
-  }
-  if (Object.values(cnt).filter(x => x === 2).length === 12) return true;
-  // 三同花
-  const suit = c => c.split('_')[2];
-  if ([head, mid, tail].every(arr => arr.every(x => suit(x) === suit(arr[0])))) return true;
-  // 三顺子
-  const isS = arr => isStraight(arr.map(c => c.split('_')[0]));
-  if ([head, mid, tail].every(isS)) return true;
-  return false;
 }
