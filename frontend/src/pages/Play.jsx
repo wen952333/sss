@@ -26,12 +26,16 @@ export default function Play() {
   const [splitIndex, setSplitIndex] = useState(0);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
-  const [countdown, setCountdown] = useState(null);
+  const [prepCountdown, setPrepCountdown] = useState(null);     // 新增：准备倒计时
+  const [dealCountdown, setDealCountdown] = useState(null);     // 新增：理牌倒计时
   const [hasShownResult, setHasShownResult] = useState(false);
 
   const timerRef = useRef(null);
+  const prepTimerRef = useRef(null);
+  const dealTimerRef = useRef(null);
   const navigate = useNavigate();
 
+  // fetch工具
   async function apiFetch(url, opts) {
     try {
       const res = await fetch(url, opts);
@@ -44,6 +48,7 @@ export default function Play() {
     }
   }
 
+  // 登录检测
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -55,37 +60,61 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
+  // 房间信息定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId, showResult]);
 
+  // 我的牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
+  // 计时器：准备倒计时
   useEffect(() => {
-    if (myCards.length === 13 && !submitted) {
-      setCountdown(180);
-      clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setCountdown(c => {
-          if (c === 1) {
-            handleSmartSplit();
-            handleStartCompare();
-            clearInterval(timerRef.current);
-            return 0;
-          }
-          return c - 1;
-        });
-      }, 1000);
+    if (prepCountdown === null) {
+      clearInterval(prepTimerRef.current);
+      return;
     }
-    return () => clearInterval(timerRef.current);
-  }, [myCards, submitted]);
+    clearInterval(prepTimerRef.current);
+    prepTimerRef.current = setInterval(() => {
+      setPrepCountdown((c) => {
+        if (c === 1) {
+          clearInterval(prepTimerRef.current);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(prepTimerRef.current);
+  }, [prepCountdown]);
 
+  // 计时器：理牌倒计时
+  useEffect(() => {
+    if (dealCountdown === null) {
+      clearInterval(dealTimerRef.current);
+      return;
+    }
+    clearInterval(dealTimerRef.current);
+    dealTimerRef.current = setInterval(() => {
+      setDealCountdown((c) => {
+        if (c === 1) {
+          handleSmartSplit();
+          handleStartCompare();
+          clearInterval(dealTimerRef.current);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(dealTimerRef.current);
+  }, [dealCountdown]);
+
+  // 比牌弹窗弹出时，准备按钮恢复可点
   useEffect(() => {
     if (showResult) {
       setIsReady(true);
@@ -94,6 +123,7 @@ export default function Play() {
     }
   }, [showResult]);
 
+  // 新牌局重置比牌弹窗
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       setHasShownResult(false);
@@ -101,6 +131,7 @@ export default function Play() {
     }
   }, [myCards, submitted]);
 
+  // 比牌结果弹窗（只弹一次）
   useEffect(() => {
     if (!submitted) return;
     if (allPlayed && players.length === 4 && !hasShownResult) {
@@ -109,12 +140,32 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
+  // 重点：准备按钮逻辑修正 + 计时逻辑修正
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
     setPlayers(data.players);
     setRoomStatus(data.status);
     const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+
+    // 处理准备倒计时
+    if (data.status === 'waiting' && me && !me.submitted) {
+      if (prepCountdown === null || prepCountdown === 0) setPrepCountdown(45);
+      setDealCountdown(null);
+    } else {
+      setPrepCountdown(null);
+      clearInterval(prepTimerRef.current);
+    }
+
+    // 处理理牌倒计时
+    if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
+      if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
+      setPrepCountdown(null);
+    } else if (!(data.status === 'started' && me && !me.submitted)) {
+      setDealCountdown(null);
+      clearInterval(dealTimerRef.current);
+    }
+
     if (showResult) {
       setIsReady(true);
     } else if (data.status === 'waiting' && me && !me.submitted) {
@@ -135,6 +186,7 @@ export default function Play() {
     setMyPoints(data.user.points || 0);
   }
 
+  // 只要 cards 有 13 张都进入理牌区
   async function fetchMyCards() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
@@ -193,8 +245,11 @@ export default function Play() {
       body: JSON.stringify({ roomId, token }),
     });
     setIsReady(false);
+    setPrepCountdown(null);
+    clearInterval(prepTimerRef.current);
   }
 
+  // 智能分牌：调用后端
   async function handleSmartSplit() {
     const all = [...myCards, ...head, ...middle, ...tail];
     if (all.length !== 13) return;
@@ -269,6 +324,8 @@ export default function Play() {
     if (data.success) {
       setSubmitted(true);
       setSubmitMsg('已提交，等待其他玩家...');
+      setDealCountdown(null);
+      clearInterval(dealTimerRef.current);
     } else {
       setSubmitMsg('提交失败，请重试');
     }
@@ -276,17 +333,47 @@ export default function Play() {
 
   const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
 
+  // === 新增：倒计时UI ===
   function renderCountdown() {
-    if (countdown !== null && !submitted && countdown > 0) {
+    // 优先理牌倒计时
+    if (dealCountdown !== null && !submitted && dealCountdown > 0) {
       return (
         <div style={{
-          color: countdown <= 10 ? 'red' : '#23e67a',
+          position: 'absolute',
+          left: '50%',
+          top: 18,
+          transform: 'translateX(-50%)',
+          zIndex: 1001,
+          background: '#fff',
+          color: '#185a30',
           fontWeight: 700,
           fontSize: 18,
-          textAlign: 'center',
-          marginBottom: 10
+          borderRadius: 8,
+          padding: '6px 16px',
+          boxShadow: '0 2px 10px #23e67a33'
         }}>
-          理牌倒计时：{countdown} 秒{countdown <= 10 ? '（即将自动理牌）' : ''}
+          理牌倒计时：<span style={{ color: dealCountdown <= 10 ? 'red' : '#185a30' }}>{dealCountdown}</span> 秒
+        </div>
+      );
+    }
+    // 准备倒计时
+    if (prepCountdown !== null && prepCountdown > 0) {
+      return (
+        <div style={{
+          position: 'absolute',
+          left: '50%',
+          top: 18,
+          transform: 'translateX(-50%)',
+          zIndex: 1001,
+          background: '#fff',
+          color: '#185a30',
+          fontWeight: 700,
+          fontSize: 18,
+          borderRadius: 8,
+          padding: '6px 16px',
+          boxShadow: '0 2px 10px #23e67a33'
+        }}>
+          准备倒计时：<span style={{ color: prepCountdown <= 10 ? 'red' : '#185a30' }}>{prepCountdown}</span> 秒
         </div>
       );
     }
@@ -519,15 +606,7 @@ export default function Play() {
           ))}
           <button style={{
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
-          }} onClick={async () => {
-            setShowResult(false);
-            // 主动通知后端自己已关闭比牌弹窗
-            await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roomId, token: localStorage.getItem('token') }),
-            });
-          }}>×</button>
+          }} onClick={() => setShowResult(false)}>×</button>
         </div>
       </div>
     );
@@ -554,8 +633,8 @@ export default function Play() {
         minHeight: 650,
         boxSizing: 'border-box'
       }}>
-        {/* 头部：退出房间+积分 */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+        {/* 头部：退出房间+积分+倒计时 */}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14, position: 'relative', minHeight: 42 }}>
           <button
             style={{
               background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
@@ -573,8 +652,11 @@ export default function Play() {
           >
             &lt; 退出房间
           </button>
+          {/* 倒计时UI：绝对居中 */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            {renderCountdown()}
+          </div>
           <div style={{
-            flex: 1,
             textAlign: 'right',
             color: '#23e67a',
             fontWeight: 900,
@@ -587,7 +669,6 @@ export default function Play() {
             积分：{myPoints}
           </div>
         </div>
-        {renderCountdown()}
         {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
           {players.map((p, idx) =>
