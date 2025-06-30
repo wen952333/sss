@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { aiSmartSplit, fillAiPlayers } from './SmartSplit';
+import { aiSmartSplit, getPlayerSmartSplits } from './SmartSplit';
 import { calcSSSAllScores } from './sssScore';
 import { getShuffledDeck, dealHands } from './DealCards';
 import './Play.css';
-
-// 加载倒水判定方法
 import { isFoul } from './sssScore';
 
 const AI_NAMES = ['小明', '小红', '小刚'];
@@ -22,34 +20,33 @@ export default function TryPlay() {
   const [tail, setTail] = useState([]);
   const [selected, setSelected] = useState({ area: '', cards: [] });
   const [msg, setMsg] = useState('');
+  // aiPlayers增加processed字段
   const [aiPlayers, setAiPlayers] = useState([
-    { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
-    { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+    { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
+    { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
+    { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
   ]);
   const [showResult, setShowResult] = useState(false);
   const [scores, setScores] = useState([0,0,0,0]);
   const [isReady, setIsReady] = useState(false);
   const [hasCompared, setHasCompared] = useState(false);
-  const [foulStates, setFoulStates] = useState([false, false, false, false]); // <--- 新增
+  const [foulStates, setFoulStates] = useState([false, false, false, false]);
 
-  // 绿色暗影主色
-  const greenShadow = "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a";
+  // 我的智能分法缓存
+  const [mySplits, setMySplits] = useState([]);
+  const [splitIndex, setSplitIndex] = useState(0);
+
+  // AI理牌进度
+  const [aiProcessed, setAiProcessed] = useState([false, false, false]);
 
   function handleReady() {
     if (!isReady) {
-      // 发牌并进入准备状态
+      // 发牌
       const deck = getShuffledDeck();
       const [myHand, ...aiHands] = dealHands(deck);
-      // 立即按3-5-5分到牌墩
       setHead(myHand.slice(0, 3));
       setMiddle(myHand.slice(3, 8));
       setTail(myHand.slice(8, 13));
-      setAiPlayers(fillAiPlayers([
-        { name: AI_NAMES[0], isAI: true, cards13: aiHands[0] },
-        { name: AI_NAMES[1], isAI: true, cards13: aiHands[1] },
-        { name: AI_NAMES[2], isAI: true, cards13: aiHands[2] },
-      ]));
       setIsReady(true);
       setHasCompared(false);
       setMsg('');
@@ -57,13 +54,43 @@ export default function TryPlay() {
       setScores([0,0,0,0]);
       setSelected({ area: '', cards: [] });
       setFoulStates([false, false, false, false]);
+      setMySplits([]); setSplitIndex(0);
+      setAiProcessed([false, false, false]);
+      setAiPlayers([
+        { name: AI_NAMES[0], isAI: true, cards13: aiHands[0], head: aiHands[0].slice(0,3), middle: aiHands[0].slice(3,8), tail: aiHands[0].slice(8,13), processed: false },
+        { name: AI_NAMES[1], isAI: true, cards13: aiHands[1], head: aiHands[1].slice(0,3), middle: aiHands[1].slice(3,8), tail: aiHands[1].slice(8,13), processed: false },
+        { name: AI_NAMES[2], isAI: true, cards13: aiHands[2], head: aiHands[2].slice(0,3), middle: aiHands[2].slice(3,8), tail: aiHands[2].slice(8,13), processed: false },
+      ]);
+      // 只缓存我的5分法
+      setTimeout(() => {
+        const splits = getPlayerSmartSplits(myHand);
+        setMySplits(splits);
+        setSplitIndex(0);
+      }, 0);
+
+      // 依次异步处理AI理牌
+      aiHands.forEach((hand, idx) => {
+        setTimeout(() => {
+          setAiPlayers(old => {
+            const newAis = [...old];
+            const split = aiSmartSplit(hand);
+            newAis[idx] = { ...newAis[idx], ...split, processed: true };
+            return newAis;
+          });
+          setAiProcessed(proc => {
+            const arr = [...proc];
+            arr[idx] = true;
+            return arr;
+          });
+        }, 400 + idx * 350); // 小明最快，后两个延迟处理
+      });
     } else {
-      // 取消准备，清空手牌和AI
+      // 取消准备
       setHead([]); setMiddle([]); setTail([]);
       setAiPlayers([
-        { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [] },
-        { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [] },
-        { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [] },
+        { name: AI_NAMES[0], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
+        { name: AI_NAMES[1], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
+        { name: AI_NAMES[2], isAI: true, cards13: [], head: [], middle: [], tail: [], processed: false },
       ]);
       setIsReady(false);
       setHasCompared(false);
@@ -72,6 +99,8 @@ export default function TryPlay() {
       setScores([0,0,0,0]);
       setSelected({ area: '', cards: [] });
       setFoulStates([false, false, false, false]);
+      setMySplits([]); setSplitIndex(0);
+      setAiProcessed([false, false, false]);
     }
   }
 
@@ -106,21 +135,24 @@ export default function TryPlay() {
   }
 
   function handleSmartSplit() {
-    if (!isReady) return;
-    // 用当前三墩13张牌为输入，智能分牌
-    const all = [...head, ...middle, ...tail];
-    if (all.length !== 13) {
-      setMsg('请先准备并确保已发牌');
+    if (!mySplits.length) {
+      setMsg('智能分牌计算中，请稍候…');
       return;
     }
-    const split = aiSmartSplit(all);
+    const nextIdx = (splitIndex + 1) % mySplits.length;
+    setSplitIndex(nextIdx);
+    const split = mySplits[nextIdx];
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
-    setMsg('已智能分牌');
+    setMsg(`已切换智能分牌方案 ${nextIdx + 1}/${mySplits.length}`);
   }
 
   function handleStartCompare() {
+    if (aiProcessed.some(p => !p)) {
+      setMsg('请等待所有玩家提交理牌');
+      return;
+    }
     if (head.length !== 3 || middle.length !== 5 || tail.length !== 5) {
       setMsg('请按 3-5-5 张分配');
       return;
@@ -142,6 +174,8 @@ export default function TryPlay() {
   }
 
   function renderPlayerSeat(name, idx, isMe) {
+    // 绿色表示理牌完成
+    const aiDone = idx > 0 ? aiProcessed[idx - 1] : false;
     return (
       <div
         key={name}
@@ -152,19 +186,20 @@ export default function TryPlay() {
           marginRight: 8,
           width: '22%',
           minWidth: 70,
-          color: isMe ? '#23e67a' : '#fff',
+          color: isMe ? '#23e67a' : (aiDone ? '#23e67a' : '#fff'),
           background: isMe ? '#1c6e41' : '#2a556e',
           textAlign: 'center',
           padding: '12px 0',
           fontWeight: 700,
           fontSize: 17,
-          boxShadow: greenShadow,
-          boxSizing: 'border-box'
+          boxShadow: "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a",
+          boxSizing: 'border-box',
+          transition: 'color .28s'
         }}
       >
         <div>{name}</div>
         <div style={{ marginTop: 4, fontSize: 13, fontWeight: 400 }}>
-          {isMe ? '你' : 'AI'}
+          {isMe ? '你' : (aiDone ? '已理牌' : '理牌中…')}
         </div>
       </div>
     );
@@ -238,7 +273,7 @@ export default function TryPlay() {
           height: PAI_DUN_HEIGHT,
           marginBottom: 20,
           position: 'relative',
-          boxShadow: greenShadow,
+          boxShadow: "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a",
           display: 'flex',
           alignItems: 'center',
           boxSizing: 'border-box',
@@ -362,7 +397,7 @@ export default function TryPlay() {
         margin: '30px auto',
         background: '#185a30',
         borderRadius: 22,
-        boxShadow: greenShadow,
+        boxShadow: "0 4px 22px #23e67a44, 0 1.5px 5px #1a462a6a",
         padding: 16,
         border: 'none',
         position: 'relative',
@@ -464,12 +499,12 @@ export default function TryPlay() {
               borderRadius: 10,
               padding: '13px 0',
               fontSize: 18,
-              cursor: isReady ? 'pointer' : 'not-allowed',
+              cursor: isReady && aiProcessed.every(x=>x) ? 'pointer' : 'not-allowed',
               boxShadow: isReady ? '0 2px 9px #ffb14d55' : 'none',
               transition: 'background 0.16s'
             }}
             onClick={isReady ? handleStartCompare : undefined}
-            disabled={!isReady}
+            disabled={!isReady || aiProcessed.some(p=>!p)}
           >开始比牌</button>
         </div>
         <div style={{ color: '#c3e1d1', textAlign: 'center', fontSize: 16, marginTop: 8, minHeight: 24 }}>
