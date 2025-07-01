@@ -5,7 +5,8 @@ require_once '../utils/auth.php';
 header('Content-Type: application/json');
 
 /**
- * 2024-06-29 十三水后端结算，完全同步前端 sssScore.js 规则
+ * 2024-07-01 十三水后端结算，修正版比牌规则
+ * 同花顺/同花先比最大花色，花色相同再看两手牌最大单张归属，谁有最大谁赢
  */
 
 $data = json_decode(file_get_contents('php://input'), true);
@@ -17,22 +18,17 @@ $user = verifyToken($token);
 if (!$user || $user['roomId'] !== $roomId) die(json_encode(['success'=>false, 'code'=>401]));
 
 $pdo = getDb();
-// 写入理牌提交时间
 $pdo->prepare("UPDATE players SET cards=?, submitted=1, finish_time=? WHERE room_id=? AND name=?")
     ->execute([json_encode($cards), date('Y-m-d H:i:s'), $roomId, $user['name']]);
 
-// 检查是否全部玩家都提交，则结算
 $all = $pdo->query("SELECT * FROM players WHERE room_id='$roomId'")->fetchAll();
 $allSubmitted = true;
 foreach ($all as $p) if (!$p['submitted']) $allSubmitted = false;
 
 if ($allSubmitted) {
-  // 查房间类型和底分
   $room = $pdo->query("SELECT type, score FROM rooms WHERE room_id='$roomId'")->fetch();
-  $roomType = $room['type']; // 'normal' or 'double'
-  $roomScore = intval($room['score']); // 1,2,5,10
-
-  // 组装玩家数据
+  $roomType = $room['type'];
+  $roomScore = intval($room['score']);
   $playerData = [];
   foreach ($all as $p) {
     $c = json_decode($p['cards'], true);
@@ -58,7 +54,7 @@ if ($allSubmitted) {
   }
   $N = count($playerData);
 
-  // 1. 先普通计分
+  // 1. 普通计分
   for ($i = 0; $i < $N; ++$i) {
     for ($j = 0; $j < $N; ++$j) {
       if ($i === $j) continue;
@@ -184,7 +180,7 @@ if ($allSubmitted) {
 
 echo json_encode(['success'=>true]);
 
-// ===== 计分&牌型&倒水判定函数 =====
+// ===== 工具函数区 =====
 
 function suitWeight($s) {
   switch($s) {
@@ -284,7 +280,6 @@ function calculateTotalBaseScore($p) {
   if (isset($p['special']) && $p['special']) return specialScore($p['special']);
   return getAreaScore($p['head'], 'head') + getAreaScore($p['middle'], 'middle') + getAreaScore($p['tail'], 'tail');
 }
-// ----------- 核心倒水判定严格同步前端 -----------
 function isFoul($head, $middle, $tail) {
   $headRank = areaTypeRank(getAreaType($head, 'head'), 'head');
   $midRank = areaTypeRank(getAreaType($middle, 'middle'), 'middle');
@@ -298,20 +293,43 @@ function getSpecialType($head, $middle, $tail, $all) {
   $midType = getAreaType($middle, 'middle');
   $tailType = getAreaType($tail, 'tail');
   if (in_array($midType, ['铁支', '同花顺']) || in_array($tailType, ['铁支', '同花顺'])) return null;
-  // 一条龙
   $uniqVals = [];
   foreach ($all as $c) $uniqVals[explode('_', $c)[0]] = 1;
   if (count($uniqVals) === 13) return '一条龙';
-  // 六对半
   $cnt = [];
   foreach ($all as $c) $cnt[explode('_', $c)[0]] = ($cnt[explode('_', $c)[0]]??0)+1;
   if (count(array_keys($cnt,2))==6 && !in_array(3,$cnt) && !in_array(4,$cnt)) return '六对半';
-  // 三同花
   if (isFlush($head) && isFlush($middle) && isFlush($tail)) return '三同花';
-  // 三顺子
   if (isStraight($head) && isStraight($middle) && isStraight($tail)) return '三顺子';
   return null;
 }
+function getGroupedValues($cards) {
+  $cnt = [];
+  foreach($cards as $c) {
+    $v = valueOrder(explode('_',$c)[0]);
+    if (!isset($cnt[$v])) $cnt[$v]=0;
+    $cnt[$v]++;
+  }
+  $groups = [];
+  foreach($cnt as $val=>$count) {
+    if (!isset($groups[$count])) $groups[$count]=[];
+    $groups[$count][]=$val;
+  }
+  foreach($groups as $count=>$arr) rsort($groups[$count]);
+  return $groups;
+}
+function getStraightRank($cards) {
+  $vals = [];
+  foreach($cards as $c) $vals[]=valueOrder(explode('_',$c)[0]);
+  sort($vals);
+  if ($vals==[10,11,12,13,14]) return 14.9;
+  if ($vals==[2,3,4,5,14]) return 5.5;
+  if ($vals==[9,10,11,12,13]) return 13;
+  if ($vals==[8,9,10,11,12]) return 12;
+  return max($vals);
+}
+
+// ======== 核心比牌：同花顺/同花新规则 ========
 function compareArea($a, $b, $area) {
   $typeA = getAreaType($a, $area);
   $typeB = getAreaType($b, $area);
@@ -321,6 +339,33 @@ function compareArea($a, $b, $area) {
 
   $groupA = getGroupedValues($a);
   $groupB = getGroupedValues($b);
+
+  // === 新逻辑：同花顺/同花先比最大花色，再比最大单张归属 ===
+  if (
+    ($typeA == '同花顺' && $typeB == '同花顺') ||
+    ($typeA == '同花' && $typeB == '同花')
+  ) {
+    // 1. 先比最大花色
+    $suitA = suitWeight(explode('_', $a[0])[2]);
+    $suitB = suitWeight(explode('_', $b[0])[2]);
+    if ($suitA != $suitB) return $suitA - $suitB;
+    // 2. 花色相同，比两手牌合集最大单张归属
+    $all = array_merge($a, $b);
+    $maxCard = $all[0];
+    foreach ($all as $c) {
+      list($val, , $suit) = explode('_', $c);
+      list($maxVal, , $maxSuit) = explode('_', $maxCard);
+      $v = valueOrder($val);
+      $vMax = valueOrder($maxVal);
+      if ($v > $vMax || ($v == $vMax && suitWeight($suit) > suitWeight($maxSuit))) {
+        $maxCard = $c;
+      }
+    }
+    if (in_array($maxCard, $a)) return 1;
+    if (in_array($maxCard, $b)) return -1;
+    return 0;
+  }
+
   // 顺子/同花顺先比最大点
   if ($typeA=='顺子'||$typeA=='同花顺') {
     $maxA = getStraightRank($a);
@@ -380,32 +425,7 @@ function compareArea($a, $b, $area) {
   $suitsB = [];
   foreach($b as $c) $suitsB[]=suitWeight(explode('_',$c)[2]);
   rsort($suitsA); rsort($suitsB);
-  for($i=0;$i<count($suitsA);++$i) if ($suitsA[$i]!=$suitsB[$i]) return $suitsA[$i]-$suitsB[$i];
+  for($i=0;$i<count($suitsA);++$i) if($suitsA[$i]!=$suitsB[$i])return $suitsA[$i]-$suitsB[$i];
   return 0;
-}
-function getGroupedValues($cards) {
-  $cnt = [];
-  foreach($cards as $c) {
-    $v = valueOrder(explode('_',$c)[0]);
-    if (!isset($cnt[$v])) $cnt[$v]=0;
-    $cnt[$v]++;
-  }
-  $groups = [];
-  foreach($cnt as $val=>$count) {
-    if (!isset($groups[$count])) $groups[$count]=[];
-    $groups[$count][]=$val;
-  }
-  foreach($groups as $count=>$arr) rsort($groups[$count]);
-  return $groups;
-}
-function getStraightRank($cards) {
-  $vals = [];
-  foreach($cards as $c) $vals[]=valueOrder(explode('_',$c)[0]);
-  sort($vals);
-  if ($vals==[10,11,12,13,14]) return 14.9;
-  if ($vals==[2,3,4,5,14]) return 5.5;
-  if ($vals==[9,10,11,12,13]) return 13;
-  if ($vals==[8,9,10,11,12]) return 12;
-  return max($vals);
 }
 ?>
