@@ -1,7 +1,8 @@
-// 超强智能分牌（尾道最大可随意拆，其余优先不拆对）
-// 满足：尾道最大组合可随意拆对子三条，中道优先保护对子三条
+// 超强智能分牌（尾道最大可任意拆，中道优先不拆对，头道最大）
+// 特殊牌型最优先，其次依次按十三水比牌规则依次贪心分牌
 
-// 工具函数
+const TYPE_ORDER = ["同花顺", "铁支", "葫芦", "同花", "顺子", "三条", "两对", "对子", "高牌"];
+
 function cardValue(card) {
   const v = card.split('_')[0];
   if (v === 'ace') return 14;
@@ -36,8 +37,7 @@ function sortCards(cards) {
   return [...cards].sort((a, b) => cardValue(b) - cardValue(a) || cardSuit(b).localeCompare(cardSuit(a)));
 }
 
-// 牌型顺序
-const TYPE_ORDER = ["同花顺", "铁支", "葫芦", "同花", "顺子", "三条", "两对", "对子", "高牌"];
+// 牌型判定
 function handType(cards, area) {
   if (!cards || cards.length < 3) return "高牌";
   const vals = cards.map(cardValue), suits = cards.map(cardSuit),
@@ -154,41 +154,45 @@ function isFoul(head, mid, tail) {
   return false;
 }
 
-// 最大5张组合（尾道允许全部拆解，只追求最大牌型）
-function findAllBest5Combos(cards) {
+// 最大5张组合（允许任意拆牌）
+function findBest5Combo(cards) {
   for (const type of TYPE_ORDER) {
-    const all = combinations(cards, 5).filter(g => handType(g) === type);
-    if (all.length > 0) {
-      // 葫芦优先三条最大对子最小
-      if (type === "葫芦") {
-        all.sort((a, b) => {
-          const byA = groupBy(a, cardValue), byB = groupBy(b, cardValue);
-          const tA = parseInt(Object.keys(byA).find(k => byA[k].length === 3)), tB = parseInt(Object.keys(byB).find(k => byB[k].length === 3));
-          if (tA !== tB) return tB - tA;
-          const pA = parseInt(Object.keys(byA).find(k => byA[k].length === 2)), pB = parseInt(Object.keys(byB).find(k => byB[k].length === 2));
-          return pA - pB;
-        });
+    let best = null;
+    let bestVal = -1;
+    for (const group of combinations(cards, 5)) {
+      if (handType(group) === type) {
+        // 葫芦三条最大对子最小
+        let val = group.map(cardValue).reduce((a, b) => a + b, 0);
+        if (type === "葫芦") {
+          const byVal = groupBy(group, cardValue);
+          const triples = Object.values(byVal).find(arr => arr.length === 3);
+          const pairs = Object.values(byVal).filter(arr => arr.length === 2);
+          if (pairs.length > 1) {
+            val -= Math.min(...pairs.map(arr => cardValue(arr[0])));
+          }
+        }
+        if (val > bestVal) { bestVal = val; best = group; }
       }
-      return all;
     }
+    if (best) return best;
   }
-  // 没有组合牌型，直接最大5张
-  return [sortCards(cards).slice(0, 5)];
+  return sortCards(cards).slice(0, 5);
 }
 
-// 中道最大5张组合（优先不拆对子/三条）
+// 最大5张组合（尽量不拆对子/三条）
 function findBest5NoSplit(cards) {
-  const byVal = groupBy(cards, cardValue);
+  // 统计对子/三条
+  const vals = groupBy(cards, cardValue);
   let base = [];
-  // 整三条
-  for (const arr of Object.values(byVal)) {
+  // 优先整三条
+  for (const arr of Object.values(vals)) {
     if (arr.length === 3 && base.length + 3 <= 5) base = base.concat(arr);
   }
-  // 整对子
-  for (const arr of Object.values(byVal)) {
+  // 其次整对子
+  for (const arr of Object.values(vals)) {
     if (arr.length === 2 && base.length + 2 <= 5) base = base.concat(arr);
   }
-  // 补单牌
+  // 不足补散牌
   let usedSet = new Set(base);
   let left = cards.filter(c => !usedSet.has(c));
   base = base.concat(left.slice(0, 5 - base.length));
@@ -197,7 +201,7 @@ function findBest5NoSplit(cards) {
   return sortCards(cards).slice(0, 5);
 }
 
-// 头道最大3张组合（优先三条、对子）
+// 最大3张组合（优先三条、对子）
 function findBest3NoSplit(cards) {
   const byVal = groupBy(cards, cardValue);
   for (const arr of Object.values(byVal)) {
@@ -214,25 +218,31 @@ function findBest3NoSplit(cards) {
 
 // 主流程
 export function getSmartSplits(cards13) {
-  // 特殊牌型优先
+  // 1. 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
   if (special) return [special];
 
-  let results = [];
-  for (const tail of findAllBest5Combos(cards13)) {
-    const left8 = cards13.filter(c => !tail.includes(c));
-    const middle = findBest5NoSplit(left8);
-    const head = findBest3NoSplit(left8.filter(c => !middle.includes(c)));
-    if (!isFoul(head, middle, tail)) {
-      results.push({ head, middle, tail });
-    }
+  // 2. 先选最大5张做尾道（允许任意拆）
+  const tail = findBest5Combo(cards13);
+
+  // 3. 剩下8张，最大组合且尽量不拆对子三条
+  const left8 = cards13.filter(c => !tail.includes(c));
+  const middle = findBest5NoSplit(left8);
+
+  // 4. 剩3张，最大头道
+  const head = findBest3NoSplit(left8.filter(c => !middle.includes(c)));
+
+  // 5. 检查倒水，不倒水就返回
+  if (!isFoul(head, middle, tail)) {
+    return [{ head, middle, tail }];
   }
-  if (!results.length) {
-    // 兜底
-    const sorted = sortCards(cards13);
-    results.push({ head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) });
-  }
-  return results;
+  // 兜底
+  const sorted = sortCards(cards13);
+  return [{
+    head: sorted.slice(0, 3),
+    middle: sorted.slice(3, 8),
+    tail: sorted.slice(8, 13)
+  }];
 }
 
 export function aiSmartSplit(cards13) {
