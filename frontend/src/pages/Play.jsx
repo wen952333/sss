@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { aiSmartSplit, getPlayerSmartSplits } from './SmartSplit';
 import './Play.css';
 
-// ========== 常量 ==========
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
@@ -40,6 +39,9 @@ export default function Play() {
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
   const navigate = useNavigate();
+
+  // 退出按钮可用性：只在准备阶段和比牌结算弹窗可用
+  const canExit = roomStatus === 'waiting' || showResult;
 
   async function apiFetch(url, opts) {
     try {
@@ -110,7 +112,6 @@ export default function Play() {
     dealTimerRef.current = setInterval(() => {
       setDealCountdown((c) => {
         if (c === 1) {
-          // 120s到，自动智能分牌并自动提交
           autoSmartSplitAndSubmit();
           clearInterval(dealTimerRef.current);
           return 0;
@@ -126,7 +127,6 @@ export default function Play() {
   useEffect(() => {
     if (showResult) {
       setCompareEndTime(Date.now());
-      // 5秒后自动关闭弹窗并恢复准备
       const timer = setTimeout(async () => {
         setShowResult(false);
         await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
@@ -176,7 +176,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // fetchPlayers 只保留房间不存在时跳转首页逻辑
+  // 拉取房间玩家和状态
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -189,7 +189,6 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
-      // ready_reset_time 用于准备倒计时精准同步
       setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
       // 准备倒计时准确同步
@@ -275,6 +274,7 @@ export default function Play() {
   }
 
   async function handleExitRoom() {
+    if (!canExit) return;
     const token = localStorage.getItem('token');
     await apiFetch('https://9526.ip-ddns.com/api/leave_room.php', {
       method: 'POST',
@@ -297,7 +297,7 @@ export default function Play() {
     clearInterval(prepTimerRef.current);
   }
 
-  // 智能分牌：与TryPlay一致，切换多分法
+  // 智能分牌：和TryPlay完全一致，切换多分法
   function handleSmartSplit() {
     if (!mySplits.length) {
       setSubmitMsg('智能分牌计算中，请稍候…');
@@ -609,7 +609,6 @@ export default function Play() {
   }
 
   function renderMyCards() {
-    // 只渲染未分到牌墩的牌
     const inPaiDun = new Set([...head, ...middle, ...tail]);
     const rest = myCards.filter(c => !inPaiDun.has(c));
     return <div className="cards-area">
@@ -677,7 +676,6 @@ export default function Play() {
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
           }} onClick={async () => {
             setShowResult(false);
-            // 主动通知后端自己已关闭比牌弹窗
             await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -713,19 +711,24 @@ export default function Play() {
         {/* 头部：退出房间+积分+倒计时UI */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14, position: 'relative', minHeight: 42 }}>
           <button
+            disabled={!canExit}
             style={{
-              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
-              color: '#234',
+              background: canExit
+                ? 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)'
+                : '#b0b0b0',
+              color: canExit ? '#234' : '#888',
               fontWeight: 'bold',
               border: 'none',
               borderRadius: 9,
               padding: '7px 22px',
-              cursor: 'pointer',
+              cursor: canExit ? 'pointer' : 'not-allowed',
               marginRight: 18,
               fontSize: 17,
-              boxShadow: '0 1.5px 6px #23e67a30'
+              boxShadow: canExit ? '0 1.5px 6px #23e67a30' : 'none',
+              opacity: canExit ? 1 : 0.55,
+              transition: 'background .18s, color .18s, opacity .18s'
             }}
-            onClick={handleExitRoom}
+            onClick={canExit ? handleExitRoom : undefined}
           >
             &lt; 退出房间
           </button>
