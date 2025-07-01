@@ -1,10 +1,9 @@
-// 十三水极致智能分牌：尾道>中道>头道均最大、且头道绝不大于中道
-// 牌型优先级：同花顺 > 铁支 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 对子 > 高牌
+// 极致尾道最大优先智能分牌，完全按你要求实现
 
 const HAND_TYPE_PRIORITY = [
   "同花顺", "铁支", "葫芦", "同花", "顺子", "三条", "两对", "对子", "高牌"
 ];
-const SPLIT_ENUM_LIMIT = 7000;
+const SPLIT_ENUM_LIMIT = 8000;
 
 function cardValue(card) {
   const v = card.split('_')[0];
@@ -37,16 +36,12 @@ function combinations(arr, k) {
   comb([], 0);
   return res;
 }
-
 function isStraight(cards) {
   const vals = uniq(cards.map(cardValue)).sort((a, b) => a - b);
   if (vals.length !== cards.length) return false;
   for (let i = 1; i < vals.length; ++i) if (vals[i] !== vals[i - 1] + 1) return false;
-  // 特判A2345
   if (vals.includes(14) && vals[0] === 2 && vals[1] === 3) {
-    const t = vals.slice();
-    t[t.indexOf(14)] = 1;
-    t.sort((a, b) => a - b);
+    const t = vals.slice(); t[t.indexOf(14)] = 1; t.sort((a, b) => a - b);
     for (let i = 1; i < t.length; ++i) if (t[i] !== t[i - 1] + 1) return false;
     return true;
   }
@@ -88,9 +83,8 @@ function isFoul(head, mid, tail) {
   return false;
 }
 
-// 特殊牌型检测（仅一条龙/六对半/三同花/三顺子，其他可补充）
+// 特殊牌型优先
 function detectAllSpecialSplits(cards13) {
-  // 一条龙
   const vals = uniq(cards13.map(cardValue));
   if (vals.length === 13) {
     const sorted = [...cards13].sort((a, b) => cardValue(b) - cardValue(a));
@@ -102,11 +96,9 @@ function detectAllSpecialSplits(cards13) {
     let left = cards13.filter(c => !pairs.includes(c));
     return { head: pairs.slice(0, 3), middle: pairs.slice(3, 8), tail: pairs.slice(8, 13), type: '六对半' };
   }
-  // 可补充三顺子/三同花
   return null;
 }
 
-// 核心算法：极致尾道最大分法（无限剪枝）
 export function getSmartSplits(cards13) {
   // 1. 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
@@ -115,7 +107,7 @@ export function getSmartSplits(cards13) {
   let result = [];
   let tries = 0;
 
-  // 1.1 尾道最大
+  // 1. 所有5张组合，按牌型优先级、点数降序排列，选尾道
   let allTail = combinations(cards13, 5).map(tail => ({
     tail,
     type: handType(tail),
@@ -127,8 +119,7 @@ export function getSmartSplits(cards13) {
   for (const { tail } of allTail) {
     if (tries > SPLIT_ENUM_LIMIT) break;
     const left8 = cards13.filter(c => !tail.includes(c));
-
-    // 2.1 中道最大
+    // 2. 剩下8张按完全一样的牌型优先级+点数降序选最大5张组合中道
     let allMid = combinations(left8, 5).map(mid => ({
       mid,
       type: handType(mid),
@@ -141,19 +132,15 @@ export function getSmartSplits(cards13) {
     for (const { mid, typeIdx: midTypeIdx } of allMid) {
       const headRemain = left8.filter(c => !mid.includes(c));
       if (headRemain.length !== 3) continue;
-      // 3.1 头道最大但不能大于中道
-      let allHead = [headRemain];
-      // 只用这3张的唯一组合
-      for (const head of allHead) {
-        if (isFoul(head, mid, tail)) continue;
-        result.push({ head, middle: mid, tail });
-        found = true;
-        break;
-      }
-      if (found) break;
+      // 3. 头道自动为剩下3张
+      const head = headRemain;
+      if (isFoul(head, mid, tail)) continue;
+      result.push({ head, middle: mid, tail });
+      found = true;
+      break; // 只取最大中道
     }
 
-    // 2.2 如果没法分出合法中道（8张组不出5张），就考虑头道最大且小于尾道/中道
+    // 4. 若8张无法组出合法5张，则在8张中选最大3张（按三条/对子/高牌），剩5张做中道
     if (!found) {
       let allHeadComb = combinations(left8, 3)
         .map(head => ({
