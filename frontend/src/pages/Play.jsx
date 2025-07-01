@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { aiSmartSplit, getPlayerSmartSplits } from './SmartSplit';
 import './Play.css';
-import { aiSmartSplit } from './SmartSplit';
 
+// ========== 常量 ==========
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
@@ -25,12 +26,16 @@ export default function Play() {
   const [showResult, setShowResult] = useState(false);
   const [myResult, setMyResult] = useState(null);
   const [splitIndex, setSplitIndex] = useState(0);
+  const [mySplits, setMySplits] = useState([]);
   const [allPlayed, setAllPlayed] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
   const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
   const [hasShownResult, setHasShownResult] = useState(false);
   const [readyResetTime, setReadyResetTime] = useState(null);
+
+  // 记录比牌结束时间（showResult弹窗弹出时计时）
+  const [compareEndTime, setCompareEndTime] = useState(null);
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
@@ -117,32 +122,43 @@ export default function Play() {
     // eslint-disable-next-line
   }, [dealCountdown]);
 
-  // 比牌弹窗关闭/房间回到waiting自动重启45秒准备倒计时
+  // ========== 比牌后5秒自动恢复准备按钮 ==========
   useEffect(() => {
-    if (roomStatus === 'waiting') {
-      setIsReady(true);
-      setPrepCountdown(45);
-      setDealCountdown(null);
-      clearInterval(dealTimerRef.current);
-    } else if (roomStatus === 'started') {
-      setPrepCountdown(null);
-      clearInterval(prepTimerRef.current);
+    if (showResult) {
+      setCompareEndTime(Date.now());
+      // 5秒后自动关闭弹窗并恢复准备
+      const timer = setTimeout(async () => {
+        setShowResult(false);
+        await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, token: localStorage.getItem('token') }),
+        });
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [roomStatus]);
+  }, [showResult, roomId]);
 
-  // 比牌弹窗手动关闭，房间状态同步
+  // 只要所有玩家都已关闭弹窗（即后端变waiting），立即关闭弹窗并恢复准备
   useEffect(() => {
     if (roomStatus === 'waiting' && showResult) {
       setShowResult(false);
       setIsReady(true);
-      setPrepCountdown(45);
     }
   }, [roomStatus, showResult]);
 
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
-      setHasShownResult(false);
+      // 默认智能分牌（和TryPlay一致，缓存分牌方案）
+      const splits = getPlayerSmartSplits(myCards);
+      setMySplits(splits);
       setSplitIndex(0);
+      if (splits.length) {
+        setHead(splits[0].head);
+        setMiddle(splits[0].middle);
+        setTail(splits[0].tail);
+      }
+      setHasShownResult(false);
     }
   }, [myCards, submitted]);
 
@@ -167,8 +183,23 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
+      // ready_reset_time 用于准备倒计时精准同步
       setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+      // 准备倒计时准确同步
+      if (data.status === 'waiting' && me && !me.submitted) {
+        let remain = 45;
+        if (readyResetTime) {
+          let now = Date.now();
+          remain = 45 - Math.floor((now - readyResetTime) / 1000);
+          if (remain < 0) remain = 0;
+        }
+        setPrepCountdown(remain);
+        setDealCountdown(null);
+      } else {
+        setPrepCountdown(null);
+        clearInterval(prepTimerRef.current);
+      }
       // 理牌倒计时
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
         if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
@@ -209,15 +240,12 @@ export default function Play() {
     setAllPlayed(!!data.allPlayed);
 
     if (Array.isArray(data.cards) && data.cards.length === 13) {
-      setHead(data.cards.slice(0, 3));
-      setMiddle(data.cards.slice(3, 8));
-      setTail(data.cards.slice(8, 13));
-      setMyCards([]);
+      setMyCards(data.cards);
     } else {
+      setMyCards([]);
       setHead([]);
       setMiddle([]);
       setTail([]);
-      setMyCards([]);
     }
   }
 
@@ -263,25 +291,23 @@ export default function Play() {
     clearInterval(prepTimerRef.current);
   }
 
-  // 智能分牌
-  async function handleSmartSplit() {
-    if (!Array.isArray(head) || head.length + middle.length + tail.length === 13) {
-      // 已经分好
-      setSubmitMsg('已分好牌，可手动调整后提交');
-      return;
-    }
-    let all = [];
-    if (myCards.length === 13) all = myCards.slice();
-    else all = head.concat(middle, tail, myCards);
-    if (all.length !== 13) {
+  function handleSmartSplit() {
+    if (!myCards || myCards.length !== 13) {
       setSubmitMsg('你还没有拿到13张牌');
       return;
     }
-    const split = aiSmartSplit(all);
+    // 智能分牌切换，与TryPlay一致
+    if (!mySplits.length) {
+      setSubmitMsg('智能分牌计算中，请稍候…');
+      return;
+    }
+    const nextIdx = (splitIndex + 1) % mySplits.length;
+    setSplitIndex(nextIdx);
+    const split = mySplits[nextIdx];
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
-    setSubmitMsg('已为你智能分牌，可手动调整后提交');
+    setSubmitMsg(`已切换智能分牌方案 ${nextIdx + 1}/${mySplits.length}`);
   }
 
   function handleCardClick(card, area, e) {
@@ -353,9 +379,6 @@ export default function Play() {
     });
     navigate('/');
   }
-
-  // 退出按钮是否可用
-  const canExit = roomStatus === 'waiting' || showResult;
 
   // ========== UI渲染部分 ==========
 
@@ -568,8 +591,11 @@ export default function Play() {
   }
 
   function renderMyCards() {
+    // 只渲染未分配到牌墩的牌
+    const inPaiDun = new Set([...head, ...middle, ...tail]);
+    const rest = myCards.filter(c => !inPaiDun.has(c));
     return <div className="cards-area">
-      {myCards.map(card =>
+      {rest.map(card =>
         <img
           key={card}
           src={`/cards/${card}.svg`}
@@ -633,6 +659,7 @@ export default function Play() {
             position: 'absolute', right: 18, top: 12, background: 'transparent', border: 'none', fontSize: 22, color: '#888', cursor: 'pointer'
           }} onClick={async () => {
             setShowResult(false);
+            // 主动通知后端自己已关闭比牌弹窗
             await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -669,23 +696,18 @@ export default function Play() {
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14, position: 'relative', minHeight: 42 }}>
           <button
             style={{
-              background: canExit
-                ? 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)'
-                : '#b0b0b0',
-              color: canExit ? '#234' : '#888',
+              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
+              color: '#234',
               fontWeight: 'bold',
               border: 'none',
               borderRadius: 9,
               padding: '7px 22px',
-              cursor: canExit ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               marginRight: 18,
               fontSize: 17,
-              boxShadow: canExit ? '0 1.5px 6px #23e67a30' : 'none',
-              opacity: canExit ? 1 : 0.55,
-              transition: 'background .18s, color .18s, opacity .15s'
+              boxShadow: '0 1.5px 6px #23e67a30'
             }}
-            onClick={canExit ? handleExitRoom : undefined}
-            disabled={!canExit}
+            onClick={handleExitRoom}
           >
             &lt; 退出房间
           </button>
@@ -791,6 +813,7 @@ export default function Play() {
             height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
           }
         }
+        /* 彻底去掉所有扑克牌边框 */
         .card-img {
           border: none !important;
         }
