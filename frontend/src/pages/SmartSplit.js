@@ -1,7 +1,10 @@
-// 高效智能分牌：尾道优先，快速剪枝，智能不倒水
-const MAIN_PRIORITY = ["同花顺", "铁支", "葫芦", "同花", "顺子", "三条", "两对", "对子", "高牌"];
-const BEAM_TAIL = 20; // 尾道只枚举前20个最大组合
-const BEAM_MID = 10;  // 中道只枚举前10个最大组合
+// 高效智能分牌 - 快速尾道优先+特殊牌型识别+至少3种分法兜底
+// 1. 特殊牌型优先 2. 尾道最大优先，智能剪枝 3. 不倒水 4. 保证至少3种分法
+
+const MAIN_PRIORITY = ["同花顺","铁支","葫芦","同花","顺子","三条","两对","对子","高牌"];
+const BEAM_TAIL = 18;
+const BEAM_MID = 9;
+const SPLIT_ENUM_LIMIT = 16000;
 
 function cardValue(card) {
   const v = card.split('_')[0];
@@ -16,9 +19,7 @@ function uniq(arr) { return [...new Set(arr)]; }
 function getTotalValue(cards) { return cards.reduce((s, c) => s + cardValue(c), 0); }
 function groupBy(arr, fn = x => x) {
   const g = {};
-  arr.forEach(x => {
-    const k = fn(x); g[k] = g[k] || []; g[k].push(x);
-  });
+  arr.forEach(x => { const k = fn(x); g[k] = g[k] || []; g[k].push(x); });
   return g;
 }
 function combinations(arr, k) {
@@ -30,6 +31,8 @@ function combinations(arr, k) {
   comb([], 0);
   return res;
 }
+
+// ---- 牌型判定 ----
 function isStraight(cards) {
   const vals = uniq(cards.map(cardValue)).sort((a, b) => a - b);
   if (vals.length !== cards.length) return false;
@@ -76,18 +79,66 @@ function isFoul(head, mid, tail) {
   if (r(head) > r(mid) || r(mid) > r(tail)) return true;
   return false;
 }
-export function getSmartSplits(cards13) {
-  // 1. 尾道优先，找最大5张组合
+
+// ---- 比牌规则中的特殊牌型识别 ----
+function detectAllSpecialSplits(cards13) {
+  // 一条龙
+  const vals = uniq(cards13.map(cardValue));
+  if (vals.length === 13) {
+    const sorted = [...cards13].sort((a, b) => cardValue(b) - cardValue(a));
+    return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13), type: '一条龙' };
+  }
+  // 六对半
+  const byVal = groupBy(cards13, cardValue);
+  if (Object.values(byVal).filter(g => g.length === 2).length === 6) {
+    let pairs = Object.values(byVal).filter(g => g.length === 2).flat();
+    return { head: pairs.slice(0, 3), middle: pairs.slice(3, 8), tail: pairs.slice(8, 13), type: '六对半' };
+  }
+  // 三同花
+  const comb3 = combinations(cards13, 3);
+  for (const head of comb3) {
+    if (!isFlush(head)) continue;
+    const left10 = cards13.filter(c => !head.includes(c));
+    for (const mid of combinations(left10, 5)) {
+      if (!isFlush(mid)) continue;
+      const tail = left10.filter(c => !mid.includes(c));
+      if (!isFlush(tail)) continue;
+      return { head, middle: mid, tail, type: '三同花' };
+    }
+  }
+  // 三顺子
+  for (const head of comb3) {
+    if (!isStraight(head)) continue;
+    const left10 = cards13.filter(c => !head.includes(c));
+    for (const mid of combinations(left10, 5)) {
+      if (!isStraight(mid)) continue;
+      const tail = left10.filter(c => !mid.includes(c));
+      if (!isStraight(tail)) continue;
+      return { head, middle: mid, tail, type: '三顺子' };
+    }
+  }
+  return null;
+}
+
+// ---- 智能分牌核心 ----
+export function getSmartSplits(cards13, opts={style:'max'}) {
+  // 1. 特殊牌型优先
+  const special = detectAllSpecialSplits(cards13);
+  if (special) return [special];
+
+  let results = [];
+  let tries = 0;
+
+  // 2. 尾道优先剪枝
   let allTailComb = combinations(cards13, 5)
     .map(cards => ({ cards, type: handType(cards), prio: handTypePriority(handType(cards)), val: getTotalValue(cards) }))
     .sort((a, b) => a.prio - b.prio || b.val - a.val)
     .slice(0, BEAM_TAIL);
 
-  let bestSplits = [];
   for (const tailObj of allTailComb) {
     const tail = tailObj.cards;
     const left8 = cards13.filter(c => !tail.includes(c));
-    // 2. 中道最大
+    // 3. 中道剪枝
     let allMidComb = combinations(left8, 5)
       .map(cards => ({ cards, type: handType(cards), prio: handTypePriority(handType(cards)), val: getTotalValue(cards) }))
       .sort((a, b) => a.prio - b.prio || b.val - a.val)
@@ -98,24 +149,38 @@ export function getSmartSplits(cards13) {
       const head = left8.filter(c => !mid.includes(c));
       if (head.length !== 3) continue;
       if (isFoul(head, mid, tail)) continue;
-      bestSplits.push({ head, middle: mid, tail });
-      if (bestSplits.length >= 5) break;
+      results.push({ head, middle: mid, tail });
+      tries++;
+      if (results.length >= 8 || tries > SPLIT_ENUM_LIMIT) break;
     }
-    if (bestSplits.length >= 5) break;
+    if (results.length >= 8 || tries > SPLIT_ENUM_LIMIT) break;
   }
-  // 兜底均匀分
-  if (!bestSplits.length) {
-    const sorted = [...cards13];
-    return [{ head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) }];
+
+  // 4. 按最大尾道、中道、头道排序，保证前N个不全重复
+  let uniqSet = new Set(), uniqResults = [];
+  for (const r of results) {
+    const key = [...r.head, ...r.middle, ...r.tail].join('|');
+    if (!uniqSet.has(key)) {
+      uniqSet.add(key);
+      uniqResults.push(r);
+    }
+    if (uniqResults.length >= 5) break;
   }
-  return bestSplits;
+
+  // 5. 兜底：保证至少3种分法
+  while (uniqResults.length < 3) {
+    uniqResults.push(balancedSplit(cards13));
+  }
+
+  return uniqResults.slice(0, 5);
 }
-export function aiSmartSplit(cards13) {
-  const splits = getSmartSplits(cards13);
-  return splits[0] || { head: cards13.slice(0, 3), middle: cards13.slice(3, 8), tail: cards13.slice(8, 13) };
+
+export function aiSmartSplit(cards13, opts) {
+  const splits = getSmartSplits(cards13, opts);
+  return splits[0] || balancedSplit(cards13);
 }
-export function getPlayerSmartSplits(cards13) {
-  return getSmartSplits(cards13);
+export function getPlayerSmartSplits(cards13, opts) {
+  return getSmartSplits(cards13, opts);
 }
 export function fillAiPlayers(playersArr) {
   return playersArr.map(p =>
@@ -123,4 +188,10 @@ export function fillAiPlayers(playersArr) {
       ? { ...p, ...aiSmartSplit(p.cards13) }
       : p
   );
+}
+
+// ---- 均衡兜底分法 ----
+function balancedSplit(cards) {
+  const sorted = [...cards];
+  return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) };
 }
