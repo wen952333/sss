@@ -1,8 +1,6 @@
 /**
  * sssScore.final.simplified.js - 十三水最终版比牌计分器 (极简规则)
- * 
- * --- 牌型顺序（已修正） ---
- * 同花顺 > 铁支 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 对子 > 高牌
+ * 同花顺/同花先比最大花色，花色相同则比两手牌最大单张归属
  */
 
 const VALUE_ORDER = {
@@ -91,8 +89,6 @@ function getAreaType(cards, area) {
 }
 
 function areaTypeRank(type, area) {
-  // 按你要求顺序：
-  // 同花顺(9)>铁支(8)>葫芦(7)>同花(6)>顺子(5)>三条(4)>两对(3)>对子(2)>高牌(1)
   if (area === 'head') {
     if (type === "三条") return 4;
     if (type === "对子") return 2;
@@ -146,6 +142,7 @@ function isFlush(cards) {
   return cards.every(c => c.split('_')[2] === firstSuit);
 }
 
+// ======== 核心比牌：同花顺/同花新规则 ========
 function compareArea(a, b, area) {
   const typeA = getAreaType(a, area);
   const typeB = getAreaType(b, area);
@@ -156,8 +153,34 @@ function compareArea(a, b, area) {
   const groupedA = getGroupedValues(a);
   const groupedB = getGroupedValues(b);
 
-  // 同花顺/顺子先比点数
-  if (typeA === '同花顺' && typeB === '同花顺' || typeA === '顺子' && typeB === '顺子') {
+  // === 新逻辑：同花顺/同花先比最大花色，再比最大单张归属 ===
+  if (
+    (typeA === '同花顺' && typeB === '同花顺') ||
+    (typeA === '同花' && typeB === '同花')
+  ) {
+    // 1. 先比最大花色
+    const suitA = SUIT_ORDER[a[0].split('_')[2]];
+    const suitB = SUIT_ORDER[b[0].split('_')[2]];
+    if (suitA !== suitB) return suitA - suitB;
+
+    // 2. 花色相同，比两手牌合集最大单张归属
+    const all = [...a, ...b];
+    let maxCard = all[0];
+    for (const c of all) {
+      const [val, , suit] = c.split('_');
+      const [maxVal, , maxSuit] = maxCard.split('_');
+      const v = VALUE_ORDER[val];
+      const vMax = VALUE_ORDER[maxVal];
+      if (v > vMax || (v === vMax && SUIT_ORDER[suit] > SUIT_ORDER[maxSuit]))
+        maxCard = c;
+    }
+    if (a.includes(maxCard)) return 1;
+    if (b.includes(maxCard)) return -1;
+    return 0;
+  }
+
+  // 顺子/同花顺先比点数
+  if (typeA === '顺子' || typeA === '同花顺') {
     const straightRankA = getStraightRank(a), straightRankB = getStraightRank(b);
     if (straightRankA !== straightRankB) return straightRankA - straightRankB;
   }
@@ -167,7 +190,6 @@ function compareArea(a, b, area) {
     const mainA = groupedA[typeA === '铁支' ? 4 : typeA === '三条' ? 3 : 2][0];
     const mainB = groupedB[typeA === '铁支' ? 4 : typeA === '三条' ? 3 : 2][0];
     if (mainA !== mainB) return mainA - mainB;
-    // 副牌
     const subA = a.map(c => VALUE_ORDER[c.split('_')[0]]).filter(v => v !== mainA).sort((x, y) => y - x);
     const subB = b.map(c => VALUE_ORDER[c.split('_')[0]]).filter(v => v !== mainB).sort((x, y) => y - x);
     for (let i = 0; i < subA.length; ++i) {
@@ -190,13 +212,12 @@ function compareArea(a, b, area) {
     const pairsA = groupedA[2], pairsB = groupedB[2];
     if (pairsA[0] !== pairsB[0]) return pairsA[0] - pairsB[0];
     if (pairsA[1] !== pairsB[1]) return pairsA[1] - pairsB[1];
-    // 单牌
     const subA = groupedA[1] ? groupedA[1][0] : 0, subB = groupedB[1] ? groupedB[1][0] : 0;
     if (subA !== subB) return subA - subB;
     return 0;
   }
 
-  // 同花：最大单张
+  // 同花
   if (typeA === '同花') {
     const sortedA = sortCards(a), sortedB = sortCards(b);
     for (let i = 0; i < sortedA.length; ++i) {
@@ -208,7 +229,7 @@ function compareArea(a, b, area) {
     return 0;
   }
 
-  // 其它类型：最大单张
+  // 其它类型
   const sortedA = sortCards(a), sortedB = sortCards(b);
   for (let i = 0; i < sortedA.length; ++i) {
     if (sortedA[i].value !== sortedB[i].value) return sortedA[i].value - sortedB[i].value;
