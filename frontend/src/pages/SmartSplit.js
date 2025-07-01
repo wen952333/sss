@@ -263,3 +263,6 @@ export function fillAiPlayers(playersArr) {
       : p
   );
 }
+export function getPlayerSmartSplits(cards13, opts) {
+  return getSmartSplits(cards13, opts);
+}
