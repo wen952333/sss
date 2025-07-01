@@ -286,7 +286,6 @@ export default function Play() {
 
   // 智能分牌：调用前端算法
   async function handleSmartSplit() {
-    // 前端实现智能分牌算法（见 SmartSplit.js 示例，或自行实现）
     setSubmitMsg('请在前端实现智能分牌算法');
   }
 
@@ -600,7 +599,7 @@ export default function Play() {
         background: 'rgba(0,0,0,0.37)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <div style={{
-          background: '#fff',
+          background: '#185a30', // 深绿色，与TryPlay.jsx一致
           borderRadius: 15,
           padding: 24,
           minWidth: 400,
@@ -648,6 +647,11 @@ export default function Play() {
     );
   }
 
+  // 退出按钮是否可用
+  const canExit =
+    roomStatus === 'waiting' ||
+    showResult; // 比牌弹窗期间可以退出
+
   return (
     <div style={{
       background: '#164b2e',
@@ -673,18 +677,23 @@ export default function Play() {
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14, position: 'relative', minHeight: 42 }}>
           <button
             style={{
-              background: 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)',
-              color: '#234',
+              background: canExit
+                ? 'linear-gradient(90deg,#fff 60%,#e0fff1 100%)'
+                : '#b0b0b0',
+              color: canExit ? '#234' : '#888',
               fontWeight: 'bold',
               border: 'none',
               borderRadius: 9,
               padding: '7px 22px',
-              cursor: 'pointer',
+              cursor: canExit ? 'pointer' : 'not-allowed',
               marginRight: 18,
               fontSize: 17,
-              boxShadow: '0 1.5px 6px #23e67a30'
+              boxShadow: canExit ? '0 1.5px 6px #23e67a30' : 'none',
+              opacity: canExit ? 1 : 0.55,
+              transition: 'background .18s, color .18s, opacity .15s'
             }}
-            onClick={handleExitRoom}
+            onClick={canExit ? handleExitRoom : undefined}
+            disabled={!canExit}
           >
             &lt; 退出房间
           </button>
