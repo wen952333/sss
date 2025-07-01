@@ -1,10 +1,11 @@
-// 极致无剪枝智能分牌：全枚举，绝不剪枝头道、尾道、任何方案
-// 1. 先全枚举13张选3张(head)，再8选5(middle)，剩5为tail，全部穷举
-// 2. 只输出所有合法不倒水分法中按最大尾道牌型优先、再中道最大、再头道最大排序的前5个
+// 极致无剪枝智能分牌：全枚举，绝不剪枝头道/尾道/中道/任何方案
+// 1. 枚举所有5张组合为尾道（13C5），每个尾道都在剩下8张里全枚举5张组合为中道（8C5）
+// 2. 最后剩3张为头道
+// 3. 只输出所有合法不倒水分法中按最大尾道牌型优先、再点数最大、再中道最大、再头道最大排序的前5个
 
 const MAIN_PRIORITY = ["同花顺", "铁支", "葫芦", "同花", "顺子", "三条"];
 const ALL_PRIORITY = [...MAIN_PRIORITY, "两对", "对子", "高牌"];
-const SPLIT_ENUM_LIMIT = 100000; // 13C3*10C5=286*252=72072
+const SPLIT_ENUM_LIMIT = 100000; // 理论上13C5*8C5≈12870*56=72万，性能调低也可
 
 function cardValue(card) {
   const v = card.split('_')[0];
@@ -95,7 +96,7 @@ function detectAllSpecialSplits(cards13) {
   return null;
 }
 
-// 全枚举无剪枝
+// ------------------ 全枚举无剪枝 ------------------
 export function getSmartSplits(cards13) {
   // 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
@@ -104,24 +105,30 @@ export function getSmartSplits(cards13) {
   let results = [];
   let tries = 0;
 
-  // 全枚举3张头道
-  const allHeadComb = combinations(cards13, 3);
+  // 全枚举所有5张组合为尾道
+  const tailComb = combinations(cards13, 5);
 
-  for (const head of allHeadComb) {
-    const left10 = cards13.filter(c => !head.includes(c));
-    // 全枚举中道
-    const allMidComb = combinations(left10, 5);
-    for (const mid of allMidComb) {
-      const tail = left10.filter(c => !mid.includes(c));
-      if (tail.length !== 5) continue;
+  for (const tail of tailComb) {
+    const tailType = handType(tail);
+    const tailP = handTypePriority(tailType);
+    const left8 = cards13.filter(c => !tail.includes(c));
+    // 剩余8张里全枚举5张为中道
+    const midComb = combinations(left8, 5);
+    for (const mid of midComb) {
+      const midType = handType(mid);
+      const midP = handTypePriority(midType);
+      const head = left8.filter(c => !mid.includes(c));
+      if (head.length !== 3) continue;
+      const headType = handType(head);
+      const headP = handTypePriority(headType);
       if (isFoul(head, mid, tail)) continue;
       results.push({
         head, middle: mid, tail,
-        pTail: handTypePriority(handType(tail)),
-        pMid: handTypePriority(handType(mid)),
-        pHead: handTypePriority(handType(head)),
+        pTail: tailP,
         tailVal: getTotalValue(tail),
+        pMid: midP,
         midVal: getTotalValue(mid),
+        pHead: headP,
         headVal: getTotalValue(head)
       });
       tries++;
@@ -130,14 +137,13 @@ export function getSmartSplits(cards13) {
     if (tries > SPLIT_ENUM_LIMIT) break;
   }
 
-  // 按尾道最大牌型>点数>中道最大>头道最大排序
+  // 按尾道最大牌型>点数>中道最大>头道最大排序，前5个
   results.sort((a, b) =>
     a.pTail - b.pTail || b.tailVal - a.tailVal ||
     a.pMid - b.pMid || b.midVal - a.midVal ||
     a.pHead - b.pHead || b.headVal - a.headVal
   );
 
-  // 只输出前5个
   if (!results.length) {
     // 均匀分法兜底
     const sorted = [...cards13];
