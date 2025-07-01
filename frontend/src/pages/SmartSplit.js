@@ -258,3 +258,8 @@ export function getSpecialType(p) {
   // 其它：不是特殊牌型
   return null;
 }
+// ...SmartSplit.js 其余内容...
+
+export function getPlayerSmartSplits(cards13, opts) {
+  return getSmartSplits(cards13, opts);
+}
