@@ -1,8 +1,8 @@
-// 超强智能分牌（尾道最大可任意拆，中道优先不拆对，头道最大）
-// 特殊牌型最优先，其次依次按十三水比牌规则依次贪心分牌
+// 极致贪心智能分牌：先尾道最大，再中道尽量不拆对，最后头道最大，绝无头-尾-中剪枝
 
 const TYPE_ORDER = ["同花顺", "铁支", "葫芦", "同花", "顺子", "三条", "两对", "对子", "高牌"];
 
+// 工具函数
 function cardValue(card) {
   const v = card.split('_')[0];
   if (v === 'ace') return 14;
@@ -11,9 +11,7 @@ function cardValue(card) {
   if (v === 'jack') return 11;
   return parseInt(v, 10);
 }
-function cardSuit(card) {
-  return card.split('_')[2];
-}
+function cardSuit(card) { return card.split('_')[2]; }
 function uniq(arr) { return [...new Set(arr)]; }
 function groupBy(arr, fn = x => x) {
   const g = {};
@@ -64,6 +62,7 @@ function isStraight(cards) {
   const vals = uniq(cards.map(cardValue)).sort((a, b) => a - b);
   if (vals.length !== cards.length) return false;
   for (let i = 1; i < vals.length; ++i) if (vals[i] !== vals[i - 1] + 1) return false;
+  // A2345特例
   if (vals.includes(14) && vals[0] === 2 && vals[1] === 3) {
     const t = vals.slice(); t[t.indexOf(14)] = 1; t.sort((a, b) => a - b);
     for (let i = 1; i < t.length; ++i) if (t[i] !== t[i - 1] + 1) return false;
@@ -154,14 +153,13 @@ function isFoul(head, mid, tail) {
   return false;
 }
 
-// 最大5张组合（允许任意拆牌）
+// 最大5张组合（允许任意拆，尾道专用）
 function findBest5Combo(cards) {
   for (const type of TYPE_ORDER) {
     let best = null;
     let bestVal = -1;
     for (const group of combinations(cards, 5)) {
       if (handType(group) === type) {
-        // 葫芦三条最大对子最小
         let val = group.map(cardValue).reduce((a, b) => a + b, 0);
         if (type === "葫芦") {
           const byVal = groupBy(group, cardValue);
@@ -181,23 +179,18 @@ function findBest5Combo(cards) {
 
 // 最大5张组合（尽量不拆对子/三条）
 function findBest5NoSplit(cards) {
-  // 统计对子/三条
-  const vals = groupBy(cards, cardValue);
+  const byVal = groupBy(cards, cardValue);
   let base = [];
-  // 优先整三条
-  for (const arr of Object.values(vals)) {
+  for (const arr of Object.values(byVal)) {
     if (arr.length === 3 && base.length + 3 <= 5) base = base.concat(arr);
   }
-  // 其次整对子
-  for (const arr of Object.values(vals)) {
+  for (const arr of Object.values(byVal)) {
     if (arr.length === 2 && base.length + 2 <= 5) base = base.concat(arr);
   }
-  // 不足补散牌
   let usedSet = new Set(base);
   let left = cards.filter(c => !usedSet.has(c));
   base = base.concat(left.slice(0, 5 - base.length));
   if (base.length === 5) return base;
-  // 实在不够，直接最大5张
   return sortCards(cards).slice(0, 5);
 }
 
@@ -216,9 +209,9 @@ function findBest3NoSplit(cards) {
   return sortCards(cards).slice(0, 3);
 }
 
-// 主流程
+// 主流程（先尾道最大、再中道、再头道）
 export function getSmartSplits(cards13) {
-  // 1. 特殊牌型优先
+  // 1. 特殊牌型唯一
   const special = detectAllSpecialSplits(cards13);
   if (special) return [special];
 
