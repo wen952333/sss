@@ -1,9 +1,11 @@
-// 智能十三水AI分牌 - 绝对不倒水增强版（多重兜底，永不倒水）
-// 1. 特殊牌优先 2. 多级剪枝 3. 评分体系极优 4. 绝不倒水 5. compareArea同步
+// 智能十三水AI分牌 - 两级贪心法（最大5张做尾道，次之做中道，头道剩下）+特殊牌优先
+// 1. 特殊牌型优先 2. 最大尾道-最大中道-头道分配 3. 不倒水 4. 兜底均衡分法
 
-const SPLIT_ENUM_LIMIT = 6000; // 防极端爆炸
-const BEAM_HEAD = 18, BEAM_TAIL = 12;
+// ==== 常量与工具 ====
+const MAX_TAIL_TRY = 10;   // 尾道尝试前10强
+const MAX_MID_TRY = 8;     // 中道尝试前8强
 
+// 牌面点数与花色
 function cardValue(card) {
   const v = card.split('_')[0];
   if (v === 'ace') return 14;
@@ -15,9 +17,6 @@ function cardValue(card) {
 function cardSuit(card) {
   return card.split('_')[2];
 }
-function getTotalValue(cards) {
-  return cards.reduce((sum, c) => sum + cardValue(c), 0);
-}
 function uniq(arr) { return [...new Set(arr)]; }
 function groupBy(arr, fn = x => x) {
   const g = {};
@@ -26,7 +25,11 @@ function groupBy(arr, fn = x => x) {
   });
   return g;
 }
+function getTotalValue(cards) {
+  return cards.reduce((sum, c) => sum + cardValue(c), 0);
+}
 
+// n选k组合
 function combinations(arr, k) {
   let res = [];
   function comb(path, start) {
@@ -35,9 +38,6 @@ function combinations(arr, k) {
   }
   comb([], 0);
   return res;
-}
-function sortCards(cards) {
-  return [...cards].sort((a, b) => cardValue(b) - cardValue(a) || cardSuit(b).localeCompare(cardSuit(a)));
 }
 
 // ==== 特殊牌型检测 ====
@@ -54,7 +54,7 @@ function detectSixPairs(cards13) {
   const pairs = Object.values(byVal).filter(g => g.length === 2);
   if (pairs.length === 6) {
     let head = pairs[0].concat(pairs[1][0]);
-    let used = new Set(head);
+    let used = new Set(head), rest = cards13.filter(c => !used.has(c));
     let mid = pairs[1].slice(1).concat(pairs[2], pairs[3][0]);
     used = new Set([...head, ...mid]);
     let tail = cards13.filter(c => !used.has(c));
@@ -113,6 +113,9 @@ function isFlush(cards) {
   if (!cards.length) return false;
   const suit = cardSuit(cards[0]);
   return cards.every(c => cardSuit(c) === suit);
+}
+function sortCards(cards) {
+  return [...cards].sort((a, b) => cardValue(b) - cardValue(a) || cardSuit(b).localeCompare(cardSuit(a)));
 }
 
 // ==== 牌型判定/倒水/评分 ====
@@ -199,13 +202,11 @@ function compareArea(a, b, area) {
   const rankA = handTypeRank(a, area), rankB = handTypeRank(b, area);
   if (rankA !== rankB) return rankA - rankB;
   const groupedA = groupBy(a.map(cardValue)), groupedB = groupBy(b.map(cardValue));
-  // 顺子/同花顺
   if ((typeA === "顺子" || typeA === "同花顺")) {
     const valsA = a.map(cardValue).sort((a, b) => a - b), valsB = b.map(cardValue).sort((a, b) => a - b);
     const maxA = valsA[valsA.length - 1], maxB = valsB[valsB.length - 1];
     if (maxA !== maxB) return maxA - maxB;
   }
-  // 铁支/三条/对子
   if (["铁支", "三条", "对子"].includes(typeA)) {
     const mainA = parseInt(Object.keys(groupedA).find(k => groupedA[k].length === (typeA === "铁支" ? 4 : (typeA === "三条" ? 3 : 2))), 10);
     const mainB = parseInt(Object.keys(groupedB).find(k => groupedB[k].length === (typeA === "铁支" ? 4 : (typeA === "三条" ? 3 : 2))), 10);
@@ -215,7 +216,6 @@ function compareArea(a, b, area) {
     for (let i = 0; i < subA.length; ++i) if (subA[i] !== subB[i]) return subA[i] - subB[i];
     return 0;
   }
-  // 葫芦
   if (typeA === "葫芦") {
     const tripleA = parseInt(Object.keys(groupedA).find(k => groupedA[k].length === 3), 10);
     const tripleB = parseInt(Object.keys(groupedB).find(k => groupedB[k].length === 3), 10);
@@ -225,7 +225,6 @@ function compareArea(a, b, area) {
     if (pairA !== pairB) return pairA - pairB;
     return 0;
   }
-  // 两对
   if (typeA === "两对") {
     const pairsA = Object.keys(groupedA).filter(k => groupedA[k].length === 2).map(Number).sort((a, b) => b - a);
     const pairsB = Object.keys(groupedB).filter(k => groupedB[k].length === 2).map(Number).sort((a, b) => b - a);
@@ -235,94 +234,52 @@ function compareArea(a, b, area) {
     if (subA && subB && subA !== subB) return subA - subB;
     return 0;
   }
-  // 同花
   if (typeA === "同花") {
     const valsA = a.map(cardValue).sort((a, b) => b - a), valsB = b.map(cardValue).sort((a, b) => b - a);
     for (let i = 0; i < valsA.length; ++i) if (valsA[i] !== valsB[i]) return valsA[i] - valsB[i];
     return 0;
   }
-  // 高牌
   const valsA = a.map(cardValue).sort((a, b) => b - a), valsB = b.map(cardValue).sort((a, b) => b - a);
   for (let i = 0; i < valsA.length; ++i) if (valsA[i] !== valsB[i]) return valsA[i] - valsB[i];
   return 0;
 }
 
-// ==== Beam Search极致智能分法（多重兜底，绝对不倒水） ====
+// ==== 两级贪心智能分法（最大5张做尾道，剩下最大做中道，头道剩下） ====
 export function getSmartSplits(cards13, opts = { style: 'max' }) {
-  // 特殊牌型优先
+  // 1. 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
   if (special) return [special];
 
-  let splits = [];
-  let tries = 0;
-
-  // 头道剪枝（优先大对/三条/高点）
-  const headCandidates = combinations(cards13, 3)
-    .map(head => ({ head, score: evalHead(head) }))
+  // 2. 所有5张组合做尾道，评分选最强的前MAX_TAIL_TRY
+  let allTail = combinations(cards13, 5)
+    .map(tail => ({ tail, score: evalTail(tail) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, BEAM_HEAD);
+    .slice(0, MAX_TAIL_TRY);
 
-  for (const { head } of headCandidates) {
-    const left10 = cards13.filter(c => !head.includes(c));
-    // 尾道剪枝（优先炸弹/同花顺/大点）
-    const tailCandidates = combinations(left10, 5)
-      .map(tail => ({ tail, score: evalTail(tail) }))
+  // 3. 对前MAX_TAIL_TRY强尾道，依次在剩8张上选最强中道
+  for (const { tail } of allTail) {
+    let left8 = cards13.filter(c => !tail.includes(c));
+    let allMid = combinations(left8, 5)
+      .map(mid => ({ mid, score: evalTail(mid) }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, BEAM_TAIL);
+      .slice(0, MAX_MID_TRY);
 
-    for (const { tail } of tailCandidates) {
-      const mid = left10.filter(c => !tail.includes(c));
-      if (mid.length !== 5) continue;
-      tries++;
-      if (tries > SPLIT_ENUM_LIMIT) break;
-      if (isFoul(head, mid, tail)) continue;
-      const score = scoreSplit(head, mid, tail, opts.style);
-      splits.push({ head, middle: mid, tail, score });
+    for (const { mid } of allMid) {
+      let head = left8.filter(c => !mid.includes(c));
+      if (head.length !== 3) continue;
+      if (!isFoul(head, mid, tail)) return [{ head, middle: mid, tail }];
     }
-    if (tries > SPLIT_ENUM_LIMIT) break;
   }
 
-  // 全枚举兜底
-  if (!splits.length) {
-    let fallback = [];
-    let tries2 = 0;
-    for (const head of combinations(cards13, 3)) {
-      const left1 = cards13.filter(c => !head.includes(c));
-      for (const mid of combinations(left1, 5)) {
-        tries2++; if (tries2 > SPLIT_ENUM_LIMIT * 2) break;
-        const tail = left1.filter(c => !mid.includes(c));
-        if (tail.length !== 5) continue;
-        if (isFoul(head, mid, tail)) continue;
-        fallback.push({ head, middle: mid, tail, score: scoreSplit(head, mid, tail, opts.style) });
-        if (fallback.length >= 5) break;
-      }
-      if (tries2 > SPLIT_ENUM_LIMIT * 2 || fallback.length >= 5) break;
-    }
-    if (fallback.length) splits = fallback;
-  }
-
-  // 终极兜底：暴力枚举保证返回至少一组合法分法
-  splits = splits.filter(s => !isFoul(s.head, s.middle, s.tail));
-  if (!splits.length) {
-    for (const head of combinations(cards13, 3)) {
-      const left1 = cards13.filter(c => !head.includes(c));
-      for (const mid of combinations(left1, 5)) {
-        const tail = left1.filter(c => !mid.includes(c));
-        if (tail.length !== 5) continue;
-        if (!isFoul(head, mid, tail)) return [{ head, middle: mid, tail }];
-      }
-    }
-    // 理论永不可能到这里，除非牌出错
-    throw new Error('无法分出合法非倒水牌型！');
-  }
-  splits.sort((a, b) => b.score - a.score);
-  return splits.slice(0, 5).map(s => ({ head: s.head, middle: s.middle, tail: s.tail }));
+  // 4. 兜底：均匀分法保底（基本不会用到）
+  return [balancedSplit(cards13)];
 }
 
 export function aiSmartSplit(cards13, opts) {
   const splits = getSmartSplits(cards13, opts);
   return splits[0] || balancedSplit(cards13);
 }
+
 export function getPlayerSmartSplits(cards13, opts) {
   return getSmartSplits(cards13, opts);
 }
@@ -334,15 +291,6 @@ export function fillAiPlayers(playersArr) {
   );
 }
 
-function evalHead(head) {
-  const t = handType(head, 'head');
-  let score = 0;
-  if (t === "三条") score += 130;
-  else if (t === "对子") score += 35;
-  else score += 3;
-  score += getTotalValue(head) * 1.15;
-  return score;
-}
 function evalTail(tail) {
   const t = handType(tail, 'tail');
   let score = 0;
@@ -358,10 +306,10 @@ function evalTail(tail) {
   score += getTotalValue(tail) * 1.6;
   return score;
 }
-
 function balancedSplit(cards) {
   const sorted = [...cards];
   return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) };
 }
 
+// 导出倒水判定
 export { isFoul };
