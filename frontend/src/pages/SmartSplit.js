@@ -1,5 +1,5 @@
-// 智能十三水AI分牌 - 全局最优增强版
-// 1. 特殊牌型优先 2. 多重候选尾道+中道 3. 全局最高分分法（不倒水） 4. 兜底分法
+// 智能十三水AI分牌 - 同花顺绝对做尾道增强版
+// 1. 特殊牌型优先 2. 若有同花顺必做尾道 3. 全局最优候选法 4. 不倒水兜底
 
 const TAIL_TOP_N = 14;   // 尾道候选数量
 const MID_TOP_N = 12;    // 中道候选数量
@@ -242,8 +242,8 @@ function evalHead(head) {
 function evalTail(tail) {
   const t = handType(tail, 'tail');
   let score = 0;
+  if (t === "同花顺") score += 10000; // 强制极高分
   if (t === "铁支") score += 240;
-  else if (t === "同花顺") score += 190;
   else if (t === "葫芦") score += 130;
   else if (t === "顺子") score += 85;
   else if (t === "同花") score += 60;
@@ -261,13 +261,34 @@ function balancedSplit(cards) {
   return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) };
 }
 
-// ==== 全局最优分法 ====
+// ==== 核心导出：同花顺必做尾道 + 全局最优 ====
 export function getSmartSplits(cards13, opts = {}) {
   // 1. 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
   if (special) return [special];
 
-  // 2. 尾道多候选+中道多候选，最终全局评分最优
+  // 2. 有同花顺，必做尾道
+  for (const tail of combinations(cards13, 5)) {
+    if (handType(tail, 'tail') === '同花顺') {
+      const left8 = cards13.filter(c => !tail.includes(c));
+      let best = null, bestScore = -Infinity;
+      for (const mid of combinations(left8, 5)) {
+        const head = left8.filter(c => !mid.includes(c));
+        if (head.length !== 3) continue;
+        if (isFoul(head, mid, tail)) continue;
+        const score = scoreSplit(head, mid, tail);
+        if (score > bestScore) {
+          bestScore = score;
+          best = { head, middle: mid, tail };
+        }
+      }
+      if (best) return [best];
+      // 若所有拆法都倒水则继续全局最优法兜底
+      break;
+    }
+  }
+
+  // 3. 全局最优候选法
   let bestSplit = null, bestScore = -Infinity;
   const tailComb = combinations(cards13, 5)
     .map(tail => ({ tail, score: evalTail(tail) }))
@@ -286,7 +307,6 @@ export function getSmartSplits(cards13, opts = {}) {
       if (head.length !== 3) continue;
       if (isFoul(head, mid, tail)) continue;
       const score = scoreSplit(head, mid, tail);
-      // 若多个同分优先头道对子/三条、再中道好型
       let tieBreaker = 0;
       if (handType(head, 'head') === '三条') tieBreaker += 1000;
       if (handType(head, 'head') === '对子') tieBreaker += 300;
@@ -298,7 +318,7 @@ export function getSmartSplits(cards13, opts = {}) {
     }
   }
   if (bestSplit) return [bestSplit];
-  // 兜底均衡
+  // 4. 兜底均匀分配
   return [balancedSplit(cards13)];
 }
 
@@ -306,11 +326,9 @@ export function aiSmartSplit(cards13, opts) {
   const splits = getSmartSplits(cards13, opts);
   return splits[0] || balancedSplit(cards13);
 }
-
 export function getPlayerSmartSplits(cards13, opts) {
   return getSmartSplits(cards13, opts);
 }
-
 export function fillAiPlayers(playersArr) {
   return playersArr.map(p =>
     p.isAI && Array.isArray(p.cards13) && p.cards13.length === 13
