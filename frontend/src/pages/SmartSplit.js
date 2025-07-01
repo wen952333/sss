@@ -1,10 +1,9 @@
-// 智能十三水AI分牌 - 增强版（绝不倒水，兜底全合法）
-// 1. 特殊牌型优先 2. 组合剪枝 3. 评分体系极优 4. 绝不倒水 5. compareArea内置
+// 智能十三水AI分牌 - 绝对不倒水增强版（多重兜底，永不倒水）
+// 1. 特殊牌优先 2. 多级剪枝 3. 评分体系极优 4. 绝不倒水 5. compareArea同步
 
 const SPLIT_ENUM_LIMIT = 6000; // 防极端爆炸
 const BEAM_HEAD = 18, BEAM_TAIL = 12;
 
-// 牌面点数与花色
 function cardValue(card) {
   const v = card.split('_')[0];
   if (v === 'ace') return 14;
@@ -21,10 +20,13 @@ function getTotalValue(cards) {
 }
 function uniq(arr) { return [...new Set(arr)]; }
 function groupBy(arr, fn = x => x) {
-  const g = {}; arr.forEach(x => { const k = fn(x); g[k] = g[k] || []; g[k].push(x); }); return g;
+  const g = {};
+  arr.forEach(x => {
+    const k = fn(x); g[k] = g[k] || []; g[k].push(x);
+  });
+  return g;
 }
 
-// n选k组合
 function combinations(arr, k) {
   let res = [];
   function comb(path, start) {
@@ -52,7 +54,7 @@ function detectSixPairs(cards13) {
   const pairs = Object.values(byVal).filter(g => g.length === 2);
   if (pairs.length === 6) {
     let head = pairs[0].concat(pairs[1][0]);
-    let used = new Set(head), rest = cards13.filter(c => !used.has(c));
+    let used = new Set(head);
     let mid = pairs[1].slice(1).concat(pairs[2], pairs[3][0]);
     used = new Set([...head, ...mid]);
     let tail = cards13.filter(c => !used.has(c));
@@ -113,7 +115,7 @@ function isFlush(cards) {
   return cards.every(c => cardSuit(c) === suit);
 }
 
-// ==== 牌型判定/倒水/评分 ==== 
+// ==== 牌型判定/倒水/评分 ====
 function handType(cards, area) {
   if (!cards || cards.length < 3) return "高牌";
   const vals = cards.map(cardValue), suits = cards.map(cardSuit),
@@ -245,7 +247,7 @@ function compareArea(a, b, area) {
   return 0;
 }
 
-// ==== Beam Search极致智能分法（增强：绝不倒水） ====
+// ==== Beam Search极致智能分法（多重兜底，绝对不倒水） ====
 export function getSmartSplits(cards13, opts = { style: 'max' }) {
   // 特殊牌型优先
   const special = detectAllSpecialSplits(cards13);
@@ -299,10 +301,9 @@ export function getSmartSplits(cards13, opts = { style: 'max' }) {
     if (fallback.length) splits = fallback;
   }
 
-  // 最终只返回合法分法
+  // 终极兜底：暴力枚举保证返回至少一组合法分法
   splits = splits.filter(s => !isFoul(s.head, s.middle, s.tail));
   if (!splits.length) {
-    // 兜底暴力枚举，保证一定出一组合法分法
     for (const head of combinations(cards13, 3)) {
       const left1 = cards13.filter(c => !head.includes(c));
       for (const mid of combinations(left1, 5)) {
@@ -311,6 +312,7 @@ export function getSmartSplits(cards13, opts = { style: 'max' }) {
         if (!isFoul(head, mid, tail)) return [{ head, middle: mid, tail }];
       }
     }
+    // 理论永不可能到这里，除非牌出错
     throw new Error('无法分出合法非倒水牌型！');
   }
   splits.sort((a, b) => b.score - a.score);
@@ -332,7 +334,6 @@ export function fillAiPlayers(playersArr) {
   );
 }
 
-// ==== 头道/尾道评分 ====
 function evalHead(head) {
   const t = handType(head, 'head');
   let score = 0;
@@ -358,7 +359,6 @@ function evalTail(tail) {
   return score;
 }
 
-// ==== 均衡分法 ====
 function balancedSplit(cards) {
   const sorted = [...cards];
   return { head: sorted.slice(0, 3), middle: sorted.slice(3, 8), tail: sorted.slice(8, 13) };
