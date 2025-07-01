@@ -100,7 +100,7 @@ export default function Play() {
     return () => clearInterval(prepTimerRef.current);
   }, [prepCountdown]);
 
-  // 理牌倒计时
+  // 理牌倒计时+超时自动智能分牌并自动开始比牌
   useEffect(() => {
     if (dealCountdown === null || dealCountdown <= 0) {
       clearInterval(dealTimerRef.current);
@@ -110,8 +110,8 @@ export default function Play() {
     dealTimerRef.current = setInterval(() => {
       setDealCountdown((c) => {
         if (c === 1) {
-          handleSmartSplit();
-          handleStartCompare();
+          // 120s到，自动智能分牌并自动提交
+          autoSmartSplitAndSubmit();
           clearInterval(dealTimerRef.current);
           return 0;
         }
@@ -122,7 +122,7 @@ export default function Play() {
     // eslint-disable-next-line
   }, [dealCountdown]);
 
-  // ========== 比牌后5秒自动恢复准备按钮 ==========
+  // 比牌后5秒自动恢复准备按钮
   useEffect(() => {
     if (showResult) {
       setCompareEndTime(Date.now());
@@ -147,16 +147,22 @@ export default function Play() {
     }
   }, [roomStatus, showResult]);
 
+  // 发牌后自动智能分牌（缓存多分法），和TryPlay一致
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
-      // 默认智能分牌（和TryPlay一致，缓存分牌方案）
       const splits = getPlayerSmartSplits(myCards);
       setMySplits(splits);
       setSplitIndex(0);
-      if (splits.length) {
+      if (splits.length > 0) {
         setHead(splits[0].head);
         setMiddle(splits[0].middle);
         setTail(splits[0].tail);
+        setSubmitMsg('已分好牌，可手动调整后提交');
+      } else {
+        setHead(myCards.slice(0, 3));
+        setMiddle(myCards.slice(3, 8));
+        setTail(myCards.slice(8, 13));
+        setSubmitMsg('已分好牌，可手动调整后提交');
       }
       setHasShownResult(false);
     }
@@ -291,12 +297,8 @@ export default function Play() {
     clearInterval(prepTimerRef.current);
   }
 
+  // 智能分牌：与TryPlay一致，切换多分法
   function handleSmartSplit() {
-    if (!myCards || myCards.length !== 13) {
-      setSubmitMsg('你还没有拿到13张牌');
-      return;
-    }
-    // 智能分牌切换，与TryPlay一致
     if (!mySplits.length) {
       setSubmitMsg('智能分牌计算中，请稍候…');
       return;
@@ -307,7 +309,24 @@ export default function Play() {
     setHead(split.head);
     setMiddle(split.middle);
     setTail(split.tail);
-    setSubmitMsg(`已切换智能分牌方案 ${nextIdx + 1}/${mySplits.length}`);
+    setSubmitMsg(`已切换智能分牌方案 ${nextIdx + 1}/${mySplits.length}，可手动调整后提交`);
+  }
+
+  // 120秒到时自动智能分牌并自动提交（只要未提交）
+  async function autoSmartSplitAndSubmit() {
+    if (submitted) return;
+    if (myCards.length === 13) {
+      // 智能分牌
+      const split = aiSmartSplit(myCards);
+      setHead(split.head);
+      setMiddle(split.middle);
+      setTail(split.tail);
+      setSubmitMsg('已超时，已为你自动智能分牌并自动比牌');
+      // 提交
+      setTimeout(() => {
+        handleStartCompare();
+      }, 300); // 300ms后自动提交
+    }
   }
 
   function handleCardClick(card, area, e) {
@@ -324,20 +343,19 @@ export default function Play() {
   function moveTo(dest) {
     if (submitted) return;
     if (!selected.cards.length) return;
-    let newHand = [...myCards];
+    let inPaiDun = [...head, ...middle, ...tail];
+    let rest = myCards.filter(c => !inPaiDun.includes(c));
     let newHead = [...head];
     let newMiddle = [...middle];
     let newTail = [...tail];
     const from = selected.area;
-    if (from === 'hand') newHand = newHand.filter(c => !selected.cards.includes(c));
+    if (from === 'hand') rest = rest.filter(c => !selected.cards.includes(c));
     if (from === 'head') newHead = newHead.filter(c => !selected.cards.includes(c));
     if (from === 'middle') newMiddle = newMiddle.filter(c => !selected.cards.includes(c));
     if (from === 'tail') newTail = newTail.filter(c => !selected.cards.includes(c));
-    if (dest === 'hand') newHand = [...newHand, ...selected.cards];
     if (dest === 'head') newHead = [...newHead, ...selected.cards];
     if (dest === 'middle') newMiddle = [...newMiddle, ...selected.cards];
     if (dest === 'tail') newTail = [...newTail, ...selected.cards];
-    setMyCards(newHand);
     setHead(newHead);
     setMiddle(newMiddle);
     setTail(newTail);
@@ -591,7 +609,7 @@ export default function Play() {
   }
 
   function renderMyCards() {
-    // 只渲染未分配到牌墩的牌
+    // 只渲染未分到牌墩的牌
     const inPaiDun = new Set([...head, ...middle, ...tail]);
     const rest = myCards.filter(c => !inPaiDun.has(c));
     return <div className="cards-area">
