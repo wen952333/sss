@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { aiSmartSplit, getPlayerSmartSplits } from './SmartSplit';
+import CountdownKick from './CountdownKick';
 import './Play.css';
 
+// ========== 常量 ==========
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
@@ -23,24 +25,20 @@ export default function Play() {
   const [isReady, setIsReady] = useState(false);
   const [roomStatus, setRoomStatus] = useState('');
   const [showResult, setShowResult] = useState(false);
-  const [myResult, setMyResult] = useState(null);
+  const [resultModalData, setResultModalData] = useState(null);
   const [splitIndex, setSplitIndex] = useState(0);
   const [mySplits, setMySplits] = useState([]);
   const [allPlayed, setAllPlayed] = useState(false);
-  const [resultModalData, setResultModalData] = useState(null);
-  const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
-  const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
+  const [prepCountdown, setPrepCountdown] = useState(null);
+  const [dealCountdown, setDealCountdown] = useState(null);
   const [hasShownResult, setHasShownResult] = useState(false);
   const [readyResetTime, setReadyResetTime] = useState(null);
 
-  // 记录比牌结束时间（showResult弹窗弹出时计时）
-  const [compareEndTime, setCompareEndTime] = useState(null);
+  // 比牌弹窗5秒后才可准备
+  const [canReady, setCanReady] = useState(false);
 
-  const prepTimerRef = useRef(null);
-  const dealTimerRef = useRef(null);
   const navigate = useNavigate();
-
-  // 退出按钮可用性：只在准备阶段和比牌结算弹窗可用
+  // 退出按钮仅准备/比牌弹窗可用
   const canExit = roomStatus === 'waiting' || showResult;
 
   async function apiFetch(url, opts) {
@@ -71,7 +69,6 @@ export default function Play() {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [roomId, showResult]);
 
   // 我的牌定时刷新
@@ -79,75 +76,29 @@ export default function Play() {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
-    // eslint-disable-next-line
   }, [roomId]);
 
-  // 准备倒计时
-  useEffect(() => {
-    if (prepCountdown === null || prepCountdown <= 0) {
-      clearInterval(prepTimerRef.current);
-      return;
-    }
-    clearInterval(prepTimerRef.current);
-    prepTimerRef.current = setInterval(() => {
-      setPrepCountdown(c => {
-        if (c <= 1) {
-          clearInterval(prepTimerRef.current);
-          handleKickSelf();
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(prepTimerRef.current);
-  }, [prepCountdown]);
-
-  // 理牌倒计时+超时自动智能分牌并自动开始比牌
-  useEffect(() => {
-    if (dealCountdown === null || dealCountdown <= 0) {
-      clearInterval(dealTimerRef.current);
-      return;
-    }
-    clearInterval(dealTimerRef.current);
-    dealTimerRef.current = setInterval(() => {
-      setDealCountdown((c) => {
-        if (c === 1) {
-          autoSmartSplitAndSubmit();
-          clearInterval(dealTimerRef.current);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(dealTimerRef.current);
-    // eslint-disable-next-line
-  }, [dealCountdown]);
-
-  // 比牌后5秒自动恢复准备按钮
+  // 比牌弹窗出现时，5秒后才能准备
   useEffect(() => {
     if (showResult) {
-      setCompareEndTime(Date.now());
-      const timer = setTimeout(async () => {
-        setShowResult(false);
-        await fetch('https://9526.ip-ddns.com/api/reset_after_result.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId, token: localStorage.getItem('token') }),
-        });
-      }, 5000);
+      setCanReady(false);
+      const timer = setTimeout(() => setCanReady(true), 5000);
       return () => clearTimeout(timer);
+    } else {
+      setCanReady(false);
     }
-  }, [showResult, roomId]);
+  }, [showResult]);
 
   // 只要所有玩家都已关闭弹窗（即后端变waiting），立即关闭弹窗并恢复准备
   useEffect(() => {
     if (roomStatus === 'waiting' && showResult) {
       setShowResult(false);
       setIsReady(true);
+      setCanReady(false);
     }
   }, [roomStatus, showResult]);
 
-  // 发牌后自动智能分牌（缓存多分法），和TryPlay一致
+  // 发牌后自动智能分牌（缓存多分法）
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       const splits = getPlayerSmartSplits(myCards);
@@ -176,7 +127,50 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // 拉取房间玩家和状态
+  // ========== 倒计时管理 ==========
+  // 只有房间状态变化时设置倒计时，倒计时组件内部自减，不会跳回
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    async function getRoomInfoForCountdown() {
+      const res = await fetch(`https://9526.ip-ddns.com/api/room_info.php?roomId=${roomId}&token=${token}`);
+      const data = await res.json();
+      if (!data.success) return;
+      setRoomStatus(data.status);
+      setPlayers(data.players);
+      setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
+      const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+      if (data.status === 'waiting' && me && !me.submitted) {
+        let remain = 45;
+        if (data.ready_reset_time) {
+          let now = Date.now();
+          const readyResetTime = new Date(data.ready_reset_time.replace(/-/g, '/')).getTime();
+          remain = 45 - Math.floor((now - readyResetTime) / 1000);
+          if (remain < 0) remain = 0;
+        }
+        setPrepCountdown(remain);
+        setDealCountdown(null);
+      } else {
+        setPrepCountdown(null);
+      }
+      if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
+        setDealCountdown(120);
+        setPrepCountdown(null);
+      } else if (!(data.status === 'started' && me && !me.submitted)) {
+        setDealCountdown(null);
+      }
+      if (showResult) {
+        setIsReady(canReady);
+      } else if (data.status === 'waiting' && me && !me.submitted) {
+        setIsReady(true);
+      } else {
+        setIsReady(false);
+      }
+    }
+    getRoomInfoForCountdown();
+    // eslint-disable-next-line
+  }, [roomId, showResult, myCards.length]);
+
+  // ========== 业务数据拉取 ==========
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -191,30 +185,8 @@ export default function Play() {
       setRoomStatus(data.status);
       setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-      // 准备倒计时准确同步
-      if (data.status === 'waiting' && me && !me.submitted) {
-        let remain = 45;
-        if (readyResetTime) {
-          let now = Date.now();
-          remain = 45 - Math.floor((now - readyResetTime) / 1000);
-          if (remain < 0) remain = 0;
-        }
-        setPrepCountdown(remain);
-        setDealCountdown(null);
-      } else {
-        setPrepCountdown(null);
-        clearInterval(prepTimerRef.current);
-      }
-      // 理牌倒计时
-      if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
-        if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
-        setPrepCountdown(null);
-      } else if (!(data.status === 'started' && me && !me.submitted)) {
-        setDealCountdown(null);
-        clearInterval(dealTimerRef.current);
-      }
       if (showResult) {
-        setIsReady(true);
+        setIsReady(canReady);
       } else if (data.status === 'waiting' && me && !me.submitted) {
         setIsReady(true);
       } else {
@@ -241,9 +213,7 @@ export default function Play() {
     const token = localStorage.getItem('token');
     const data = await apiFetch(`https://9526.ip-ddns.com/api/my_cards.php?roomId=${roomId}&token=${token}`);
     setSubmitted(!!data.submitted);
-    setMyResult(data.result || null);
     setAllPlayed(!!data.allPlayed);
-
     if (Array.isArray(data.cards) && data.cards.length === 13) {
       setMyCards(data.cards);
     } else {
@@ -294,10 +264,8 @@ export default function Play() {
     });
     setIsReady(false);
     setPrepCountdown(null);
-    clearInterval(prepTimerRef.current);
   }
 
-  // 智能分牌：和TryPlay完全一致，切换多分法
   function handleSmartSplit() {
     if (!mySplits.length) {
       setSubmitMsg('智能分牌计算中，请稍候…');
@@ -312,20 +280,17 @@ export default function Play() {
     setSubmitMsg(`已切换智能分牌方案 ${nextIdx + 1}/${mySplits.length}，可手动调整后提交`);
   }
 
-  // 120秒到时自动智能分牌并自动提交（只要未提交）
   async function autoSmartSplitAndSubmit() {
     if (submitted) return;
     if (myCards.length === 13) {
-      // 智能分牌
       const split = aiSmartSplit(myCards);
       setHead(split.head);
       setMiddle(split.middle);
       setTail(split.tail);
       setSubmitMsg('已超时，已为你自动智能分牌并自动比牌');
-      // 提交
       setTimeout(() => {
         handleStartCompare();
-      }, 300); // 300ms后自动提交
+      }, 300);
     }
   }
 
@@ -380,13 +345,11 @@ export default function Play() {
       setSubmitted(true);
       setSubmitMsg('已提交，等待其他玩家...');
       setDealCountdown(null);
-      clearInterval(dealTimerRef.current);
     } else {
       setSubmitMsg('提交失败，请重试');
     }
   }
 
-  // 45秒未准备自动踢出
   async function handleKickSelf() {
     alert('您45秒未准备，已被踢出房间');
     const token = localStorage.getItem('token');
@@ -401,51 +364,24 @@ export default function Play() {
   // ========== UI渲染部分 ==========
 
   function renderCountdown() {
-    if (dealCountdown !== null && !submitted && dealCountdown > 0) {
-      return (
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          top: 18,
-          transform: 'translateX(-50%)',
-          zIndex: 1001,
-          background: '#fff',
-          color: dealCountdown <= 10 ? 'red' : '#185a30',
-          fontWeight: 900,
-          fontSize: 28,
-          borderRadius: 10,
-          padding: '2px 18px',
-          boxShadow: '0 2px 10px #23e67a33',
-          minWidth: 50,
-          textAlign: 'center'
-        }}>
-          {dealCountdown}
-        </div>
-      );
-    }
-    if (prepCountdown !== null && prepCountdown > 0) {
-      return (
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          top: 18,
-          transform: 'translateX(-50%)',
-          zIndex: 1001,
-          background: '#fff',
-          color: prepCountdown <= 10 ? 'red' : '#185a30',
-          fontWeight: 900,
-          fontSize: 28,
-          borderRadius: 10,
-          padding: '2px 18px',
-          boxShadow: '0 2px 10px #23e67a33',
-          minWidth: 50,
-          textAlign: 'center'
-        }}>
-          {prepCountdown}
-        </div>
-      );
-    }
-    return null;
+    return (
+      <>
+        {prepCountdown !== null && prepCountdown > 0 && (
+          <CountdownKick
+            enabled={prepCountdown > 0}
+            remain={prepCountdown}
+            onKick={handleKickSelf}
+          />
+        )}
+        {dealCountdown !== null && dealCountdown > 0 && (
+          <CountdownKick
+            enabled={dealCountdown > 0}
+            remain={dealCountdown}
+            onKick={autoSmartSplitAndSubmit}
+          />
+        )}
+      </>
+    );
   }
 
   function renderPlayerSeat(name, idx, isMe, submitted) {
@@ -834,7 +770,6 @@ export default function Play() {
             height: ${Math.floor(CARD_HEIGHT*0.92)}px !important;
           }
         }
-        /* 彻底去掉所有扑克牌边框 */
         .card-img {
           border: none !important;
         }
