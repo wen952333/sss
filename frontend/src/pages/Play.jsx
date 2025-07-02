@@ -4,7 +4,6 @@ import { aiSmartSplit, getPlayerSmartSplits } from './SmartSplit';
 import CountdownKick from './CountdownKick';
 import './Play.css';
 
-// ========== 常量 ==========
 const OUTER_MAX_WIDTH = 420;
 const PAI_DUN_HEIGHT = 133;
 const CARD_HEIGHT = Math.round(PAI_DUN_HEIGHT * 0.94);
@@ -33,12 +32,9 @@ export default function Play() {
   const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
   const [hasShownResult, setHasShownResult] = useState(false);
   const [readyResetTime, setReadyResetTime] = useState(null);
-
-  // 比牌弹窗5秒后才可准备
   const [canReady, setCanReady] = useState(false);
 
   const navigate = useNavigate();
-  // 退出按钮仅准备/比牌弹窗可用
   const canExit = roomStatus === 'waiting' || showResult;
 
   async function apiFetch(url, opts) {
@@ -52,7 +48,6 @@ export default function Play() {
     }
   }
 
-  // 登录+积分
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -64,21 +59,18 @@ export default function Play() {
     fetchMyPoints();
   }, [navigate]);
 
-  // 房间信息定时刷新
   useEffect(() => {
     fetchPlayers();
     const timer = setInterval(fetchPlayers, 2000);
     return () => clearInterval(timer);
   }, [roomId, showResult]);
 
-  // 我的牌定时刷新
   useEffect(() => {
     fetchMyCards();
     const timer = setInterval(fetchMyCards, 1500);
     return () => clearInterval(timer);
   }, [roomId]);
 
-  // 比牌弹窗出现时，5秒后才能准备
   useEffect(() => {
     if (showResult) {
       setCanReady(false);
@@ -89,7 +81,6 @@ export default function Play() {
     }
   }, [showResult]);
 
-  // 只要所有玩家都已关闭弹窗（即后端变waiting），立即关闭弹窗并恢复准备
   useEffect(() => {
     if (roomStatus === 'waiting' && showResult) {
       setShowResult(false);
@@ -98,7 +89,6 @@ export default function Play() {
     }
   }, [roomStatus, showResult]);
 
-  // 发牌后自动智能分牌（缓存多分法）
   useEffect(() => {
     if (myCards.length === 13 && !submitted) {
       const splits = getPlayerSmartSplits(myCards);
@@ -127,7 +117,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // ========== 倒计时赋初始值（只赋值一次，显示交给CountdownKick） ==========
+  // 只在倒计时为 null 时设置初值
   useEffect(() => {
     const token = localStorage.getItem('token');
     async function getRoomInfoForCountdown() {
@@ -146,13 +136,13 @@ export default function Play() {
           remain = 45 - Math.floor((now - readyResetTime) / 1000);
           if (remain < 0) remain = 0;
         }
-        setPrepCountdown(remain);
+        if (prepCountdown === null && remain > 0) setPrepCountdown(remain);
         setDealCountdown(null);
       } else {
         setPrepCountdown(null);
       }
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
-        setDealCountdown(120);
+        if (dealCountdown === null) setDealCountdown(120);
         setPrepCountdown(null);
       } else if (!(data.status === 'started' && me && !me.submitted)) {
         setDealCountdown(null);
@@ -169,7 +159,6 @@ export default function Play() {
     // eslint-disable-next-line
   }, [roomId, showResult, myCards.length]);
 
-  // ========== 业务数据拉取 ==========
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -359,8 +348,6 @@ export default function Play() {
     });
     navigate('/');
   }
-
-  // ========== UI渲染部分 ==========
 
   function renderCountdown() {
     if (prepCountdown !== null && prepCountdown > 0 && !submitted && roomStatus === 'waiting') {
@@ -668,7 +655,6 @@ export default function Play() {
           >
             &lt; 退出房间
           </button>
-          {/* 倒计时UI：绝对居中 */}
           <div style={{ flex: 1, position: 'relative' }}>
             {renderCountdown()}
           </div>
@@ -685,17 +671,14 @@ export default function Play() {
             积分：{myPoints}
           </div>
         </div>
-        {/* 玩家区 */}
         <div style={{ display: 'flex', marginBottom: 18, gap: 8 }}>
           {players.map((p, idx) =>
             renderPlayerSeat(p.name, idx, p.name === myName, p.submitted)
           )}
         </div>
-        {/* 牌墩区域 */}
         {renderPaiDun(head, '头道', 'head', '#23e67a')}
         {renderPaiDun(middle, '中道', 'middle', '#23e67a')}
         {renderPaiDun(tail, '尾道', 'tail', '#23e67a')}
-        {/* 按钮区 */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 0, marginTop: 0 }}>
           <button
             style={{
@@ -749,7 +732,6 @@ export default function Play() {
             onClick={handleStartCompare}
           >开始比牌</button>
         </div>
-        {/* 手牌区 */}
         <div style={{ margin: '12px 0 8px 0' }}>
           {renderMyCards()}
         </div>
