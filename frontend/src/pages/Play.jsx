@@ -30,14 +30,14 @@ export default function Play() {
   const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
   const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
   const [hasShownResult, setHasShownResult] = useState(false);
-  const [readyResetTime, setReadyResetTime] = useState(null);
 
   // 记录比牌结束时间（showResult弹窗弹出时计时）
   const [compareEndTime, setCompareEndTime] = useState(null);
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
-  const lastReadyResetRef = useRef(null); // 用于同步倒计时
+  // 新增：用于倒计时同步
+  const lastReadyResetRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -177,12 +177,11 @@ export default function Play() {
       setRoomStatus(data.status);
       // ready_reset_time 用于准备倒计时精准同步
       const newReadyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
-      setReadyResetTime(newReadyResetTime);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
+
       // 只在ready_reset_time变化时重置倒计时
       if (data.status === 'waiting' && me && !me.submitted) {
         if (newReadyResetTime !== lastReadyResetRef.current) {
-          // ready_reset_time变化，重置倒计时
           let remain = 45;
           if (newReadyResetTime) {
             let now = Date.now();
@@ -294,7 +293,6 @@ export default function Play() {
 
   // 智能分牌：调用前端算法
   async function handleSmartSplit() {
-    // 前端实现智能分牌算法（见 SmartSplit.js 示例，或自行实现）
     setSubmitMsg('请在前端实现智能分牌算法');
   }
 
