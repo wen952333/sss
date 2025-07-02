@@ -29,8 +29,8 @@ export default function Play() {
   const [splitIndex, setSplitIndex] = useState(0);
   const [mySplits, setMySplits] = useState([]);
   const [allPlayed, setAllPlayed] = useState(false);
-  const [prepCountdown, setPrepCountdown] = useState(null);
-  const [dealCountdown, setDealCountdown] = useState(null);
+  const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
+  const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
   const [hasShownResult, setHasShownResult] = useState(false);
   const [readyResetTime, setReadyResetTime] = useState(null);
 
@@ -52,6 +52,7 @@ export default function Play() {
     }
   }
 
+  // 登录+积分
   useEffect(() => {
     const token = localStorage.getItem('token');
     const nickname = localStorage.getItem('nickname');
@@ -127,8 +128,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // ========== 倒计时管理 ==========
-  // 只有房间状态变化时设置倒计时，倒计时组件内部自减，不会跳回
+  // ========== 倒计时赋初始值（只赋值一次，显示交给CountdownKick） ==========
   useEffect(() => {
     const token = localStorage.getItem('token');
     async function getRoomInfoForCountdown() {
@@ -364,24 +364,25 @@ export default function Play() {
   // ========== UI渲染部分 ==========
 
   function renderCountdown() {
-    return (
-      <>
-        {prepCountdown !== null && prepCountdown > 0 && (
-          <CountdownKick
-            enabled={prepCountdown > 0}
-            remain={prepCountdown}
-            onKick={handleKickSelf}
-          />
-        )}
-        {dealCountdown !== null && dealCountdown > 0 && (
-          <CountdownKick
-            enabled={dealCountdown > 0}
-            remain={dealCountdown}
-            onKick={autoSmartSplitAndSubmit}
-          />
-        )}
-      </>
-    );
+    if (prepCountdown !== null && prepCountdown > 0 && !submitted && roomStatus === 'waiting') {
+      return (
+        <CountdownKick
+          enabled={true}
+          remain={prepCountdown}
+          onKick={handleKickSelf}
+        />
+      );
+    }
+    if (dealCountdown !== null && dealCountdown > 0 && !submitted && roomStatus === 'started') {
+      return (
+        <CountdownKick
+          enabled={true}
+          remain={dealCountdown}
+          onKick={autoSmartSplitAndSubmit}
+        />
+      );
+    }
+    return null;
   }
 
   function renderPlayerSeat(name, idx, isMe, submitted) {
@@ -545,6 +546,7 @@ export default function Play() {
   }
 
   function renderMyCards() {
+    // 只渲染未分到牌墩的牌
     const inPaiDun = new Set([...head, ...middle, ...tail]);
     const rest = myCards.filter(c => !inPaiDun.has(c));
     return <div className="cards-area">
