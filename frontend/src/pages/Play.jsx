@@ -37,6 +37,8 @@ export default function Play() {
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
+  const lastReadyResetRef = useRef(null); // 用于同步倒计时
+
   const navigate = useNavigate();
 
   async function apiFetch(url, opts) {
@@ -174,21 +176,27 @@ export default function Play() {
       setPlayers(data.players);
       setRoomStatus(data.status);
       // ready_reset_time 用于准备倒计时精准同步
-      setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
+      const newReadyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
+      setReadyResetTime(newReadyResetTime);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-      // 准备倒计时准确同步
+      // 只在ready_reset_time变化时重置倒计时
       if (data.status === 'waiting' && me && !me.submitted) {
-        let remain = 45;
-        if (readyResetTime) {
-          let now = Date.now();
-          remain = 45 - Math.floor((now - readyResetTime) / 1000);
-          if (remain < 0) remain = 0;
+        if (newReadyResetTime !== lastReadyResetRef.current) {
+          // ready_reset_time变化，重置倒计时
+          let remain = 45;
+          if (newReadyResetTime) {
+            let now = Date.now();
+            remain = 45 - Math.floor((now - newReadyResetTime) / 1000);
+            if (remain < 0) remain = 0;
+          }
+          setPrepCountdown(remain);
+          lastReadyResetRef.current = newReadyResetTime;
         }
-        setPrepCountdown(remain);
         setDealCountdown(null);
       } else {
         setPrepCountdown(null);
         clearInterval(prepTimerRef.current);
+        lastReadyResetRef.current = null;
       }
       // 理牌倒计时
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
