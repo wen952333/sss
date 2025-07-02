@@ -62,8 +62,7 @@ export default function Play() {
     }
     setMyName(nickname);
     fetchMyPoints();
-    // eslint-disable-next-line
-  }, []);
+  }, [navigate]);
 
   // 房间信息定时刷新
   useEffect(() => {
@@ -546,7 +545,6 @@ export default function Play() {
   }
 
   function renderMyCards() {
-    // 只渲染未分到牌墩的牌
     const inPaiDun = new Set([...head, ...middle, ...tail]);
     const rest = myCards.filter(c => !inPaiDun.has(c));
     return <div className="cards-area">
