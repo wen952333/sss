@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { aiSmartSplit } from './SmartSplit';
 import './Play.css';
 
 // ========== 常量 ==========
@@ -37,7 +38,7 @@ export default function Play() {
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
-  const lastPrepStatusRef = useRef(false); // 新增：用于只在切换到未准备时重置倒计时
+  const lastPrepStatusRef = useRef(false); // 只在切换到未准备时重置倒计时
 
   const navigate = useNavigate();
 
@@ -162,7 +163,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // fetchPlayers 只保留房间不存在时跳转首页逻辑
+  // fetchPlayers 只保留房间不存在时跳转首页逻辑和倒计时控制
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -175,15 +176,13 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
-      // ready_reset_time 用于准备倒计时精准同步
       setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
 
-      // ==== 只在状态切换到"需要准备"时重置倒计时 =====
+      // ========== 只在切换到未准备状态时重置倒计时 ==========
       const prevUnready = lastPrepStatusRef.current;
       const nowUnready = (data.status === 'waiting' && me && !me.submitted);
       if (nowUnready && !prevUnready) {
-        // 状态刚切换到未准备，重置倒计时
         let remain = 45;
         if (data.ready_reset_time) {
           let now = Date.now();
@@ -199,7 +198,7 @@ export default function Play() {
         clearInterval(prepTimerRef.current);
       }
       lastPrepStatusRef.current = nowUnready;
-      // ===================
+      // =====================================
 
       // 理牌倒计时
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
@@ -297,7 +296,17 @@ export default function Play() {
 
   // 智能分牌：调用前端算法
   async function handleSmartSplit() {
-    setSubmitMsg('请在前端实现智能分牌算法');
+    let cards = [...myCards, ...head, ...middle, ...tail];
+    if (cards.length !== 13) {
+      setSubmitMsg('请先拿到13张牌');
+      return;
+    }
+    const { head: newHead, middle: newMiddle, tail: newTail } = aiSmartSplit(cards);
+    setHead(newHead);
+    setMiddle(newMiddle);
+    setTail(newTail);
+    setMyCards([]);
+    setSubmitMsg('智能分牌已完成');
   }
 
   function handleCardClick(card, area, e) {
