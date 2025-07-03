@@ -37,6 +37,8 @@ export default function Play() {
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
+  const lastPrepStatusRef = useRef(false); // 新增：用于只在切换到未准备时重置倒计时
+
   const navigate = useNavigate();
 
   async function apiFetch(url, opts) {
@@ -176,20 +178,29 @@ export default function Play() {
       // ready_reset_time 用于准备倒计时精准同步
       setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-      // 准备倒计时准确同步
-      if (data.status === 'waiting' && me && !me.submitted) {
+
+      // ==== 只在状态切换到"需要准备"时重置倒计时 =====
+      const prevUnready = lastPrepStatusRef.current;
+      const nowUnready = (data.status === 'waiting' && me && !me.submitted);
+      if (nowUnready && !prevUnready) {
+        // 状态刚切换到未准备，重置倒计时
         let remain = 45;
-        if (readyResetTime) {
+        if (data.ready_reset_time) {
           let now = Date.now();
-          remain = 45 - Math.floor((now - readyResetTime) / 1000);
+          let readyReset = new Date(data.ready_reset_time.replace(/-/g, '/')).getTime();
+          remain = 45 - Math.floor((now - readyReset) / 1000);
           if (remain < 0) remain = 0;
         }
         setPrepCountdown(remain);
         setDealCountdown(null);
-      } else {
+      }
+      if (!nowUnready) {
         setPrepCountdown(null);
         clearInterval(prepTimerRef.current);
       }
+      lastPrepStatusRef.current = nowUnready;
+      // ===================
+
       // 理牌倒计时
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
         if (dealCountdown === null || dealCountdown === 0) setDealCountdown(120);
@@ -286,7 +297,6 @@ export default function Play() {
 
   // 智能分牌：调用前端算法
   async function handleSmartSplit() {
-    // 前端实现智能分牌算法（见 SmartSplit.js 示例，或自行实现）
     setSubmitMsg('请在前端实现智能分牌算法');
   }
 
