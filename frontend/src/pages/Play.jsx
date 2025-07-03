@@ -36,7 +36,7 @@ export default function Play() {
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
-  // 新增：用于倒计时同步
+  // 用于倒计时同步
   const lastReadyResetRef = useRef(null);
 
   const navigate = useNavigate();
@@ -162,7 +162,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // fetchPlayers 只保留房间不存在时跳转首页逻辑
+  // fetchPlayers 只保留房间不存在时跳转首页逻辑，并修正倒计时
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -175,11 +175,11 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
-      // ready_reset_time 用于准备倒计时精准同步
+
+      // 关键：倒计时同步，直接用本次fetch的ready_reset_time
       const newReadyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
 
-      // 只在ready_reset_time变化时重置倒计时
       if (data.status === 'waiting' && me && !me.submitted) {
         if (newReadyResetTime !== lastReadyResetRef.current) {
           let remain = 45;
