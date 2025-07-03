@@ -30,15 +30,13 @@ export default function Play() {
   const [prepCountdown, setPrepCountdown] = useState(null); // 45秒准备
   const [dealCountdown, setDealCountdown] = useState(null); // 120秒理牌
   const [hasShownResult, setHasShownResult] = useState(false);
+  const [readyResetTime, setReadyResetTime] = useState(null);
 
   // 记录比牌结束时间（showResult弹窗弹出时计时）
   const [compareEndTime, setCompareEndTime] = useState(null);
 
   const prepTimerRef = useRef(null);
   const dealTimerRef = useRef(null);
-  // 用于倒计时同步
-  const lastReadyResetRef = useRef(null);
-
   const navigate = useNavigate();
 
   async function apiFetch(url, opts) {
@@ -162,7 +160,7 @@ export default function Play() {
     }
   }, [submitted, allPlayed, players, hasShownResult]);
 
-  // fetchPlayers 只保留房间不存在时跳转首页逻辑，并修正倒计时
+  // fetchPlayers 只保留房间不存在时跳转首页逻辑
   async function fetchPlayers() {
     const token = localStorage.getItem('token');
     try {
@@ -175,27 +173,22 @@ export default function Play() {
       }
       setPlayers(data.players);
       setRoomStatus(data.status);
-
-      // 关键：倒计时同步，直接用本次fetch的ready_reset_time
-      const newReadyResetTime = data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null;
+      // ready_reset_time 用于准备倒计时精准同步
+      setReadyResetTime(data.ready_reset_time ? new Date(data.ready_reset_time.replace(/-/g, '/')).getTime() : null);
       const me = data.players.find(p => p.name === localStorage.getItem('nickname'));
-
+      // 准备倒计时准确同步
       if (data.status === 'waiting' && me && !me.submitted) {
-        if (newReadyResetTime !== lastReadyResetRef.current) {
-          let remain = 45;
-          if (newReadyResetTime) {
-            let now = Date.now();
-            remain = 45 - Math.floor((now - newReadyResetTime) / 1000);
-            if (remain < 0) remain = 0;
-          }
-          setPrepCountdown(remain);
-          lastReadyResetRef.current = newReadyResetTime;
+        let remain = 45;
+        if (readyResetTime) {
+          let now = Date.now();
+          remain = 45 - Math.floor((now - readyResetTime) / 1000);
+          if (remain < 0) remain = 0;
         }
+        setPrepCountdown(remain);
         setDealCountdown(null);
       } else {
         setPrepCountdown(null);
         clearInterval(prepTimerRef.current);
-        lastReadyResetRef.current = null;
       }
       // 理牌倒计时
       if (data.status === 'started' && me && !me.submitted && myCards.length === 13) {
@@ -293,6 +286,7 @@ export default function Play() {
 
   // 智能分牌：调用前端算法
   async function handleSmartSplit() {
+    // 前端实现智能分牌算法（见 SmartSplit.js 示例，或自行实现）
     setSubmitMsg('请在前端实现智能分牌算法');
   }
 
