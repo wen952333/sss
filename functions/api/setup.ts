@@ -63,6 +63,34 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
+    // 5. Create CarriageSeats Table (Real-time Seating)
+    // Tracks who is currently sitting in which carriage/event
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS CarriageSeats (
+        carriage_id INTEGER NOT NULL,
+        seat TEXT NOT NULL, -- 'North', 'South', 'East', 'West'
+        user_id INTEGER NOT NULL,
+        nickname TEXT NOT NULL,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+        PRIMARY KEY (carriage_id, seat)
+      );
+    `).run();
+
+    // 6. Create HandSubmissions Table (Real-time Gameplay)
+    // Stores player hand submissions for the server to settle
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS HandSubmissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        carriage_id INTEGER NOT NULL,
+        table_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        seat TEXT NOT NULL,
+        hand_json TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        UNIQUE(carriage_id, table_id, user_id)
+      );
+    `).run();
+
     return new Response(JSON.stringify({ message: "Database schema updated successfully" }), {
       headers: { "Content-Type": "application/json" }
     });
