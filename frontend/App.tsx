@@ -2,11 +2,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from './types';
 import { getLocalSuggestions } from './services/suggestions';
 import { HandRow } from './components/HandRow';
-import { CardComponent } from './components/CardComponent';
+import { CardComponent } from './components/CardComponent'; // Import direct card component for small views
 import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame, getCarriagePlayerCount } from './services/mockBackend';
 
+// Constants
+// Use a fallback ID if not logged in for mock functionality compatibility
 const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
 
+// Define the Lobby Tables (Events)
 const LOBBY_TABLES = [
   { id: 1, name: "今晚 20:00 结算场", carriageId: 1, minScore: 100 },
   { id: 2, name: "明日 12:00 结算场", carriageId: 2, minScore: 100 },
@@ -32,9 +35,14 @@ const App: React.FC = () => {
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [lobbySelection, setLobbySelection] = useState<{carriageId: number, seat: Seat} | null>(null);
 
+  // --- UI Modals State ---
   const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  
+  // --- Auth Form State ---
   const [authForm, setAuthForm] = useState({ phone: '', nickname: '', password: '' });
+  
+  // --- Wallet Form State ---
   const [walletForm, setWalletForm] = useState({ 
       searchPhone: '', 
       targetUser: null as { id: number, nickname: string } | null, 
@@ -42,7 +50,9 @@ const App: React.FC = () => {
   });
   const [walletMsg, setWalletMsg] = useState('');
 
+  // Load initial progress on mount
   useEffect(() => {
+      // Check for cached user in localStorage
       const cachedUser = localStorage.getItem('shisanshui_user');
       if (cachedUser) {
           try {
@@ -56,12 +66,15 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, submissions: subs }));
   }, []);
 
+  // Update submissions when user changes
   useEffect(() => {
      if (gameState.user) {
          const subs = getPlayerSubmissions(`u_${gameState.user.id}`);
          setGameState(prev => ({ ...prev, submissions: subs }));
      }
   }, [gameState.user]);
+
+  // --- API Handlers ---
 
   const handleRegister = async () => {
       if(authForm.password.length < 6) return alert("密码需至少6位");
@@ -71,7 +84,7 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify(authForm)
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           alert("注册成功，请登录");
           setShowAuthModal('login');
@@ -87,7 +100,7 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ phone: authForm.phone, password: authForm.password })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
           setGameState(prev => ({ ...prev, user: data.user }));
@@ -112,7 +125,7 @@ const App: React.FC = () => {
               method: 'POST',
               body: JSON.stringify({ query: walletForm.searchPhone })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.found) {
               setWalletForm(prev => ({ ...prev, targetUser: data.user }));
               setWalletMsg('');
@@ -136,9 +149,10 @@ const App: React.FC = () => {
                   amount: walletForm.amount 
               })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
+          // Update local balance
           const newUser = { ...gameState.user, points: data.newPoints };
           setGameState(prev => ({ ...prev, user: newUser }));
           localStorage.setItem('shisanshui_user', JSON.stringify(newUser));
@@ -150,6 +164,8 @@ const App: React.FC = () => {
           alert(e.message);
       }
   };
+
+  // --- Game Logic ---
 
   const handleSeatSelect = (carriageId: number, seat: Seat) => {
       if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
@@ -169,6 +185,7 @@ const App: React.FC = () => {
       const { carriageId, seat } = lobbySelection;
       const count = getCarriagePlayerCount(carriageId);
       
+      // In Bot Fill Mode, we can essentially allow 1 player to start against bots
       if (count < 2) { 
           alert("当前场次暂无其他玩家，请稍后重试或等待玩家加入。");
           return;
@@ -243,7 +260,9 @@ const App: React.FC = () => {
           return;
       }
 
+      // Use real ID if logged in, else temp
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
+
       const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
       submitPlayerHand(pid, {
           carriageId: gameState.currentCarriageId,
@@ -282,6 +301,9 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
   };
 
+  // --- Views ---
+
+  // Mini Card Row for Reports
   const MiniHandRow = ({ cards }: { cards: Card[] }) => (
       <div className="flex -space-x-4 items-center justify-center">
           {cards.map((c, i) => (
