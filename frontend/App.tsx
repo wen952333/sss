@@ -2,11 +2,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from './types';
 import { getLocalSuggestions } from './services/suggestions';
 import { HandRow } from './components/HandRow';
-import { CardComponent } from './components/CardComponent';
+import { CardComponent } from './components/CardComponent'; // Import direct card component for small views
 import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame, getCarriagePlayerCount } from './services/mockBackend';
 
+// Constants
+// Use a fallback ID if not logged in for mock functionality compatibility
 const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
 
+// Define the Lobby Tables (Events)
 const LOBBY_TABLES = [
   { id: 1, name: "今晚 20:00 结算场", carriageId: 1, minScore: 100 },
   { id: 2, name: "明日 12:00 结算场", carriageId: 2, minScore: 100 },
@@ -32,9 +35,14 @@ const App: React.FC = () => {
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [lobbySelection, setLobbySelection] = useState<{carriageId: number, seat: Seat} | null>(null);
 
+  // --- UI Modals State ---
   const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  
+  // --- Auth Form State ---
   const [authForm, setAuthForm] = useState({ phone: '', nickname: '', password: '' });
+  
+  // --- Wallet Form State ---
   const [walletForm, setWalletForm] = useState({ 
       searchPhone: '', 
       targetUser: null as { id: number, nickname: string } | null, 
@@ -42,7 +50,9 @@ const App: React.FC = () => {
   });
   const [walletMsg, setWalletMsg] = useState('');
 
+  // Load initial progress on mount
   useEffect(() => {
+      // Check for cached user in localStorage
       const cachedUser = localStorage.getItem('shisanshui_user');
       if (cachedUser) {
           try {
@@ -56,12 +66,15 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, submissions: subs }));
   }, []);
 
+  // Update submissions when user changes
   useEffect(() => {
      if (gameState.user) {
          const subs = getPlayerSubmissions(`u_${gameState.user.id}`);
          setGameState(prev => ({ ...prev, submissions: subs }));
      }
   }, [gameState.user]);
+
+  // --- API Handlers ---
 
   const handleRegister = async () => {
       if(authForm.password.length < 6) return alert("密码需至少6位");
@@ -71,7 +84,7 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify(authForm)
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           alert("注册成功，请登录");
           setShowAuthModal('login');
@@ -87,7 +100,7 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ phone: authForm.phone, password: authForm.password })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
           setGameState(prev => ({ ...prev, user: data.user }));
@@ -112,7 +125,7 @@ const App: React.FC = () => {
               method: 'POST',
               body: JSON.stringify({ query: walletForm.searchPhone })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.found) {
               setWalletForm(prev => ({ ...prev, targetUser: data.user }));
               setWalletMsg('');
@@ -136,9 +149,10 @@ const App: React.FC = () => {
                   amount: walletForm.amount 
               })
           });
-          const data = await res.json();
+          const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
+          // Update local balance
           const newUser = { ...gameState.user, points: data.newPoints };
           setGameState(prev => ({ ...prev, user: newUser }));
           localStorage.setItem('shisanshui_user', JSON.stringify(newUser));
@@ -150,6 +164,8 @@ const App: React.FC = () => {
           alert(e.message);
       }
   };
+
+  // --- Game Logic ---
 
   const handleSeatSelect = (carriageId: number, seat: Seat) => {
       if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
@@ -169,6 +185,7 @@ const App: React.FC = () => {
       const { carriageId, seat } = lobbySelection;
       const count = getCarriagePlayerCount(carriageId);
       
+      // In Bot Fill Mode, we can essentially allow 1 player to start against bots
       if (count < 2) { 
           alert("当前场次暂无其他玩家，请稍后重试或等待玩家加入。");
           return;
@@ -243,7 +260,9 @@ const App: React.FC = () => {
           return;
       }
 
+      // Use real ID if logged in, else temp
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
+
       const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
       submitPlayerHand(pid, {
           carriageId: gameState.currentCarriageId,
@@ -282,6 +301,9 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
   };
 
+  // --- Views ---
+
+  // Mini Card Row for Reports
   const MiniHandRow = ({ cards }: { cards: Card[] }) => (
       <div className="flex -space-x-4 items-center justify-center">
           {cards.map((c, i) => (
@@ -300,8 +322,14 @@ const App: React.FC = () => {
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
       const { totalScore, details } = gameState.settlementReport;
 
+      // Helper to group details by table
+      // We will render a carousel or list of tables.
+      // For design purposes, let's just show the LATEST table played, or a list.
+      // Let's show a list of "Battle Records".
+
       return (
           <div className="h-full w-full bg-green-950 flex flex-col overflow-hidden">
+              {/* Header */}
               <div className="shrink-0 p-4 bg-black/20 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-10">
                    <div>
                        <h2 className="text-xl font-black text-yellow-400">战绩结算</h2>
@@ -315,15 +343,19 @@ const App: React.FC = () => {
                    </div>
               </div>
 
+              {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-20">
                   {details.map((tableResult, idx) => (
                       <div key={idx} className="bg-black/30 border border-white/10 rounded-2xl overflow-hidden">
+                          {/* Table Header */}
                           <div className="bg-white/5 px-4 py-2 flex justify-between items-center">
                               <span className="text-xs font-bold text-yellow-500/80">Table {tableResult.tableId}</span>
                               {tableResult.voided && <span className="text-xs text-red-500 border border-red-500 px-1 rounded">流局</span>}
                           </div>
 
+                          {/* Players Grid (Showdown) */}
                           <div className="p-2 grid grid-cols-2 gap-2">
+                              {/* We only render valid hands if not voided */}
                               {!tableResult.voided && tableResult.details.map((pDetail) => {
                                   const isMe = pDetail.playerId === pid;
                                   return (
@@ -346,8 +378,11 @@ const App: React.FC = () => {
                                               </div>
                                           ) : (
                                               <div className="space-y-1 opacity-90 scale-95 origin-top-left">
+                                                  {/* Top */}
                                                   <div className="flex justify-center transform scale-90 origin-left"><MiniHandRow cards={pDetail.hand.top} /></div>
+                                                  {/* Mid */}
                                                   <div className="flex justify-center"><MiniHandRow cards={pDetail.hand.middle} /></div>
+                                                  {/* Bot */}
                                                   <div className="flex justify-center"><MiniHandRow cards={pDetail.hand.bottom} /></div>
                                               </div>
                                           )}
@@ -359,6 +394,7 @@ const App: React.FC = () => {
                   ))}
               </div>
 
+              {/* Footer Actions */}
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
                   <button onClick={() => setGameState(INITIAL_STATE)} className="w-full py-4 bg-yellow-600 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform">
                       返回大厅
@@ -393,6 +429,7 @@ const App: React.FC = () => {
     <div className="h-screen w-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 font-sans flex flex-col overflow-hidden relative">
       <div className="absolute inset-0 opacity-5 pointer-events-none z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}></div>
 
+      {/* Auth Modal */}
       {showAuthModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
@@ -452,6 +489,7 @@ const App: React.FC = () => {
           </div>
       )}
 
+      {/* Wallet Modal */}
       {showWalletModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
@@ -496,8 +534,11 @@ const App: React.FC = () => {
       {gameState.phase === GamePhase.SETTLEMENT_VIEW ? (
           <ReportView />
       ) : gameState.phase === GamePhase.LOBBY ? (
+        // LOBBY VIEW
         <div className="flex-1 flex flex-col h-full w-full relative">
+            {/* Top Bar */}
             <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-10 shrink-0">
+                {/* Left: Login/Register Toggle */}
                 {gameState.user ? (
                     <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
                         <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border border-white/10 font-bold text-xs">
@@ -517,6 +558,7 @@ const App: React.FC = () => {
                     </button>
                 )}
 
+                {/* Center: View Results */}
                 <button 
                     onClick={handleShowSettlement}
                     className="flex flex-col items-center group relative top-1"
@@ -527,6 +569,7 @@ const App: React.FC = () => {
                     </span>
                 </button>
 
+                {/* Right: Score Management */}
                 <button 
                     onClick={() => {
                         if(gameState.user) setShowWalletModal(true);
@@ -542,11 +585,13 @@ const App: React.FC = () => {
                 </button>
             </div>
 
+            {/* Scrollable Tables Area */}
             <div className="flex-1 overflow-y-auto p-4 pt-6 pb-32">
                <div className="w-full max-w-6xl mx-auto">
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 sm:gap-12 p-2">
                        {LOBBY_TABLES.map(table => (
                            <div key={table.id} className="relative w-full aspect-[16/10] bg-green-800/50 rounded-3xl border-4 border-yellow-900/40 shadow-xl flex items-center justify-center group hover:bg-green-800/70 transition-colors">
+                               {/* Table Surface */}
                                <div className="w-[70%] h-[60%] bg-green-700 rounded-2xl border-4 border-yellow-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] relative flex flex-col items-center justify-center">
                                    <div className="text-yellow-100/10 font-black text-3xl tracking-widest absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none">
                                        EVENT {table.id}
@@ -555,6 +600,7 @@ const App: React.FC = () => {
                                    <div className="text-white/40 text-xs mt-1 z-10 font-mono">底分: {table.minScore}</div>
                                </div>
 
+                               {/* Seats positioned around the table (N/S/E/W) */}
                                {renderSeatButton(table.carriageId, 'North', '北', 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/3')}
                                {renderSeatButton(table.carriageId, 'South', '南', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/3')}
                                {renderSeatButton(table.carriageId, 'West', '西', 'left-0 top-1/2 -translate-y-1/2 -translate-x-1/3')}
@@ -565,6 +611,7 @@ const App: React.FC = () => {
                </div>
             </div>
 
+            {/* Floating Action Button (Start Game) */}
             <div className={`absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent transition-transform duration-300 ${lobbySelection ? 'translate-y-0' : 'translate-y-full'}`}>
                 <div className="max-w-md mx-auto">
                     <button 
@@ -580,6 +627,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
+            {/* Static Footer Instructions (Only show if no selection) */}
             {!lobbySelection && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black/30 backdrop-blur-md border-t border-white/5 py-4 px-4 text-center z-10">
                     <p className="text-white/50 text-xs sm:text-sm font-medium tracking-wide">
@@ -589,10 +637,14 @@ const App: React.FC = () => {
             )}
         </div>
       ) : (
+        // PLAYING VIEW (Async)
         <div className="h-full w-full flex flex-col items-center p-2 max-w-3xl mx-auto overflow-hidden relative">
+            
+            {/* Header: Progress Info - SIMPLIFIED */}
             <div className="w-full flex justify-between items-end px-4 pt-4 pb-2 border-b border-white/5 bg-green-950/50 backdrop-blur-sm z-20">
                 <div>
                     <div className="flex items-center gap-2">
+                        {/* Renamed to Event Name */}
                         <span className="bg-yellow-600 text-white text-[10px] font-bold px-1.5 rounded">
                              {LOBBY_TABLES.find(t => t.carriageId === gameState.currentCarriageId)?.name || '未知场次'}
                         </span>
@@ -605,11 +657,13 @@ const App: React.FC = () => {
                         }</span>
                     </div>
                 </div>
+                {/* Progress Only */}
                 <div className="font-mono text-yellow-400 font-bold text-xl">
                     {gameState.currentTableIndex + 1} <span className="text-white/30 text-sm">/ 10</span>
                 </div>
             </div>
 
+            {/* Main Table Area (Arranging) */}
             <div className="flex-1 flex flex-col items-center justify-start space-y-4 px-2 w-full overflow-y-auto pb-44 pt-4">
                 <HandRow 
                     title="头墩" 
@@ -640,6 +694,7 @@ const App: React.FC = () => {
                 />
             </div>
 
+            {/* Bottom Action Bar */}
             <div className="absolute bottom-6 left-0 right-0 px-3 w-full flex justify-center z-50">
                 <div className="bg-black/90 backdrop-blur-xl p-2.5 rounded-2xl border border-yellow-500/20 shadow-2xl flex flex-row items-center gap-3 w-full max-w-lg">
                     <button 
@@ -659,6 +714,7 @@ const App: React.FC = () => {
                 </div>
             </div>
             
+            {/* Quick Exit */}
             <button 
                 onClick={() => setGameState(prev => ({ ...prev, phase: GamePhase.LOBBY }))} 
                 className="absolute top-20 right-4 text-[10px] text-white/20 p-2 hover:text-white"
