@@ -82,7 +82,6 @@ const App: React.FC = () => {
       try {
           const res = await fetch('/api/game/seat');
           if (res.ok) {
-            // FIX: Explicitly cast unknown to any
             const data = await res.json() as any;
             if (data.seats) setOccupiedSeats(data.seats);
           }
@@ -117,7 +116,6 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify(authForm)
           });
-          // FIX: Explicitly cast unknown to any
           const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           alert("注册成功，请登录");
@@ -134,7 +132,6 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ phone: authForm.phone, password: authForm.password })
           });
-          // FIX: Explicitly cast unknown to any
           const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
@@ -162,7 +159,6 @@ const App: React.FC = () => {
               method: 'POST',
               body: JSON.stringify({ query: walletForm.searchPhone })
           });
-          // FIX: Explicitly cast unknown to any
           const data = await res.json() as any;
           if (data.found) {
               setWalletForm(prev => ({ ...prev, targetUser: data.user }));
@@ -187,7 +183,6 @@ const App: React.FC = () => {
                   amount: walletForm.amount 
               })
           });
-          // FIX: Explicitly cast unknown to any
           const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           
@@ -235,7 +230,6 @@ const App: React.FC = () => {
           });
           
           if (!res.ok) {
-              // FIX: Explicitly cast unknown to any
               const data = await res.json() as any;
               alert(data.error || "抢座失败");
               setLobbySelection(null); // Revert
@@ -264,40 +258,52 @@ const App: React.FC = () => {
       } catch(e) { console.error(e); }
   };
 
-  const handleEnterGame = () => {
+  const handleEnterGame = async () => {
       if (!lobbySelection) return;
       if (!gameState.user) {
           setShowAuthModal('login');
           return;
       }
 
+      // 1. Force Fetch Latest Data to bypass latency/polling lag
+      let latestSeats: ServerSeat[] = occupiedSeats;
+      try {
+        const res = await fetch('/api/game/seat');
+        if (res.ok) {
+            const data = await res.json() as any;
+            if (data.seats) {
+                latestSeats = data.seats;
+                setOccupiedSeats(data.seats); // Sync state
+            }
+        }
+      } catch(e) { console.error("Sync failed", e); }
+
       const { carriageId, seat } = lobbySelection;
 
-      // FIX: Use lenient type comparison (Number()) to avoid string/number mismatch issues
-      const playersInCarriage = occupiedSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
+      // 2. Validate using STRICTLY fetched data
+      // Filter players in this carriage
+      const playersInCarriage = latestSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
 
-      // Check if I am in the list (Server confirmation)
+      // Check if I am seated correctly
       const mySeatEntry = playersInCarriage.find(s => Number(s.user_id) === Number(gameState.user!.id));
 
       if (!mySeatEntry || mySeatEntry.seat !== seat) {
-          // Optimistic UI might show us seated, but server hasn't confirmed yet or we got kicked
-          alert("正在同步座位信息，请稍候再试...");
-          fetchSeats();
+          alert("无法进入：服务器尚未确认您的座位。请尝试重新选座。");
+          fetchSeats(); // Trigger another poll
           return;
       }
 
       const count = playersInCarriage.length;
 
-      // In Bot Fill Mode, we can essentially allow 1 player to start against bots
       if (count < 2) { 
-          alert(`当前只有 ${count} 位玩家，至少需要 2 人才能开始。请等待好友加入。`);
+          alert(`当前只有 ${count} 位玩家 (包含您)，至少需要 2 人才能开始。请等待好友加入。\n\n已入座: ${playersInCarriage.map(p => p.nickname).join(', ')}`);
           return;
       }
 
+      // 3. Start Game
       const carriage = getCarriage(carriageId);
       if (!carriage) return alert("System Error: Local Carriage Data not found");
 
-      // Use sequential queue so all players play tables in same order
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
