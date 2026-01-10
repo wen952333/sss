@@ -266,24 +266,31 @@ const App: React.FC = () => {
 
   const handleEnterGame = () => {
       if (!lobbySelection) return;
-      if (!gameState.user) return;
+      if (!gameState.user) {
+          setShowAuthModal('login');
+          return;
+      }
 
       const { carriageId, seat } = lobbySelection;
 
-      // Check Server State for valid players
+      // FIX: Use real-time occupiedSeats from server instead of mock local storage
       const playersInCarriage = occupiedSeats.filter(s => s.carriage_id === carriageId);
-      const playerCount = playersInCarriage.length;
 
-      // Validate Self
-      const mySeatInfo = playersInCarriage.find(s => s.user_id === gameState.user!.id);
-      if (!mySeatInfo || mySeatInfo.seat !== seat) {
-          alert("座位同步失败，请重新坐下。");
+      // Check if I am in the list (Server confirmation)
+      const mySeatEntry = playersInCarriage.find(s => s.user_id === gameState.user!.id);
+
+      if (!mySeatEntry || mySeatEntry.seat !== seat) {
+          // Optimistic UI might show us seated, but server hasn't confirmed yet or we got kicked
+          alert("正在同步座位信息，请稍候再试...");
           fetchSeats();
           return;
       }
 
-      if (playerCount < 2) { 
-          alert(`当前只有 ${playerCount} 位玩家，至少需要 2 人才能开始。请等待好友加入。`);
+      const count = playersInCarriage.length;
+
+      // In Bot Fill Mode, we can essentially allow 1 player to start against bots
+      if (count < 2) { 
+          alert(`当前只有 ${count} 位玩家，至少需要 2 人才能开始。请等待好友加入。`);
           return;
       }
 
@@ -291,7 +298,7 @@ const App: React.FC = () => {
       if (!carriage) return alert("System Error: Local Carriage Data not found");
 
       // Use sequential queue so all players play tables in same order
-      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
       const cards = carriage.tables[firstTableId].hands[seat];
