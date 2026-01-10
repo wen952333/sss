@@ -54,3 +54,13 @@ export const getSuitSymbol = (suit: Suit): string => {
 export const getSuitColor = (suit: Suit): string => {
   return (suit === 'hearts' || suit === 'diamonds') ? 'text-red-500' : 'text-slate-900';
 };
+
+export const getCardSvgName = (card: Card): string => {
+  let rankStr = card.rank.toString();
+  if (card.rank === 11) rankStr = 'jack';
+  else if (card.rank === 12) rankStr = 'queen';
+  else if (card.rank === 13) rankStr = 'king';
+  else if (card.rank === 14) rankStr = 'ace';
+
+  return `${rankStr}_of_${card.suit}.svg`;
+};
