@@ -12,13 +12,20 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(request.url);
   const carriageId = url.searchParams.get("carriageId");
 
-  if (!carriageId) return new Response(JSON.stringify({ error: "Missing carriageId" }), { status: 400 });
-
   try {
-    // Clean up old seats (optional: remove seats older than 24 hours if needed, currently persistent for event)
-    const seats = await env.DB.prepare('SELECT * FROM CarriageSeats WHERE carriage_id = ?').bind(carriageId).all();
+    // If carriageId is provided, get specific, else get all valid seats
+    // We filter out stale seats (e.g., older than 2 hours) to avoid ghost players
+    let query = 'SELECT * FROM CarriageSeats WHERE updated_at > (strftime("%s", "now") - 7200)';
+    let results;
+
+    if (carriageId) {
+        query += ' AND carriage_id = ?';
+        results = await env.DB.prepare(query).bind(carriageId).all();
+    } else {
+        results = await env.DB.prepare(query).all();
+    }
     
-    return new Response(JSON.stringify({ seats: seats.results || [] }), {
+    return new Response(JSON.stringify({ seats: results.results || [] }), {
       headers: { "Content-Type": "application/json" }
     });
   } catch (e: any) {
@@ -29,8 +36,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   try {
-    const { carriageId, seat, userId, nickname } = await request.json() as any;
+    const { carriageId, seat, userId, nickname, action } = await request.json() as any;
 
+    if (action === 'leave') {
+        if (!userId) return new Response(JSON.stringify({ error: "Missing User ID" }), { status: 400 });
+        await env.DB.prepare('DELETE FROM CarriageSeats WHERE user_id = ?').bind(userId).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+    }
+
+    // Default action: Join/Sit
     if (!carriageId || !seat || !userId) {
       return new Response(JSON.stringify({ error: "Missing info" }), { status: 400 });
     }
@@ -48,8 +62,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return new Response(JSON.stringify({ error: `该位置已被 ${(existing as any).nickname} 占据` }), { status: 409 });
     }
 
-    // Remove user from other seats in this carriage (one seat per person per carriage)
-    await env.DB.prepare('DELETE FROM CarriageSeats WHERE carriage_id = ? AND user_id = ?').bind(carriageId, userId).run();
+    // Remove user from other seats in ANY carriage (one seat per person globally to prevent multi-tabbing)
+    await env.DB.prepare('DELETE FROM CarriageSeats WHERE user_id = ?').bind(userId).run();
 
     // Take seat
     await env.DB.prepare('INSERT INTO CarriageSeats (carriage_id, seat, user_id, nickname) VALUES (?, ?, ?, ?)')
