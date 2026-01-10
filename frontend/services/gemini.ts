@@ -10,7 +10,8 @@ export const getBestArrangement = async (cards: Card[]): Promise<PlayerHand[] | 
 
     if (!response.ok) throw new Error(response.statusText);
 
-    const data = await response.json();
+    const data = await response.json() as any;
+    // API now returns { suggestions: PlayerHand[] }
     return data.suggestions as PlayerHand[];
 
   } catch (error) {
