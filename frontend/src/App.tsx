@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from './types';
 import { getLocalSuggestions } from './services/suggestions';
 import { HandRow } from './components/HandRow';
 import { CardComponent } from './components/CardComponent';
-import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame, getCarriagePlayerCount } from './services/mockBackend';
+import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame } from './services/mockBackend';
 
 const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
 
@@ -27,11 +27,26 @@ const INITIAL_STATE: GameState = {
   currentSuggestionIndex: -1,
 };
 
+// Server Seat Interface
+interface ServerSeat {
+    carriage_id: number;
+    seat: Seat;
+    user_id: number;
+    nickname: string;
+}
+
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  
+  // Local selection state (Optimistic)
   const [lobbySelection, setLobbySelection] = useState<{carriageId: number, seat: Seat} | null>(null);
+  
+  // Real-time Server Data
+  const [occupiedSeats, setOccupiedSeats] = useState<ServerSeat[]>([]);
+  const pollingRef = useRef<number | null>(null);
 
+  // Modals
   const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [authForm, setAuthForm] = useState({ phone: '', nickname: '', password: '' });
@@ -42,15 +57,13 @@ const App: React.FC = () => {
   });
   const [walletMsg, setWalletMsg] = useState('');
 
-  useEffect(() => {
-      // 1. Auto-setup Database on app launch to prevent 500 errors
-      fetch('/api/setup')
-        .then(res => {
-            if(!res.ok) console.warn('DB Setup possibly failed or already exists');
-        })
-        .catch(err => console.error('DB Setup unreachable', err));
+  // --- Initialization ---
 
-      // 2. Check for cached user in localStorage
+  // 1. Load User & Setup
+  useEffect(() => {
+      // Trigger DB setup once
+      fetch('/api/setup').catch(() => {});
+
       const cachedUser = localStorage.getItem('shisanshui_user');
       if (cachedUser) {
           try {
@@ -64,15 +77,38 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, submissions: subs }));
   }, []);
 
-  useEffect(() => {
-     if (gameState.user) {
-         const subs = getPlayerSubmissions(`u_${gameState.user.id}`);
-         setGameState(prev => ({ ...prev, submissions: subs }));
-     }
-  }, [gameState.user]);
+  // 2. Polling Logic
+  const fetchSeats = useCallback(async () => {
+      try {
+          const res = await fetch('/api/game/seat');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.seats) setOccupiedSeats(data.seats);
+          }
+      } catch (e) {
+          console.error("Polling error", e);
+      }
+  }, []);
 
-  const handleRegister = async (e?: React.FormEvent) => {
-      if (e) e.preventDefault();
+  // Start/Stop Polling based on Phase
+  useEffect(() => {
+      if (gameState.phase === GamePhase.LOBBY) {
+          fetchSeats(); // Immediate fetch
+          pollingRef.current = window.setInterval(fetchSeats, 2000); // Poll every 2s
+      } else {
+          if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+          }
+      }
+      return () => { 
+          if (pollingRef.current) clearInterval(pollingRef.current); 
+      };
+  }, [gameState.phase, fetchSeats]);
+
+
+  // --- Auth Handlers ---
+  const handleRegister = async () => {
       if(authForm.password.length < 6) return alert("密码需至少6位");
       try {
           const res = await fetch('/api/auth/register', {
@@ -80,7 +116,7 @@ const App: React.FC = () => {
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify(authForm)
           });
-          const data = await res.json() as any;
+          const data = await res.json();
           if (data.error) throw new Error(data.error);
           alert("注册成功，请登录");
           setShowAuthModal('login');
@@ -89,15 +125,14 @@ const App: React.FC = () => {
       }
   };
 
-  const handleLogin = async (e?: React.FormEvent) => {
-      if (e) e.preventDefault();
+  const handleLogin = async () => {
       try {
           const res = await fetch('/api/auth/login', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({ phone: authForm.phone, password: authForm.password })
           });
-          const data = await res.json() as any;
+          const data = await res.json();
           if (data.error) throw new Error(data.error);
           
           setGameState(prev => ({ ...prev, user: data.user }));
@@ -108,12 +143,14 @@ const App: React.FC = () => {
       }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+      await handleLeaveSeat(); // Clear seat before logging out
       setGameState(prev => ({ ...prev, user: null }));
       localStorage.removeItem('shisanshui_user');
       setLobbySelection(null);
   };
 
+  // --- Wallet Handlers ---
   const handleSearchUser = async () => {
       if (!walletForm.searchPhone) return;
       setWalletMsg('Searching...');
@@ -122,7 +159,7 @@ const App: React.FC = () => {
               method: 'POST',
               body: JSON.stringify({ query: walletForm.searchPhone })
           });
-          const data = await res.json() as any;
+          const data = await res.json();
           if (data.found) {
               setWalletForm(prev => ({ ...prev, targetUser: data.user }));
               setWalletMsg('');
@@ -146,7 +183,7 @@ const App: React.FC = () => {
                   amount: walletForm.amount 
               })
           });
-          const data = await res.json() as any;
+          const data = await res.json();
           if (data.error) throw new Error(data.error);
           
           const newUser = { ...gameState.user, points: data.newPoints };
@@ -161,33 +198,95 @@ const App: React.FC = () => {
       }
   };
 
-  const handleSeatSelect = (carriageId: number, seat: Seat) => {
-      if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
-          setLobbySelection(null);
-      } else {
-          setLobbySelection({ carriageId, seat });
-      }
-  };
+  // --- Seating Logic ---
 
-  const handleEnterGame = () => {
-      if (!lobbySelection) return;
+  const handleSeatSelect = async (carriageId: number, seat: Seat) => {
       if (!gameState.user) {
           setShowAuthModal('login');
           return;
       }
 
+      // If clicking same seat, treat as deselect/leave
+      if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
+          await handleLeaveSeat();
+          return;
+      }
+
+      // Optimistic update
+      setLobbySelection({ carriageId, seat });
+
+      // Call API
+      try {
+          const res = await fetch('/api/game/seat', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                  carriageId,
+                  seat,
+                  userId: gameState.user.id,
+                  nickname: gameState.user.nickname,
+                  action: 'join'
+              })
+          });
+          
+          if (!res.ok) {
+              const data = await res.json();
+              alert(data.error || "抢座失败");
+              setLobbySelection(null); // Revert
+          }
+          // Fetch immediately to confirm
+          fetchSeats();
+      } catch (e) {
+          console.error(e);
+          setLobbySelection(null);
+      }
+  };
+
+  const handleLeaveSeat = async () => {
+      if (!gameState.user) return;
+      setLobbySelection(null);
+      try {
+          await fetch('/api/game/seat', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                  action: 'leave',
+                  userId: gameState.user.id
+              })
+          });
+          fetchSeats();
+      } catch(e) { console.error(e); }
+  };
+
+  const handleEnterGame = () => {
+      if (!lobbySelection) return;
+      if (!gameState.user) return;
+
       const { carriageId, seat } = lobbySelection;
-      const count = getCarriagePlayerCount(carriageId);
-      
-      if (count < 2) { 
-          alert("当前场次暂无其他玩家，请稍后重试或等待玩家加入。");
+
+      // Check Server State for valid players
+      const playersInCarriage = occupiedSeats.filter(s => s.carriage_id === carriageId);
+      const playerCount = playersInCarriage.length;
+
+      // Validate Self
+      const mySeatInfo = playersInCarriage.find(s => s.user_id === gameState.user!.id);
+      if (!mySeatInfo || mySeatInfo.seat !== seat) {
+          alert("座位同步失败，请重新坐下。");
+          fetchSeats();
+          return;
+      }
+
+      if (playerCount < 2) { 
+          alert(`当前只有 ${playerCount} 位玩家，至少需要 2 人才能开始。请等待好友加入。`);
           return;
       }
 
       const carriage = getCarriage(carriageId);
-      if (!carriage) return alert("System Error: Carriage not found");
+      if (!carriage) return alert("System Error: Local Carriage Data not found");
 
-      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+      // Use sequential queue so all players play tables in same order
+      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+      
       const firstTableId = queue[0];
       const cards = carriage.tables[firstTableId].hands[seat];
       const suggestions = getLocalSuggestions(cards);
@@ -206,6 +305,13 @@ const App: React.FC = () => {
       }));
       setSelectedCardIds([]);
   };
+
+  const handleQuitGame = async () => {
+      await handleLeaveSeat();
+      setGameState(prev => ({ ...prev, phase: GamePhase.LOBBY }));
+  };
+
+  // --- Gameplay Logic ---
 
   const handleCardClick = (card: Card) => {
     if (gameState.phase !== GamePhase.PLAYING) return;
@@ -255,6 +361,8 @@ const App: React.FC = () => {
 
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
       const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
+      
+      // Store locally (Mock Backend)
       submitPlayerHand(pid, {
           carriageId: gameState.currentCarriageId,
           tableId: currentTableId,
@@ -291,6 +399,9 @@ const App: React.FC = () => {
       const report = settleGame(pid);
       setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
   };
+
+
+  // --- Render Helpers ---
 
   const MiniHandRow = ({ cards }: { cards: Card[] }) => (
       <div className="flex -space-x-4 items-center justify-center">
@@ -370,7 +481,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
-                  <button onClick={() => setGameState(INITIAL_STATE)} className="w-full py-4 bg-yellow-600 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform">
+                  <button onClick={handleQuitGame} className="w-full py-4 bg-yellow-600 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform">
                       返回大厅
                   </button>
               </div>
@@ -379,22 +490,45 @@ const App: React.FC = () => {
   };
 
   const renderSeatButton = (carriageId: number, seat: Seat, label: string, className: string) => {
+      // Find who is sitting here from Server Data
+      const occupant = occupiedSeats.find(s => s.carriage_id === carriageId && s.seat === seat);
+      const isMe = occupant && gameState.user && occupant.user_id === gameState.user.id;
       const isSelected = lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat;
       
       return (
           <button 
-              onClick={(e) => { e.stopPropagation(); handleSeatSelect(carriageId, seat); }}
+              onClick={(e) => { 
+                  e.stopPropagation(); 
+                  // If occupied by someone else, ignore click
+                  if (occupant && !isMe) return; 
+                  handleSeatSelect(carriageId, seat); 
+              }}
               className={`
                 absolute w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center transition-all shadow-lg backdrop-blur-sm group
                 ${className}
-                ${isSelected 
-                    ? 'bg-red-600 border-red-400 scale-110 shadow-red-500/50 z-20' 
-                    : 'bg-black/40 border-white/10 hover:bg-yellow-600/80 hover:border-yellow-400 hover:scale-110'
+                ${occupant
+                    ? (isMe 
+                        ? 'bg-yellow-600 border-yellow-400 scale-110 shadow-yellow-500/50 z-20' 
+                        : 'bg-red-900/80 border-red-500/50 scale-100 cursor-not-allowed')
+                    : (isSelected 
+                        ? 'bg-yellow-500/50 border-yellow-200 animate-pulse'
+                        : 'bg-black/40 border-white/10 hover:bg-yellow-600/80 hover:border-yellow-400 hover:scale-110')
                 }
               `}
           >
-              <span className={`text-lg font-black ${isSelected ? 'text-white' : 'text-white/90 group-hover:text-white'}`}>{label}</span>
-              <span className={`text-[9px] uppercase ${isSelected ? 'text-white/80' : 'text-white/40 group-hover:text-white/80'}`}>{seat[0]}</span>
+              {occupant ? (
+                  <>
+                    <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[8px] font-bold text-white overflow-hidden uppercase">
+                        {occupant.nickname.slice(0, 2)}
+                    </div>
+                    <span className="text-[8px] text-white/80 max-w-full truncate px-1 scale-75 origin-center">{isMe ? '我' : occupant.nickname}</span>
+                  </>
+              ) : (
+                  <>
+                    <span className={`text-lg font-black ${isSelected ? 'text-white' : 'text-white/90 group-hover:text-white'}`}>{label}</span>
+                    <span className={`text-[9px] uppercase ${isSelected ? 'text-white/80' : 'text-white/40 group-hover:text-white/80'}`}>{seat[0]}</span>
+                  </>
+              )}
           </button>
       );
   };
@@ -410,7 +544,7 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">
                       {showAuthModal === 'login' ? '账号登录' : '新用户注册'}
                   </h2>
-                  <form onSubmit={showAuthModal === 'login' ? handleLogin : handleRegister} className="space-y-4">
+                  <div className="space-y-4">
                       <div>
                           <label className="text-xs text-white/50 mb-1 block">手机号</label>
                           <input 
@@ -444,19 +578,19 @@ const App: React.FC = () => {
                           />
                       </div>
                       <button 
-                          type="submit"
+                          onClick={showAuthModal === 'login' ? handleLogin : handleRegister}
                           className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all"
                       >
                           {showAuthModal === 'login' ? '立即登录' : '提交注册'}
                       </button>
-                  </form>
-                  
-                  <div className="text-center mt-4 text-sm text-white/40 flex flex-col gap-2">
-                      {showAuthModal === 'login' ? (
-                          <span onClick={() => setShowAuthModal('register')} className="underline cursor-pointer hover:text-white">没有账号？去注册</span>
-                      ) : (
-                          <span onClick={() => setShowAuthModal('login')} className="underline cursor-pointer hover:text-white">已有账号？去登录</span>
-                      )}
+                      
+                      <div className="text-center mt-4 text-sm text-white/40">
+                          {showAuthModal === 'login' ? (
+                              <span onClick={() => setShowAuthModal('register')} className="underline cursor-pointer hover:text-white">没有账号？去注册</span>
+                          ) : (
+                              <span onClick={() => setShowAuthModal('login')} className="underline cursor-pointer hover:text-white">已有账号？去登录</span>
+                          )}
+                      </div>
                   </div>
               </div>
           </div>
@@ -670,7 +804,7 @@ const App: React.FC = () => {
             </div>
             
             <button 
-                onClick={() => setGameState(prev => ({ ...prev, phase: GamePhase.LOBBY }))} 
+                onClick={handleQuitGame} 
                 className="absolute top-20 right-4 text-[10px] text-white/20 p-2 hover:text-white"
             >
                 保存退出
