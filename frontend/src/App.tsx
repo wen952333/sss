@@ -273,11 +273,11 @@ const App: React.FC = () => {
 
       const { carriageId, seat } = lobbySelection;
 
-      // FIX: Use real-time occupiedSeats from server instead of mock local storage
-      const playersInCarriage = occupiedSeats.filter(s => s.carriage_id === carriageId);
+      // FIX: Use lenient type comparison (Number()) to avoid string/number mismatch issues
+      const playersInCarriage = occupiedSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
 
       // Check if I am in the list (Server confirmation)
-      const mySeatEntry = playersInCarriage.find(s => s.user_id === gameState.user!.id);
+      const mySeatEntry = playersInCarriage.find(s => Number(s.user_id) === Number(gameState.user!.id));
 
       if (!mySeatEntry || mySeatEntry.seat !== seat) {
           // Optimistic UI might show us seated, but server hasn't confirmed yet or we got kicked
@@ -504,8 +504,8 @@ const App: React.FC = () => {
 
   const renderSeatButton = (carriageId: number, seat: Seat, label: string, className: string) => {
       // Find who is sitting here from Server Data
-      const occupant = occupiedSeats.find(s => s.carriage_id === carriageId && s.seat === seat);
-      const isMe = occupant && gameState.user && occupant.user_id === gameState.user.id;
+      const occupant = occupiedSeats.find(s => Number(s.carriage_id) === Number(carriageId) && s.seat === seat);
+      const isMe = occupant && gameState.user && Number(occupant.user_id) === Number(gameState.user.id);
       const isSelected = lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat;
       
       return (
@@ -544,6 +544,12 @@ const App: React.FC = () => {
               )}
           </button>
       );
+  };
+
+  // Helper to get active count for the selected carriage
+  const getSelectedCarriageCount = () => {
+    if (!lobbySelection) return 0;
+    return occupiedSeats.filter(s => Number(s.carriage_id) === Number(lobbySelection.carriageId)).length;
   };
 
   return (
@@ -729,9 +735,17 @@ const App: React.FC = () => {
                         className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xl py-4 rounded-2xl shadow-xl shadow-red-900/40 border border-red-400/30 active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                         <span>进入牌桌</span>
-                        <span className="text-sm font-normal bg-black/20 px-2 py-0.5 rounded">
-                            {lobbySelection ? `${LOBBY_TABLES.find(t => t.carriageId === lobbySelection.carriageId)?.name} - ${lobbySelection.seat === 'North' ? '北' : lobbySelection.seat === 'South' ? '南' : lobbySelection.seat === 'West' ? '西' : '东'}` : ''}
-                        </span>
+                        {lobbySelection && (
+                          <span className="text-sm font-normal bg-black/20 px-2 py-0.5 rounded flex items-center gap-1">
+                              <span>
+                                {LOBBY_TABLES.find(t => t.carriageId === lobbySelection.carriageId)?.name || ''} 
+                                ({lobbySelection.seat === 'North' ? '北' : lobbySelection.seat === 'South' ? '南' : lobbySelection.seat === 'West' ? '西' : '东'})
+                              </span>
+                              <span className={`ml-1 font-bold ${getSelectedCarriageCount() >= 2 ? 'text-green-300' : 'text-red-300'}`}>
+                                {getSelectedCarriageCount()}人
+                              </span>
+                          </span>
+                        )}
                     </button>
                     <p className="text-center text-white/40 text-xs mt-2">系统将自动检测场次人数，满足2人即可开赛</p>
                 </div>
