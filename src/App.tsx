@@ -935,7 +935,12 @@ const App: React.FC = () => {
                     <button onClick={handleShowSettlement} className="flex flex-col items-center group"><span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span><span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span></button>
                 </div>
                 <div className="flex justify-end items-center gap-2">
-                    {(installPrompt || isIOS) && <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-yellow-600 border border-yellow-400 text-white rounded-full px-3 py-1 shadow-lg hover:bg-yellow-500 transition-all"><span className="text-[10px] font-bold hidden sm:inline">APP</span></button>}
+                    {(installPrompt || isIOS) && (
+                        <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-yellow-600 border border-yellow-400 text-white rounded-full px-3 py-1 shadow-lg hover:bg-yellow-500 transition-all animate-pulse">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            <span className="text-[10px] font-bold">APP</span>
+                        </button>
+                    )}
                     <button onClick={() => { if(gameState.user) { syncUserData(); setShowWalletModal(true); } else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95"><span className="text-yellow-400 font-mono font-bold text-sm">积分</span></button>
                 </div>
             </div>
