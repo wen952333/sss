@@ -1,3 +1,4 @@
+
 interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
   first<T = unknown>(colName?: string): Promise<T | null>;
@@ -89,8 +90,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         await sendMessage(`用户 ID ${id} 已删除`);
     }
 
-    else if (command === '/help') {
-        await sendMessage("指令列表:\n/search <关键词> - 查找用户\n/list - 查看最新用户\n/mod <ID> <金额> - 增减积分\n/del <ID> - 删除用户");
+    else if (command === '/help' || command === '/start') {
+        await sendMessage("十三水管理后台 Bot\n\n指令列表:\n/search <关键词> - 查找用户\n/list - 查看最新用户\n/mod <ID> <金额> - 增减积分\n/del <ID> - 删除用户");
     }
 
     return new Response("OK");
