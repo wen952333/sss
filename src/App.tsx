@@ -65,6 +65,7 @@ const App: React.FC = () => {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false); // New state for bottom banner
 
   // --- Initialization ---
 
@@ -83,8 +84,12 @@ const App: React.FC = () => {
       
       // 3. PWA Install Detection
       const handler = (e: any) => {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
         e.preventDefault(); 
+        // Stash the event so it can be triggered later.
         setInstallPrompt(e);
+        // Show our custom banner
+        setShowInstallBanner(true);
       };
       window.addEventListener('beforeinstallprompt', handler);
 
@@ -248,6 +253,7 @@ const App: React.FC = () => {
           const { outcome } = await installPrompt.userChoice;
           if (outcome === 'accepted') {
               setInstallPrompt(null);
+              setShowInstallBanner(false);
           }
       }
   };
@@ -805,6 +811,27 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {showInstallBanner && installPrompt && !isIOS && (
+        <div className="fixed bottom-0 left-0 right-0 z-[100] bg-green-900 border-t border-yellow-500/50 p-4 shadow-2xl animate-pop-in">
+            <div className="flex items-center justify-between max-w-md mx-auto">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white rounded-lg p-1">
+                        {/* Using static image path, assume icon-192 exists per manifest */}
+                        <img src="/icon-192.png" className="w-full h-full object-contain" alt="App Icon"/>
+                    </div>
+                    <div className="text-left">
+                        <div className="text-white font-bold text-sm">安装十三水 APP</div>
+                        <div className="text-white/60 text-xs">获得更流畅的全屏游戏体验</div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                     <button onClick={() => setShowInstallBanner(false)} className="text-white/40 text-xs px-2">关闭</button>
+                     <button onClick={handleInstallClick} className="bg-yellow-500 text-green-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg">安装</button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {showAuthModal && (
           <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
@@ -935,6 +962,7 @@ const App: React.FC = () => {
                     <button onClick={handleShowSettlement} className="flex flex-col items-center group"><span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span><span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span></button>
                 </div>
                 <div className="flex justify-end items-center gap-2">
+                    {/* Header PWA Button (Backup) */}
                     {(installPrompt || isIOS) && (
                         <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-yellow-600 border border-yellow-400 text-white rounded-full px-3 py-1 shadow-lg hover:bg-yellow-500 transition-all animate-pulse">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
