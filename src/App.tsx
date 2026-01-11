@@ -844,9 +844,10 @@ const App: React.FC = () => {
           </div>
       ) : gameState.phase === GamePhase.LOBBY ? (
         <div className="flex-1 flex flex-col h-full w-full relative">
-            <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-10 shrink-0">
+            <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-10 shrink-0 relative">
+                {/* Left Side: User/Login */}
                 {gameState.user ? (
-                    <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
+                    <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors z-20">
                         <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border border-white/10 font-bold text-xs">
                             {gameState.user.nickname[0]}
                         </div>
@@ -856,25 +857,33 @@ const App: React.FC = () => {
                         </div>
                     </button>
                 ) : (
-                    <button onClick={() => setShowAuthModal('login')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
+                    <button onClick={() => setShowAuthModal('login')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors z-20">
                         <span className="text-sm font-bold">登录/注册</span>
                     </button>
                 )}
                 
-                {/* --- INSTALL PWA BUTTON --- */}
-                {(installPrompt || isIOS) && (
-                    <button 
-                        onClick={handleInstallClick} 
-                        className="flex items-center gap-1.5 bg-yellow-600/20 border border-yellow-500/50 rounded-full px-3 py-1 animate-pulse"
-                    >
-                        <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        <span className="text-[10px] text-yellow-400 font-bold">安装应用</span>
-                    </button>
-                )}
-
-                <button onClick={() => { if(gameState.user) setShowWalletModal(true); else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95">
-                   <span className="text-yellow-400 font-mono font-bold text-sm">积分</span>
+                {/* Center: Battle Record (Absolute Centered) */}
+                <button onClick={handleShowSettlement} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group z-10">
+                    <span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span>
+                    <span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span>
                 </button>
+
+                {/* Right Side: Install + Points */}
+                <div className="flex items-center gap-2 z-20">
+                    {(installPrompt || isIOS) && (
+                        <button 
+                            onClick={handleInstallClick} 
+                            className="flex items-center gap-1.5 bg-yellow-600/20 border border-yellow-500/50 rounded-full px-3 py-1 animate-pulse"
+                        >
+                            <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            <span className="text-[10px] text-yellow-400 font-bold hidden sm:inline">APP</span>
+                        </button>
+                    )}
+
+                    <button onClick={() => { if(gameState.user) setShowWalletModal(true); else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95">
+                       <span className="text-yellow-400 font-mono font-bold text-sm">积分</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 pt-6 pb-32">
