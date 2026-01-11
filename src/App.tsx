@@ -1,9 +1,10 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from './types';
-import { getLocalSuggestions } from './services/suggestions';
+import { getLocalSuggestions, isValidArrangement } from './services/suggestions';
 import { HandRow } from './components/HandRow';
 import { CardComponent } from './components/CardComponent';
-import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame } from './services/mockBackend';
+import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame, getCarriagePlayerCount } from './services/mockBackend';
 
 const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
 
@@ -16,6 +17,7 @@ const INITIAL_STATE: GameState = {
   phase: GamePhase.LOBBY,
   user: null,
   currentCarriageId: 1,
+  currentRound: 1, // Start at Carriage/Round 1
   currentTableIndex: 0,
   tableQueue: [],
   mySeat: 'East',
@@ -33,20 +35,18 @@ interface ServerSeat {
     seat: Seat;
     user_id: number;
     nickname: string;
+    game_round?: number; 
 }
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   
-  // Local selection state (Optimistic)
   const [lobbySelection, setLobbySelection] = useState<{carriageId: number, seat: Seat} | null>(null);
   
-  // Real-time Server Data
   const [occupiedSeats, setOccupiedSeats] = useState<ServerSeat[]>([]);
   const pollingRef = useRef<number | null>(null);
 
-  // Modals
   const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [authForm, setAuthForm] = useState({ phone: '', nickname: '', password: '' });
@@ -59,9 +59,7 @@ const App: React.FC = () => {
 
   // --- Initialization ---
 
-  // 1. Load User & Setup
   useEffect(() => {
-      // Trigger DB setup once
       fetch('/api/setup').catch(() => {});
 
       const cachedUser = localStorage.getItem('shisanshui_user');
@@ -77,7 +75,14 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, submissions: subs }));
   }, []);
 
-  // 2. Polling Logic
+  useEffect(() => {
+     if (gameState.user) {
+         const subs = getPlayerSubmissions(`u_${gameState.user.id}`);
+         setGameState(prev => ({ ...prev, submissions: subs }));
+     }
+  }, [gameState.user]);
+
+  // 2. Polling Logic (Get Seats)
   const fetchSeats = useCallback(async () => {
       try {
           const res = await fetch('/api/game/seat');
@@ -90,11 +95,11 @@ const App: React.FC = () => {
       }
   }, []);
 
-  // Start/Stop Polling based on Phase
+  // Combined Polling Effect
   useEffect(() => {
-      if (gameState.phase === GamePhase.LOBBY) {
-          fetchSeats(); // Immediate fetch
-          pollingRef.current = window.setInterval(fetchSeats, 2000); // Poll every 2s
+      if (gameState.phase === GamePhase.LOBBY || gameState.phase === GamePhase.GAME_OVER || gameState.phase === GamePhase.PLAYING) {
+          fetchSeats(); 
+          pollingRef.current = window.setInterval(fetchSeats, 2000); 
       } else {
           if (pollingRef.current) {
               clearInterval(pollingRef.current);
@@ -144,7 +149,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-      await handleLeaveSeat(); // Clear seat before logging out
+      await handleLeaveSeat(); 
       setGameState(prev => ({ ...prev, user: null }));
       localStorage.removeItem('shisanshui_user');
       setLobbySelection(null);
@@ -205,17 +210,11 @@ const App: React.FC = () => {
           setShowAuthModal('login');
           return;
       }
-
-      // If clicking same seat, treat as deselect/leave
       if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
           await handleLeaveSeat();
           return;
       }
-
-      // Optimistic update
       setLobbySelection({ carriageId, seat });
-
-      // Call API
       try {
           const res = await fetch('/api/game/seat', {
               method: 'POST',
@@ -232,9 +231,8 @@ const App: React.FC = () => {
           if (!res.ok) {
               const data = await res.json() as any;
               alert(data.error || "抢座失败");
-              setLobbySelection(null); // Revert
+              setLobbySelection(null); 
           }
-          // Fetch immediately to confirm
           fetchSeats();
       } catch (e) {
           console.error(e);
@@ -265,7 +263,6 @@ const App: React.FC = () => {
           return;
       }
 
-      // 1. Force Fetch Latest Data to bypass latency/polling lag
       let latestSeats: ServerSeat[] = occupiedSeats;
       try {
         const res = await fetch('/api/game/seat');
@@ -273,47 +270,45 @@ const App: React.FC = () => {
             const data = await res.json() as any;
             if (data.seats) {
                 latestSeats = data.seats;
-                setOccupiedSeats(data.seats); // Sync state
+                setOccupiedSeats(data.seats);
             }
         }
       } catch(e) { console.error("Sync failed", e); }
 
       const { carriageId, seat } = lobbySelection;
-
-      // 2. Validate using STRICTLY fetched data
-      // Filter players in this carriage
       const playersInCarriage = latestSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
-
-      // Check if I am seated correctly
       const mySeatEntry = playersInCarriage.find(s => Number(s.user_id) === Number(gameState.user!.id));
 
       if (!mySeatEntry || mySeatEntry.seat !== seat) {
           alert("无法进入：服务器尚未确认您的座位。请尝试重新选座。");
-          fetchSeats(); // Trigger another poll
+          fetchSeats(); 
           return;
       }
 
-      const count = playersInCarriage.length;
-
-      if (count < 2) { 
-          alert(`当前只有 ${count} 位玩家 (包含您)，至少需要 2 人才能开始。请等待好友加入。\n\n已入座: ${playersInCarriage.map(p => p.nickname).join(', ')}`);
+      // Check number of players
+      if (playersInCarriage.length < 2) { 
+          alert(`当前只有 ${playersInCarriage.length} 位玩家，需要至少 2 人。`);
           return;
       }
 
-      // 3. Start Game
-      const carriage = getCarriage(carriageId);
-      if (!carriage) return alert("System Error: Local Carriage Data not found");
+      // Determine Starting Round
+      const startRound = mySeatEntry.game_round || 1;
+
+      // Start Game
+      const carriageMockData = getCarriage(carriageId); 
+      if (!carriageMockData) return alert("System Error: Local Carriage Data not found");
 
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
-      const cards = carriage.tables[firstTableId].hands[seat];
+      const cards = carriageMockData.tables[firstTableId].hands[seat];
       const suggestions = getLocalSuggestions(cards);
 
       setGameState(prev => ({
         ...prev,
         phase: GamePhase.PLAYING,
         currentCarriageId: carriageId,
+        currentRound: startRound, 
         currentTableIndex: 0,
         tableQueue: queue,
         mySeat: seat, 
@@ -328,6 +323,45 @@ const App: React.FC = () => {
   const handleQuitGame = async () => {
       await handleLeaveSeat();
       setGameState(prev => ({ ...prev, phase: GamePhase.LOBBY }));
+  };
+
+  const handleNextCarriage = async () => {
+      if (!gameState.user) return;
+      const nextRound = gameState.currentRound + 1;
+      const { currentCarriageId, mySeat } = gameState;
+
+      try {
+          await fetch('/api/game/seat', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                  action: 'next_round',
+                  userId: gameState.user.id,
+                  carriageId: currentCarriageId,
+                  seat: mySeat,
+                  nextRound: nextRound
+              })
+          });
+      } catch(e) { console.error("Failed to update round", e); }
+
+      const carriageMockData = getCarriage(currentCarriageId)!;
+      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+      const firstTableId = queue[0];
+      const cards = carriageMockData.tables[firstTableId].hands[mySeat]; 
+      const suggestions = getLocalSuggestions(cards);
+
+      setGameState(prev => ({
+          ...prev,
+          phase: GamePhase.PLAYING,
+          currentRound: nextRound,
+          currentTableIndex: 0,
+          tableQueue: queue,
+          currentCards: cards,
+          currentArrangement: suggestions[0],
+          aiSuggestions: suggestions,
+          currentSuggestionIndex: 0
+      }));
+      setSelectedCardIds([]);
   };
 
   // --- Gameplay Logic ---
@@ -378,12 +412,19 @@ const App: React.FC = () => {
           return;
       }
 
+      // Validate Logic Check
+      const validation = isValidArrangement(gameState.currentArrangement);
+      if (!validation.valid) {
+          alert(`牌型违规: ${validation.error}`);
+          return;
+      }
+
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
       const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
       
-      // Store locally (Mock Backend)
       submitPlayerHand(pid, {
           carriageId: gameState.currentCarriageId,
+          roundId: gameState.currentRound, 
           tableId: currentTableId,
           seat: gameState.mySeat,
           hand: gameState.currentArrangement,
@@ -393,8 +434,7 @@ const App: React.FC = () => {
       const nextIndex = gameState.currentTableIndex + 1;
       
       if (nextIndex >= 10) {
-          alert("恭喜！本场次（车厢）所有对局已完成！请查看战报。");
-          handleShowSettlement();
+          setGameState(prev => ({ ...prev, phase: GamePhase.GAME_OVER }));
       } else {
           const carriage = getCarriage(gameState.currentCarriageId)!;
           const nextTableId = gameState.tableQueue[nextIndex];
@@ -419,17 +459,17 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
   };
 
+  // --- Views ---
 
-  // --- Render Helpers ---
-
-  const MiniHandRow = ({ cards }: { cards: Card[] }) => (
-      <div className="flex -space-x-4 items-center justify-center">
+  // Compact Hand Row for Table View (Overlapping)
+  const ShowdownHand = ({ cards }: { cards: Card[] }) => (
+      <div className="flex -space-x-2.5 sm:-space-x-3 items-center justify-center">
           {cards.map((c, i) => (
               <CardComponent 
                 key={i} 
                 card={c} 
                 small 
-                className="w-8 h-12 text-[10px] shadow-sm ring-1 ring-black/10" 
+                className="w-6 h-9 sm:w-8 sm:h-12 text-[8px] sm:text-[10px] shadow-sm ring-1 ring-black/20" 
               />
           ))}
       </div>
@@ -437,71 +477,155 @@ const App: React.FC = () => {
 
   const ReportView = () => {
       if (!gameState.settlementReport) return <div>Calculating...</div>;
-      const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
-      const { totalScore, details } = gameState.settlementReport;
+      const { groupedResults, totalScore } = gameState.settlementReport;
+      
+      // State for Navigation
+      const [selectedRound, setSelectedRound] = useState<number | null>(null);
+      const [tableIndex, setTableIndex] = useState(0);
+
+      // LIST MODE: If no round selected, show session list
+      if (!selectedRound) {
+          // Get available round IDs (e.g. 1, 2, 3)
+          const rounds = groupedResults ? Object.keys(groupedResults).map(Number).sort((a,b) => b - a) : []; // Newest first
+
+          return (
+              <div className="h-full w-full bg-green-950 flex flex-col overflow-hidden">
+                  <div className="shrink-0 p-4 bg-black/20 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-10">
+                       <h2 className="text-xl font-black text-yellow-400">战绩列表</h2>
+                       <div className="text-xs text-white/50">总盈亏: <span className={totalScore >=0 ? 'text-red-400':'text-green-400'}>{totalScore}</span></div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {rounds.length === 0 && <div className="text-white/30 text-center mt-10">暂无战绩</div>}
+                      
+                      {rounds.map(rId => {
+                          const tables = groupedResults![rId];
+                          // Calculate round total score for current player
+                          const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
+                          let rScore = 0;
+                          tables.forEach(t => {
+                              if(!t.voided) rScore += (t.scores[pid] || 0);
+                          });
+
+                          return (
+                              <button 
+                                  key={rId} 
+                                  onClick={() => setSelectedRound(rId)}
+                                  className="w-full bg-black/30 border border-white/10 p-4 rounded-xl flex justify-between items-center hover:bg-black/50 active:scale-95 transition-all"
+                              >
+                                  <div className="text-left">
+                                      <div className="text-yellow-400 font-bold text-lg">第 {rId} 场次</div>
+                                      <div className="text-white/40 text-xs">共 {tables.length} 局对战</div>
+                                  </div>
+                                  <div className={`text-xl font-mono font-bold ${rScore >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                      {rScore > 0 ? '+' : ''}{rScore}
+                                  </div>
+                              </button>
+                          );
+                      })}
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-t from-black to-transparent">
+                      <button onClick={() => setGameState(prev => ({...prev, phase: GamePhase.LOBBY}))} className="w-full py-4 bg-yellow-600 rounded-xl font-bold text-white shadow-lg">返回大厅</button>
+                  </div>
+              </div>
+          );
+      }
+
+      // DETAIL MODE: Show specific round
+      const roundData = groupedResults && groupedResults[selectedRound] ? groupedResults[selectedRound] : [];
+      const currentTable = roundData[tableIndex] || roundData[0];
+      const { details, voided } = currentTable || { details: [], voided: true };
+
+      // Helper to place players in N/S/E/W grid
+      const positions: Record<Seat, React.CSSProperties> = {
+          'North': { top: '5%', left: '50%', transform: 'translateX(-50%)' },
+          'South': { bottom: '20%', left: '50%', transform: 'translateX(-50%)' },
+          'West':  { top: '50%', left: '2%', transform: 'translateY(-50%)' },
+          'East':  { top: '50%', right: '2%', transform: 'translateY(-50%)' }
+      };
+
+      const renderPlayer = (seat: Seat) => {
+          const p = details.find(d => d.seat === seat);
+          if (!p) {
+              return (
+                  <div style={positions[seat]} className="absolute flex flex-col items-center opacity-30">
+                      <div className="w-12 h-12 rounded-full bg-black/50 border border-white/20 flex items-center justify-center text-white/50 text-xs">空</div>
+                  </div>
+              );
+          }
+
+          const isMe = p.playerId === (gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID);
+          return (
+              <div style={positions[seat]} className="absolute flex flex-col items-center z-10 w-[40%] sm:w-[30%] max-w-[180px]">
+                  <div className={`flex items-center gap-1 mb-1 px-2 py-0.5 rounded-full ${isMe ? 'bg-yellow-600/90 text-white' : 'bg-black/60 text-white/80'}`}>
+                      <span className="text-[10px] font-bold truncate max-w-[60px]">{p.name}</span>
+                      <span className={`text-[10px] font-mono font-bold ${p.score >= 0 ? 'text-red-300' : 'text-green-300'}`}>
+                          {p.score > 0 ? '+' : ''}{p.score}
+                      </span>
+                  </div>
+                  <div className="flex flex-col gap-1 p-1.5 bg-black/40 rounded-lg border border-white/10 shadow-xl backdrop-blur-sm transition-all hover:scale-105">
+                      {p.specialType ? (
+                          <div className="h-24 w-full flex items-center justify-center bg-yellow-500/20 rounded border border-yellow-500/30">
+                              <span className="text-yellow-400 font-bold text-xs text-center px-1">{p.specialType}</span>
+                          </div>
+                      ) : (
+                          <>
+                              <ShowdownHand cards={p.hand.top} />
+                              <ShowdownHand cards={p.hand.middle} />
+                              <ShowdownHand cards={p.hand.bottom} />
+                          </>
+                      )}
+                  </div>
+              </div>
+          );
+      };
 
       return (
-          <div className="h-full w-full bg-green-950 flex flex-col overflow-hidden">
-              <div className="shrink-0 p-4 bg-black/20 backdrop-blur-md border-b border-white/5 flex justify-between items-center z-10">
-                   <div>
-                       <h2 className="text-xl font-black text-yellow-400">战绩结算</h2>
-                       <div className="text-xs text-white/50">共 {details.length} 局</div>
-                   </div>
-                   <div className="text-right">
-                       <div className="text-xs text-white/50">总盈亏</div>
-                       <div className={`text-2xl font-mono font-bold ${totalScore >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                           {totalScore > 0 ? '+' : ''}{totalScore}
-                       </div>
-                   </div>
+          <div className="h-full w-full bg-green-950 flex flex-col overflow-hidden relative">
+              {/* Header with Back Button */}
+              <div className="shrink-0 h-14 bg-black/30 backdrop-blur flex justify-between items-center px-4 border-b border-white/5 z-20">
+                   <button onClick={() => setSelectedRound(null)} className="flex items-center text-white/70 hover:text-white">
+                       <span className="text-lg mr-1">‹</span> 返回列表
+                   </button>
+                   <div className="text-yellow-400 font-bold">第 {selectedRound} 场</div>
+                   <div className="w-16"></div> {/* Spacer */}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-20">
-                  {details.map((tableResult, idx) => (
-                      <div key={idx} className="bg-black/30 border border-white/10 rounded-2xl overflow-hidden">
-                          <div className="bg-white/5 px-4 py-2 flex justify-between items-center">
-                              <span className="text-xs font-bold text-yellow-500/80">Table {tableResult.tableId}</span>
-                              {tableResult.voided && <span className="text-xs text-red-500 border border-red-500 px-1 rounded">流局</span>}
-                          </div>
-
-                          <div className="p-2 grid grid-cols-2 gap-2">
-                              {!tableResult.voided && tableResult.details.map((pDetail) => {
-                                  const isMe = pDetail.playerId === pid;
-                                  return (
-                                      <div key={pDetail.playerId} className={`relative p-2 rounded-xl border ${isMe ? 'bg-yellow-900/20 border-yellow-500/50' : 'bg-white/5 border-white/5'}`}>
-                                          <div className="flex justify-between items-center mb-1">
-                                              <span className={`text-xs font-bold truncate max-w-[80px] ${isMe ? 'text-yellow-400' : 'text-white/70'}`}>
-                                                  {pDetail.name}
-                                              </span>
-                                              <span className={`text-xs font-mono font-bold ${pDetail.score >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                                  {pDetail.score > 0 ? '+' : ''}{pDetail.score}
-                                              </span>
-                                          </div>
-                                          
-                                          {pDetail.specialType ? (
-                                              <div className="h-24 flex items-center justify-center bg-yellow-500/10 rounded-lg border border-yellow-500/30">
-                                                  <div className="text-center">
-                                                      <div className="text-yellow-400 font-black text-lg drop-shadow-md">★ 特殊牌型 ★</div>
-                                                      <div className="text-white font-bold text-sm mt-1">{pDetail.specialType}</div>
-                                                  </div>
-                                              </div>
-                                          ) : (
-                                              <div className="space-y-1 opacity-90 scale-95 origin-top-left">
-                                                  <div className="flex justify-center transform scale-90 origin-left"><MiniHandRow cards={pDetail.hand.top} /></div>
-                                                  <div className="flex justify-center"><MiniHandRow cards={pDetail.hand.middle} /></div>
-                                                  <div className="flex justify-center"><MiniHandRow cards={pDetail.hand.bottom} /></div>
-                                              </div>
-                                          )}
-                                      </div>
-                                  );
-                              })}
-                          </div>
-                      </div>
-                  ))}
+              {/* Table Surface */}
+              <div className="flex-1 relative bg-[radial-gradient(circle_at_center,_#1e6f3e,_#0f3922)] overflow-hidden">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                      <div className="w-[60%] h-[40%] border-4 border-yellow-600/50 rounded-[4rem]"></div>
+                  </div>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                      <div className="text-yellow-500/20 font-black text-6xl">VS</div>
+                      <div className="text-white/40 text-xs mt-2 font-mono">Round {selectedRound} - Table {tableIndex + 1}</div>
+                      {voided && <div className="text-red-500 font-bold border border-red-500 px-2 py-1 rounded mt-2">流局 (人不满)</div>}
+                  </div>
+                  {renderPlayer('North')}
+                  {renderPlayer('West')}
+                  {renderPlayer('East')}
+                  {renderPlayer('South')}
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
-                  <button onClick={handleQuitGame} className="w-full py-4 bg-yellow-600 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform">
-                      返回大厅
+              {/* Pagination Footer */}
+              <div className="h-20 bg-black/40 backdrop-blur-md flex items-center justify-between px-6 pb-4 border-t border-white/10 z-20">
+                  <button 
+                      onClick={() => setTableIndex(Math.max(0, tableIndex - 1))}
+                      disabled={tableIndex === 0}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-all"
+                  >
+                      &lt; 上一局
+                  </button>
+                  <div className="flex flex-col items-center">
+                      <span className="text-yellow-400 font-black text-xl font-mono">{tableIndex + 1} <span className="text-white/40 text-sm">/ 10</span></span>
+                  </div>
+                  <button 
+                      onClick={() => setTableIndex(Math.min(9, tableIndex + 1))}
+                      disabled={tableIndex >= 9}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg text-white font-bold transition-all"
+                  >
+                      下一局 &gt;
                   </button>
               </div>
           </div>
@@ -509,16 +633,16 @@ const App: React.FC = () => {
   };
 
   const renderSeatButton = (carriageId: number, seat: Seat, label: string, className: string) => {
-      // Find who is sitting here from Server Data
       const occupant = occupiedSeats.find(s => Number(s.carriage_id) === Number(carriageId) && s.seat === seat);
       const isMe = occupant && gameState.user && Number(occupant.user_id) === Number(gameState.user.id);
       const isSelected = lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat;
       
+      const roundNum = occupant?.game_round || 1;
+
       return (
           <button 
               onClick={(e) => { 
                   e.stopPropagation(); 
-                  // If occupied by someone else, ignore click
                   if (occupant && !isMe) return; 
                   handleSeatSelect(carriageId, seat); 
               }}
@@ -537,8 +661,12 @@ const App: React.FC = () => {
           >
               {occupant ? (
                   <>
-                    <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[8px] font-bold text-white overflow-hidden uppercase">
+                    <div className="relative w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[8px] font-bold text-white overflow-hidden uppercase">
                         {occupant.nickname.slice(0, 2)}
+                    </div>
+                    {/* Round Indicator Badge */}
+                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[8px] px-1 rounded-full border border-white/20 shadow-sm scale-90">
+                        R{roundNum}
                     </div>
                     <span className="text-[8px] text-white/80 max-w-full truncate px-1 scale-75 origin-center">{isMe ? '我' : occupant.nickname}</span>
                   </>
@@ -552,118 +680,71 @@ const App: React.FC = () => {
       );
   };
 
-  // Helper to get active count for the selected carriage
-  const getSelectedCarriageCount = () => {
-    if (!lobbySelection) return 0;
-    return occupiedSeats.filter(s => Number(s.carriage_id) === Number(lobbySelection.carriageId)).length;
-  };
-
   return (
     <div className="h-screen w-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 font-sans flex flex-col overflow-hidden relative">
       <div className="absolute inset-0 opacity-5 pointer-events-none z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}></div>
 
+      {/* ... Auth & Wallet Modals (Same as before) ... */}
       {showAuthModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
                   <button onClick={() => setShowAuthModal(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
-                  <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">
-                      {showAuthModal === 'login' ? '账号登录' : '新用户注册'}
-                  </h2>
+                  <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">{showAuthModal === 'login' ? '账号登录' : '新用户注册'}</h2>
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs text-white/50 mb-1 block">手机号</label>
-                          <input 
-                              type="tel" 
-                              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                              placeholder="请输入手机号"
-                              value={authForm.phone}
-                              onChange={e => setAuthForm({...authForm, phone: e.target.value})}
-                          />
+                          <input type="tel" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} />
                       </div>
                       {showAuthModal === 'register' && (
                           <div>
                               <label className="text-xs text-white/50 mb-1 block">昵称</label>
-                              <input 
-                                  type="text" 
-                                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                                  placeholder="游戏中显示的名称"
-                                  value={authForm.nickname}
-                                  onChange={e => setAuthForm({...authForm, nickname: e.target.value})}
-                              />
+                              <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.nickname} onChange={e => setAuthForm({...authForm, nickname: e.target.value})} />
                           </div>
                       )}
                       <div>
-                          <label className="text-xs text-white/50 mb-1 block">密码 (至少6位)</label>
-                          <input 
-                              type="password" 
-                              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                              placeholder="设置密码"
-                              value={authForm.password}
-                              onChange={e => setAuthForm({...authForm, password: e.target.value})}
-                          />
+                          <label className="text-xs text-white/50 mb-1 block">密码</label>
+                          <input type="password" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} />
                       </div>
-                      <button 
-                          onClick={showAuthModal === 'login' ? handleLogin : handleRegister}
-                          className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all"
-                      >
-                          {showAuthModal === 'login' ? '立即登录' : '提交注册'}
-                      </button>
-                      
-                      <div className="text-center mt-4 text-sm text-white/40">
-                          {showAuthModal === 'login' ? (
-                              <span onClick={() => setShowAuthModal('register')} className="underline cursor-pointer hover:text-white">没有账号？去注册</span>
-                          ) : (
-                              <span onClick={() => setShowAuthModal('login')} className="underline cursor-pointer hover:text-white">已有账号？去登录</span>
-                          )}
-                      </div>
+                      <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all">{showAuthModal === 'login' ? '立即登录' : '提交注册'}</button>
                   </div>
-              </div>
-          </div>
-      )}
-
-      {showWalletModal && (
-          <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                   <button onClick={() => setShowWalletModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
-                   <h2 className="text-xl font-bold text-yellow-400 mb-2 text-center">积分管理</h2>
-                   <p className="text-center text-white/50 text-sm mb-6">当前积分: <span className="text-white font-mono">{gameState.user?.points || 0}</span></p>
-
-                   <div className="space-y-4">
-                       <div className="flex gap-2">
-                           <input 
-                               type="tel" 
-                               className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-yellow-500" 
-                               placeholder="输入对方手机号"
-                               value={walletForm.searchPhone}
-                               onChange={e => setWalletForm({...walletForm, searchPhone: e.target.value})}
-                           />
-                           <button onClick={handleSearchUser} className="bg-white/10 px-4 rounded-lg hover:bg-white/20">搜索</button>
-                       </div>
-                       
-                       {walletMsg && <div className="text-xs text-center text-red-400">{walletMsg}</div>}
-
-                       {walletForm.targetUser && (
-                           <div className="bg-white/5 p-3 rounded-lg border border-white/10">
-                               <div className="text-sm text-white/70">接收人: <span className="text-yellow-400 font-bold">{walletForm.targetUser.nickname}</span></div>
-                               <input 
-                                   type="number" 
-                                   className="w-full mt-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-white outline-none"
-                                   placeholder="转账金额"
-                                   value={walletForm.amount}
-                                   onChange={e => setWalletForm({...walletForm, amount: e.target.value})}
-                               />
-                               <button onClick={handleTransfer} className="w-full mt-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded text-sm">
-                                   确认转账
-                               </button>
-                           </div>
-                       )}
-                   </div>
               </div>
           </div>
       )}
 
       {gameState.phase === GamePhase.SETTLEMENT_VIEW ? (
           <ReportView />
+      ) : gameState.phase === GamePhase.GAME_OVER ? (
+          /* --- GAME OVER / INTERMISSION VIEW --- */
+          <div className="flex-1 flex flex-col items-center justify-center p-6 bg-black/40 backdrop-blur-md relative z-10">
+              <div className="w-full max-w-md bg-green-900/90 border border-yellow-500/50 rounded-3xl p-8 shadow-2xl text-center">
+                  <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-yellow-500/20">
+                      <span className="text-4xl">🏁</span>
+                  </div>
+                  <h2 className="text-3xl font-black text-white mb-2">本场次完成</h2>
+                  <p className="text-white/60 mb-8">
+                      您已完成第 <span className="text-yellow-400 font-bold text-xl">{gameState.currentRound}</span> 车厢的对局。
+                  </p>
+                  
+                  <div className="space-y-4">
+                      <button 
+                          onClick={handleNextCarriage}
+                          className="w-full py-4 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-green-950 font-black text-xl rounded-xl shadow-xl active:scale-95 transition-all"
+                      >
+                          继续下一场 (Round {gameState.currentRound + 1})
+                      </button>
+                      <div className="text-xs text-white/40">点击继续将自动进入下一车厢，所有同伴也会同步进入。</div>
+                      
+                      <div className="h-px bg-white/10 my-4"></div>
+                      
+                      <button 
+                          onClick={handleQuitGame}
+                          className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/10 active:scale-95 transition-all"
+                      >
+                          退出游戏 (返回大厅)
+                      </button>
+                  </div>
+              </div>
+          </div>
       ) : gameState.phase === GamePhase.LOBBY ? (
         <div className="flex-1 flex flex-col h-full w-full relative">
             <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-10 shrink-0">
@@ -674,40 +755,19 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex flex-col items-start">
                              <span className="text-sm font-bold leading-none">{gameState.user.nickname}</span>
-                             <span className="text-[10px] text-white/40">退出登录</span>
+                             <span className="text-[10px] text-white/40">退出</span>
                         </div>
                     </button>
                 ) : (
                     <button onClick={() => setShowAuthModal('login')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        </div>
                         <span className="text-sm font-bold">登录/注册</span>
                     </button>
                 )}
-
-                <button 
-                    onClick={handleShowSettlement}
-                    className="flex flex-col items-center group relative top-1"
-                >
+                <button onClick={handleShowSettlement} className="flex flex-col items-center group relative top-1">
                     <span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform">我的战绩</span>
-                    <span className="text-[10px] text-white/40 group-hover:text-white/60">
-                        已完成 {gameState.submissions.length} 局
-                    </span>
                 </button>
-
-                <button 
-                    onClick={() => {
-                        if(gameState.user) setShowWalletModal(true);
-                        else alert("请先登录");
-                    }} 
-                    className="flex items-center gap-2 bg-black/30 hover:bg-black/50 border border-yellow-500/30 rounded-full px-3 py-1.5 transition-all active:scale-95"
-                >
-                   <div className="w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-black font-bold">$</div>
-                   <div className="flex flex-col items-start leading-none">
-                       <span className="text-yellow-400 font-mono font-bold text-sm">积分管理</span>
-                       {gameState.user && <span className="text-[9px] text-white/60">{gameState.user.points}</span>}
-                   </div>
+                <button onClick={() => { if(gameState.user) setShowWalletModal(true); else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95">
+                   <span className="text-yellow-400 font-mono font-bold text-sm">积分</span>
                 </button>
             </div>
 
@@ -723,7 +783,6 @@ const App: React.FC = () => {
                                    <div className="text-yellow-400 font-bold text-lg z-10 shadow-black drop-shadow-md text-center px-2">{table.name}</div>
                                    <div className="text-white/40 text-xs mt-1 z-10 font-mono">底分: {table.minScore}</div>
                                </div>
-
                                {renderSeatButton(table.carriageId, 'North', '北', 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/3')}
                                {renderSeatButton(table.carriageId, 'South', '南', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/3')}
                                {renderSeatButton(table.carriageId, 'West', '西', 'left-0 top-1/2 -translate-y-1/2 -translate-x-1/3')}
@@ -736,50 +795,69 @@ const App: React.FC = () => {
 
             <div className={`absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent transition-transform duration-300 ${lobbySelection ? 'translate-y-0' : 'translate-y-full'}`}>
                 <div className="max-w-md mx-auto">
-                    <button 
-                        onClick={handleEnterGame}
-                        className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xl py-4 rounded-2xl shadow-xl shadow-red-900/40 border border-red-400/30 active:scale-95 transition-all flex items-center justify-center gap-2"
-                    >
+                    <button onClick={handleEnterGame} className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xl py-4 rounded-2xl shadow-xl shadow-red-900/40 border border-red-400/30 active:scale-95 transition-all flex items-center justify-center gap-2">
                         <span>进入牌桌</span>
-                        {lobbySelection && (
-                          <span className="text-sm font-normal bg-black/20 px-2 py-0.5 rounded flex items-center gap-1">
-                              <span>
-                                {LOBBY_TABLES.find(t => t.carriageId === lobbySelection.carriageId)?.name || ''} 
-                                ({lobbySelection.seat === 'North' ? '北' : lobbySelection.seat === 'South' ? '南' : lobbySelection.seat === 'West' ? '西' : '东'})
-                              </span>
-                              <span className={`ml-1 font-bold ${getSelectedCarriageCount() >= 2 ? 'text-green-300' : 'text-red-300'}`}>
-                                {getSelectedCarriageCount()}人
-                              </span>
-                          </span>
-                        )}
+                        <span className="text-sm font-normal bg-black/20 px-2 py-0.5 rounded">
+                            {lobbySelection ? `${LOBBY_TABLES.find(t => t.carriageId === lobbySelection.carriageId)?.name} - ${lobbySelection.seat === 'North' ? '北' : lobbySelection.seat === 'South' ? '南' : lobbySelection.seat === 'West' ? '西' : '东'}` : ''}
+                        </span>
                     </button>
-                    <p className="text-center text-white/40 text-xs mt-2">系统将自动检测场次人数，满足2人即可开赛</p>
                 </div>
             </div>
-
-            {!lobbySelection && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/30 backdrop-blur-md border-t border-white/5 py-4 px-4 text-center z-10">
-                    <p className="text-white/50 text-xs sm:text-sm font-medium tracking-wide">
-                        请选择结算时间场然后选择任意空位 · 至少2个玩家才能开始游戏
-                    </p>
-                </div>
-            )}
         </div>
       ) : (
         <div className="h-full w-full flex flex-col items-center p-2 max-w-3xl mx-auto overflow-hidden relative">
-            <div className="w-full flex justify-between items-end px-4 pt-4 pb-2 border-b border-white/5 bg-green-950/50 backdrop-blur-sm z-20">
+            {/* Opponent Progress Bar (Top of Playing View) */}
+            <div className="w-full bg-black/40 backdrop-blur-md border-b border-white/10 p-2 flex items-center justify-center gap-4 z-30 shrink-0 min-h-[40px]">
+                {occupiedSeats.filter(s => Number(s.carriage_id) === Number(gameState.currentCarriageId) && Number(s.user_id) !== Number(gameState.user?.id)).length === 0 ? (
+                    <span className="text-white/30 text-xs animate-pulse">等待其它玩家加入...</span>
+                ) : (
+                    occupiedSeats
+                        .filter(s => Number(s.carriage_id) === Number(gameState.currentCarriageId) && Number(s.user_id) !== Number(gameState.user?.id))
+                        .map(p => {
+                            const pRound = p.game_round || 1;
+                            const myRound = gameState.currentRound;
+                            let statusColor = 'text-green-400'; // Same pace
+                            let borderClass = 'border-green-500/30 bg-green-900/20';
+                            
+                            if (pRound < myRound) {
+                                // They are slower
+                                statusColor = 'text-red-400';
+                                borderClass = 'border-red-500/30 bg-red-900/20';
+                            } else if (pRound > myRound) {
+                                // They are faster
+                                statusColor = 'text-blue-400';
+                                borderClass = 'border-blue-500/30 bg-blue-900/20';
+                            }
+
+                            return (
+                                <div key={p.seat} className={`flex items-center gap-1.5 px-2 py-1 rounded-full border ${borderClass} transition-all`}>
+                                    <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[8px] text-white font-bold uppercase">
+                                        {p.nickname.slice(0,1)}
+                                    </div>
+                                    <div className="flex flex-col leading-none">
+                                        <span className="text-[8px] text-white/50 max-w-[40px] truncate">{p.nickname}</span>
+                                        <span className={`text-[10px] font-bold ${statusColor}`}>
+                                            场次 {pRound}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                )}
+            </div>
+
+            <div className="w-full flex justify-between items-end px-4 pt-2 pb-2 border-b border-white/5 bg-green-950/50 backdrop-blur-sm z-20">
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="bg-yellow-600 text-white text-[10px] font-bold px-1.5 rounded">
-                             {LOBBY_TABLES.find(t => t.carriageId === gameState.currentCarriageId)?.name || '未知场次'}
+                             {LOBBY_TABLES.find(t => t.carriageId === gameState.currentCarriageId)?.name || 'Event'}
+                        </span>
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 rounded">
+                             Round {gameState.currentRound}
                         </span>
                     </div>
                     <div className="text-[10px] text-white/30 mt-1">
-                        当前座位: <span className="text-yellow-400 font-bold">{
-                            gameState.mySeat === 'North' ? '北' :
-                            gameState.mySeat === 'South' ? '南' :
-                            gameState.mySeat === 'West' ? '西' : '东'
-                        }</span>
+                        当前座位: <span className="text-yellow-400 font-bold">{gameState.mySeat}</span>
                     </div>
                 </div>
                 <div className="font-mono text-yellow-400 font-bold text-xl">
@@ -788,60 +866,25 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-start space-y-4 px-2 w-full overflow-y-auto pb-44 pt-4">
-                <HandRow 
-                    title="头墩" 
-                    cards={gameState.currentArrangement.top} 
-                    maxCards={3}
-                    onCardClick={handleCardClick}
-                    onRowClick={() => handleRowClick('top')}
-                    selectedCardIds={selectedCardIds}
-                    className="w-full" 
-                />
-                <HandRow 
-                    title="中墩" 
-                    cards={gameState.currentArrangement.middle} 
-                    maxCards={5}
-                    onCardClick={handleCardClick}
-                    onRowClick={() => handleRowClick('middle')}
-                    selectedCardIds={selectedCardIds}
-                    className="w-full"
-                />
-                <HandRow 
-                    title="尾墩" 
-                    cards={gameState.currentArrangement.bottom} 
-                    maxCards={5}
-                    onCardClick={handleCardClick}
-                    onRowClick={() => handleRowClick('bottom')}
-                    selectedCardIds={selectedCardIds}
-                    className="w-full"
-                />
+                <HandRow title="头墩" cards={gameState.currentArrangement.top} maxCards={3} onCardClick={handleCardClick} onRowClick={() => handleRowClick('top')} selectedCardIds={selectedCardIds} className="w-full" />
+                <HandRow title="中墩" cards={gameState.currentArrangement.middle} maxCards={5} onCardClick={handleCardClick} onRowClick={() => handleRowClick('middle')} selectedCardIds={selectedCardIds} className="w-full" />
+                <HandRow title="尾墩" cards={gameState.currentArrangement.bottom} maxCards={5} onCardClick={handleCardClick} onRowClick={() => handleRowClick('bottom')} selectedCardIds={selectedCardIds} className="w-full" />
             </div>
 
             <div className="absolute bottom-6 left-0 right-0 px-3 w-full flex justify-center z-50">
                 <div className="bg-black/90 backdrop-blur-xl p-2.5 rounded-2xl border border-yellow-500/20 shadow-2xl flex flex-row items-center gap-3 w-full max-w-lg">
-                    <button 
-                        onClick={handleSmartArrange}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition-all active:scale-95 shadow-lg flex items-center justify-center gap-1.5 min-w-0"
-                    >
+                    <button onClick={handleSmartArrange} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition-all active:scale-95 shadow-lg flex items-center justify-center gap-1.5 min-w-0">
                         <span className="truncate text-sm sm:text-base">
                             {gameState.aiSuggestions.length > 0 ? `推荐 (${gameState.currentSuggestionIndex + 1})` : "计算中..."}
                         </span>
                     </button>
-                    <button 
-                        onClick={submitHand}
-                        className="flex-1 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-green-950 font-bold text-sm sm:text-base py-3 rounded-lg shadow-lg transition-all active:scale-95 min-w-0"
-                    >
+                    <button onClick={submitHand} className="flex-1 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-green-950 font-bold text-lg py-3 rounded-lg shadow-lg transition-all active:scale-95 min-w-0">
                         提交本局
                     </button>
                 </div>
             </div>
             
-            <button 
-                onClick={handleQuitGame} 
-                className="absolute top-20 right-4 text-[10px] text-white/20 p-2 hover:text-white"
-            >
-                保存退出
-            </button>
+            <button onClick={handleQuitGame} className="absolute top-24 right-4 text-[10px] text-white/20 p-2 hover:text-white">保存退出</button>
         </div>
       )}
       

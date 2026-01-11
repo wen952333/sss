@@ -1,9 +1,13 @@
-import { CarriageData, TableData, Card, Seat, PlayerHand, HandSubmission, TableResult } from '../types';
-import { createDeck } from './deck';
-import { evaluate3, evaluate5, compareHands, HandType } from './suggestions';
 
+import { CarriageData, TableData, Card, Seat, PlayerHand, HandSubmission, TableResult } from '../types';
+import { createDeck, dealCards } from './deck';
+import { evaluate3, evaluate5, compareHands, HandType, getLocalSuggestions } from './suggestions';
+
+// --- Storage Keys ---
 const STORE_KEY_CARRIAGES = 'thirteen_water_carriages_v1';
-const STORE_KEY_SUBMISSIONS = 'thirteen_water_submissions_v1';
+const STORE_KEY_SUBMISSIONS = 'thirteen_water_submissions_v2'; 
+
+// --- Scoring Logic ---
 
 const getLaneWaterValue = (analyzed: { type: HandType, values: number[] }, segment: 'top'|'mid'|'bot'): number => {
     if (segment === 'top') return analyzed.type === HandType.THREE_OF_A_KIND ? 3 : 1;
@@ -42,6 +46,8 @@ const checkSpecialHand = (hand: PlayerHand): { water: number, name: string } | n
     return null; 
 };
 
+// --- Data Generation ---
+
 const generateTable = (id: number): TableData => {
   const deck = createDeck();
   const hands: Record<Seat, Card[]> = {
@@ -72,13 +78,20 @@ const generateCarriages = (count: number = 20): CarriageData[] => {
 
 let GLOBAL_CARRIAGES = generateCarriages();
 
+// --- API Methods ---
+
 export const getCarriage = (id: number): CarriageData | undefined => GLOBAL_CARRIAGES.find(c => c.id === id);
 
 export const getPlayerSubmissions = (playerId: string): HandSubmission[] => {
     const stored = localStorage.getItem(STORE_KEY_SUBMISSIONS);
     const all = stored ? JSON.parse(stored) : [];
     return all.filter((s: any) => s.playerId === playerId).map((s: any) => ({
-        carriageId: s.carriageId, tableId: s.tableId, seat: s.seat, hand: s.hand, timestamp: s.timestamp
+        carriageId: s.carriageId, 
+        roundId: s.roundId || 1, 
+        tableId: s.tableId, 
+        seat: s.seat, 
+        hand: s.hand, 
+        timestamp: s.timestamp
     }));
 };
 
@@ -86,6 +99,7 @@ export const getCarriagePlayerCount = (carriageId: number): number => {
     const stored = localStorage.getItem(STORE_KEY_SUBMISSIONS);
     const all = stored ? JSON.parse(stored) : [];
     const players = new Set<string>();
+    // Approximate player count by recent submissions in this carriage
     all.filter((s: any) => s.carriageId === carriageId).forEach((s:any) => players.add(s.playerId));
     return players.size;
 };
@@ -93,141 +107,198 @@ export const getCarriagePlayerCount = (carriageId: number): number => {
 export const submitPlayerHand = (playerId: string, submission: HandSubmission) => {
     const stored = localStorage.getItem(STORE_KEY_SUBMISSIONS);
     const all = stored ? JSON.parse(stored) : [];
-    const filtered = all.filter((s: any) => !(s.playerId === playerId && s.carriageId === submission.carriageId && s.tableId === submission.tableId));
+    
+    const filtered = all.filter((s: any) => !(
+        s.playerId === playerId && 
+        s.carriageId === submission.carriageId && 
+        (s.roundId || 1) === submission.roundId &&
+        s.tableId === submission.tableId
+    ));
+    
     filtered.push({ ...submission, playerId, name: '我' });
     localStorage.setItem(STORE_KEY_SUBMISSIONS, JSON.stringify(filtered));
 };
 
-export const settleGame = (playerId: string): { totalScore: number, details: TableResult[], validCarriageCount: number } => {
+export const settleGame = (playerId: string): { totalScore: number, details: TableResult[], groupedResults: Record<number, TableResult[]>, validCarriageCount: number } => {
     const stored = localStorage.getItem(STORE_KEY_SUBMISSIONS);
     let allSubs = stored ? JSON.parse(stored) : [];
     
     let totalScore = 0;
     const details: TableResult[] = [];
+    const groupedResults: Record<number, TableResult[]> = {}; 
     const carriageSet = new Set<number>();
     
+    // Structure: Carriage -> Round -> Table -> Submissions
     const map: any = {};
     allSubs.forEach((s: any) => {
-        if(!map[s.carriageId]) map[s.carriageId] = {};
-        if(!map[s.carriageId][s.tableId]) map[s.carriageId][s.tableId] = [];
-        map[s.carriageId][s.tableId].push(s);
+        const cId = s.carriageId;
+        const rId = s.roundId || 1;
+        const tId = s.tableId;
+        
+        if(!map[cId]) map[cId] = {};
+        if(!map[cId][rId]) map[cId][rId] = {};
+        if(!map[cId][rId][tId]) map[cId][rId][tId] = [];
+        
+        map[cId][rId][tId].push(s);
     });
 
+    // Iterate through all known Carriage/Rounds
     Object.keys(map).forEach(cId => {
-        const carriageId = parseInt(cId);
-        Object.keys(map[cId]).forEach(tId => {
-            const tableId = parseInt(tId);
-            const subs: any[] = map[cId][tId];
-            
-            if(!subs.find((s:any) => s.playerId === playerId)) return;
-            
-            carriageSet.add(carriageId);
-            const scores: Record<string, number> = {};
-            subs.forEach((s:any) => scores[s.playerId] = 0);
-            
-            if (subs.length < 2) {
-                 const resultDetails = subs.map((s: any) => ({
+        Object.keys(map[cId]).forEach(rId => {
+            const carriageId = parseInt(cId);
+            const roundId = parseInt(rId);
+            if (!groupedResults[roundId]) groupedResults[roundId] = [];
+
+            // Get valid deck for this carriage
+            const carriageData = getCarriage(carriageId);
+
+            // Iterate 10 tables
+            for (let tId = 0; tId < 10; tId++) {
+                let subs: any[] = map[cId][rId][tId] || [];
+                
+                // --- AUTO PLAY LOGIC: FORCE COMPLETION ---
+                // 1. Identify all players in this round
+                const allPlayersInRound = new Set<string>();
+                Object.keys(map[cId][rId]).forEach(ScanTId => {
+                    map[cId][rId][ScanTId].forEach((s:any) => allPlayersInRound.add(s.playerId));
+                });
+                allPlayersInRound.add(playerId); // Ensure requester is included
+
+                // 2. Check and Fill missing submissions
+                allPlayersInRound.forEach(pid => {
+                    const hasSub = subs.find((s:any) => s.playerId === pid);
+                    if (!hasSub && carriageData) {
+                        // Infer seat from other tables
+                        let pSeat: Seat | undefined;
+                        for(let stId=0; stId<10; stId++) {
+                            const s = map[cId][rId][stId]?.find((x:any) => x.playerId === pid);
+                            if(s) { pSeat = s.seat; break; }
+                        }
+                        
+                        if (pSeat) {
+                            const cards = carriageData.tables[tId].hands[pSeat];
+                            const suggestions = getLocalSuggestions(cards);
+                            const bestHand = suggestions[0];
+                            const autoSub = {
+                                carriageId,
+                                roundId,
+                                tableId: tId,
+                                seat: pSeat,
+                                hand: bestHand,
+                                timestamp: Date.now(),
+                                playerId: pid,
+                                name: pid === playerId ? '我' : (pid.startsWith('guest') ? 'Guest' : 'Player'),
+                                isAuto: true
+                            };
+                            subs.push(autoSub);
+                            // Persist for future
+                            submitPlayerHand(pid, autoSub);
+                        }
+                    }
+                });
+
+                // --- SETTLEMENT ---
+                
+                // Only process if I am involved (or it's a general view)
+                if(!subs.find((s:any) => s.playerId === playerId)) continue;
+                
+                carriageSet.add(roundId);
+                const scores: Record<string, number> = {};
+                subs.forEach((s:any) => scores[s.playerId] = 0);
+                
+                const isPending = subs.length < 2;
+                
+                const wSubs = subs.map((s:any) => ({
+                    ...s, 
+                    special: checkSpecialHand(s.hand)
+                }));
+                
+                if (!isPending) {
+                    const matchResults: { p1: string, p2: string, w: number, isShoot: boolean }[] = [];
+
+                    for(let i=0; i<wSubs.length; i++) {
+                        for(let j=i+1; j<wSubs.length; j++) {
+                            const p1 = wSubs[i];
+                            const p2 = wSubs[j];
+                            
+                            if(p1.special || p2.special) {
+                                let w = 0;
+                                if(p1.special && p2.special) w = p1.special.water - p2.special.water;
+                                else if(p1.special) w = p1.special.water;
+                                else w = -p2.special.water;
+                                scores[p1.playerId] += w * 2;
+                                scores[p2.playerId] -= w * 2;
+                            } else {
+                                const p1Top = evaluate3(p1.hand.top); const p2Top = evaluate3(p2.hand.top);
+                                const p1Mid = evaluate5(p1.hand.middle); const p2Mid = evaluate5(p2.hand.middle);
+                                const p1Bot = evaluate5(p1.hand.bottom); const p2Bot = evaluate5(p2.hand.bottom);
+                                
+                                let w = 0; let p1W = 0; let p2W = 0;
+                                
+                                const cmp = (a:any, b:any, seg: any) => {
+                                     const r = compareHands(a,b);
+                                     if(r>0) { w += getLaneWaterValue(a, seg); p1W++; }
+                                     else if(r<0) { w -= getLaneWaterValue(b, seg); p2W++; }
+                                };
+                                cmp(p1Top, p2Top, 'top');
+                                cmp(p1Mid, p2Mid, 'mid');
+                                cmp(p1Bot, p2Bot, 'bot');
+                                
+                                let isShoot = false;
+                                if(p1W===3) { w*=2; isShoot=true; }
+                                if(p2W===3) { w*=2; isShoot=true; }
+                                
+                                matchResults.push({ p1: p1.playerId, p2: p2.playerId, w, isShoot });
+                            }
+                        }
+                    }
+                    
+                    const shooterCounts: any = {};
+                    wSubs.forEach((s:any) => shooterCounts[s.playerId]=0);
+                    matchResults.forEach(m => {
+                        if(m.isShoot) {
+                            if(m.w > 0) shooterCounts[m.p1]++;
+                            else shooterCounts[m.p2]++;
+                        }
+                    });
+                    const activeCount = wSubs.length;
+                    const homeRunPid = Object.keys(shooterCounts).find(pid => shooterCounts[pid] === activeCount - 1);
+                    
+                    matchResults.forEach(m => {
+                        let finalW = m.w;
+                        if(homeRunPid) {
+                            if(m.p1 === homeRunPid && m.w > 0) finalW *= 2;
+                            else if(m.p2 === homeRunPid && m.w < 0) finalW *= 2;
+                        }
+                        scores[m.p1] += finalW * 2;
+                        scores[m.p2] -= finalW * 2;
+                    });
+                }
+
+                totalScore += (scores[playerId] || 0);
+                
+                const resultDetails = subs.map((s: any) => ({
                     playerId: s.playerId,
-                    name: s.name,
+                    name: s.name + (s.isAuto ? ' (托管)' : ''),
                     seat: s.seat,
                     hand: s.hand,
-                    score: 0
+                    score: scores[s.playerId] || 0,
+                    specialType: wSubs.find((x:any) => x.playerId === s.playerId)?.special?.name
                 }));
-                details.push({ 
-                    tableId, 
+
+                const finalObj = { 
+                    tableId: tId, 
                     playersInvolved: subs.map((s:any)=>s.name), 
-                    scores: {[playerId]: 0}, 
+                    scores, 
                     details: resultDetails,
-                    voided: true 
-                });
-                return;
+                    voided: isPending 
+                };
+
+                details.push(finalObj);
+                groupedResults[roundId].push(finalObj);
             }
-            
-            const wSubs = subs.map((s:any) => ({
-                ...s, 
-                special: checkSpecialHand(s.hand)
-            }));
-            
-            const matchResults: { p1: string, p2: string, w: number, isShoot: boolean }[] = [];
-
-            for(let i=0; i<wSubs.length; i++) {
-                for(let j=i+1; j<wSubs.length; j++) {
-                    const p1 = wSubs[i];
-                    const p2 = wSubs[j];
-                    
-                    if(p1.special || p2.special) {
-                        let w = 0;
-                        if(p1.special && p2.special) w = p1.special.water - p2.special.water;
-                        else if(p1.special) w = p1.special.water;
-                        else w = -p2.special.water;
-                        scores[p1.playerId] += w * 2;
-                        scores[p2.playerId] -= w * 2;
-                    } else {
-                        const p1Top = evaluate3(p1.hand.top); const p2Top = evaluate3(p2.hand.top);
-                        const p1Mid = evaluate5(p1.hand.middle); const p2Mid = evaluate5(p2.hand.middle);
-                        const p1Bot = evaluate5(p1.hand.bottom); const p2Bot = evaluate5(p2.hand.bottom);
-                        
-                        let w = 0; let p1W = 0; let p2W = 0;
-                        
-                        const cmp = (a:any, b:any, seg: any) => {
-                             const r = compareHands(a,b);
-                             if(r>0) { w += getLaneWaterValue(a, seg); p1W++; }
-                             else if(r<0) { w -= getLaneWaterValue(b, seg); p2W++; }
-                        };
-                        cmp(p1Top, p2Top, 'top');
-                        cmp(p1Mid, p2Mid, 'mid');
-                        cmp(p1Bot, p2Bot, 'bot');
-                        
-                        let isShoot = false;
-                        if(p1W===3) { w*=2; isShoot=true; }
-                        if(p2W===3) { w*=2; isShoot=true; }
-                        
-                        matchResults.push({ p1: p1.playerId, p2: p2.playerId, w, isShoot });
-                    }
-                }
-            }
-            
-            const shooterCounts: any = {};
-            wSubs.forEach((s:any) => shooterCounts[s.playerId]=0);
-            matchResults.forEach(m => {
-                if(m.isShoot) {
-                    if(m.w > 0) shooterCounts[m.p1]++;
-                    else shooterCounts[m.p2]++;
-                }
-            });
-            const activeCount = wSubs.length;
-            const homeRunPid = Object.keys(shooterCounts).find(pid => shooterCounts[pid] === activeCount - 1);
-            
-            matchResults.forEach(m => {
-                let finalW = m.w;
-                if(homeRunPid) {
-                    if(m.p1 === homeRunPid && m.w > 0) finalW *= 2;
-                    else if(m.p2 === homeRunPid && m.w < 0) finalW *= 2;
-                }
-                scores[m.p1] += finalW * 2;
-                scores[m.p2] -= finalW * 2;
-            });
-
-            totalScore += scores[playerId];
-            
-            const resultDetails = subs.map((s: any) => ({
-                playerId: s.playerId,
-                name: s.name,
-                seat: s.seat,
-                hand: s.hand,
-                score: scores[s.playerId] || 0,
-                specialType: wSubs.find((x:any) => x.playerId === s.playerId)?.special?.name
-            }));
-
-            details.push({ 
-                tableId, 
-                playersInvolved: subs.map((s:any)=>s.name), 
-                scores, 
-                details: resultDetails,
-                voided: false 
-            });
         });
     });
 
-    return { totalScore, details, validCarriageCount: carriageSet.size };
+    return { totalScore, details, groupedResults, validCarriageCount: carriageSet.size };
 };
