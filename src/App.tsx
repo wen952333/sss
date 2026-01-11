@@ -4,10 +4,11 @@ import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from 
 import { getLocalSuggestions, isValidArrangement } from './services/suggestions';
 import { HandRow } from './components/HandRow';
 import { CardComponent } from './components/CardComponent';
-import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame } from './services/mockBackend';
+import { getCarriage } from './services/mockBackend'; // Only used for static Deck data
 
 const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
 
+// CONFIG: Minimum score set to 300 as requested
 const LOBBY_TABLES = [
   { id: 1, name: "今晚 20:00 结算场", carriageId: 1, minScore: 300 },
   { id: 2, name: "明日 12:00 结算场", carriageId: 2, minScore: 300 },
@@ -68,8 +69,10 @@ const App: React.FC = () => {
   // --- Initialization ---
 
   useEffect(() => {
+      // 1. Setup DB Schema
       fetch('/api/setup').catch(() => {});
 
+      // 2. Load Local User
       const cachedUser = localStorage.getItem('shisanshui_user');
       if (cachedUser) {
           try {
@@ -78,11 +81,7 @@ const App: React.FC = () => {
           } catch(e) {}
       }
       
-      const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
-      const subs = getPlayerSubmissions(pid);
-      setGameState(prev => ({ ...prev, submissions: subs }));
-
-      // PWA Install Detection
+      // 3. PWA Install Detection
       const handler = (e: any) => {
         e.preventDefault(); 
         setInstallPrompt(e);
@@ -99,15 +98,7 @@ const App: React.FC = () => {
       return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  useEffect(() => {
-     if (gameState.user) {
-         const pid = `u_${gameState.user.id}`;
-         const subs = getPlayerSubmissions(pid);
-         setGameState(prev => ({ ...prev, submissions: subs }));
-     }
-  }, [gameState.user]);
-
-  // Polling Logic
+  // --- Polling Logic ---
   const fetchSeats = useCallback(async () => {
       try {
           const res = await fetch('/api/game/seat');
@@ -135,9 +126,10 @@ const App: React.FC = () => {
       };
   }, [gameState.phase, fetchSeats]);
 
-  // --- Helper: Sync User Data ---
+  // --- Core Helper: Sync User Data ---
+  // Returns the updated user object for immediate use checks
   const syncUserData = async () => {
-      if (!gameState.user) return;
+      if (!gameState.user) return null;
       try {
           const res = await fetch('/api/user/sync', {
               method: 'POST',
@@ -148,10 +140,12 @@ const App: React.FC = () => {
           if (data.success && data.user) {
               setGameState(prev => ({ ...prev, user: data.user }));
               localStorage.setItem('shisanshui_user', JSON.stringify(data.user));
+              return data.user;
           }
       } catch (e) {
           console.error("Sync error", e);
       }
+      return gameState.user; // Fallback
   };
 
   // --- Auth Handlers ---
@@ -266,14 +260,12 @@ const App: React.FC = () => {
           return;
       }
 
-      // 1. Sync & Check Points
-      await syncUserData(); 
-      // Re-read from state or localStorage as state update might be slightly delayed
-      const currentUser = JSON.parse(localStorage.getItem('shisanshui_user') || '{}');
-      const currentPoints = currentUser.points || 0;
+      // 1. Sync & Check Points (Fresh data)
+      const currentUser = await syncUserData();
+      const currentPoints = currentUser?.points || 0;
       
       const tableConfig = LOBBY_TABLES.find(t => t.carriageId === carriageId);
-      const minScore = tableConfig ? tableConfig.minScore : 300; // Default to 300 if not found
+      const minScore = tableConfig ? tableConfig.minScore : 300; 
 
       if (currentPoints < minScore) {
           alert(`您的积分 (${currentPoints}) 不足 ${minScore}，无法入座。\n请联系管理员或好友获取积分。`);
@@ -287,6 +279,7 @@ const App: React.FC = () => {
       }
 
       // 3. API Call to Sit
+      setLobbySelection({ carriageId, seat }); // Optimistic update
       try {
           const res = await fetch('/api/game/seat', {
               method: 'POST',
@@ -304,8 +297,6 @@ const App: React.FC = () => {
               const data = await res.json() as any;
               alert(data.error || "抢座失败");
               setLobbySelection(null); 
-          } else {
-              setLobbySelection({ carriageId, seat });
           }
           fetchSeats();
       } catch (e) {
@@ -337,20 +328,34 @@ const App: React.FC = () => {
           return;
       }
 
-      // 1. Check Real Seat Count from Server State
+      // 1. Force Sync Seats to ensure count is accurate
+      let currentOccupants = occupiedSeats;
+      try {
+          const res = await fetch('/api/game/seat');
+          if (res.ok) {
+              const data = await res.json() as any;
+              if (data.seats) {
+                  currentOccupants = data.seats;
+                  setOccupiedSeats(data.seats);
+              }
+          }
+      } catch(e) {}
+
+      // 2. Check Real Seat Count
       const { carriageId, seat } = lobbySelection;
-      const playersInCarriage = occupiedSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
+      const playersInCarriage = currentOccupants.filter(s => Number(s.carriage_id) === Number(carriageId));
       
       if (playersInCarriage.length < 2) { 
-          alert(`当前座位人数 (${playersInCarriage.length}) 不足 2 人，无法开始游戏。\n请等待其他玩家加入。`);
-          fetchSeats(); 
+          alert(`当前座位人数 (${playersInCarriage.length}) 不足 2 人，无法开始游戏。\n至少需要 2 位玩家同时在座。`);
           return;
       }
 
+      // 3. Get Card Data (Deterministic from Carriage ID)
       const carriageMockData = getCarriage(carriageId); 
-      if (!carriageMockData) return alert("System Error: Carriage not found");
+      if (!carriageMockData) return alert("System Error: Local Carriage Data not found");
 
-      // 2. ANTI-CHEAT: Randomly shuffle the order of tables (0-9).
+      // 4. ANTI-CHEAT: Randomly shuffle the order of tables (0-9) locally for this user.
+      // Everyone plays the same 10 hands, but in different orders, preventing real-time collusion.
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
@@ -381,7 +386,7 @@ const App: React.FC = () => {
   const handleNextCarriage = async () => {
       const nextRound = gameState.currentRound + 1;
       
-      // Notify server (optional)
+      // Notify server we are moving to next round
       if (gameState.user) {
           try {
               fetch('/api/game/seat', {
@@ -458,7 +463,9 @@ const App: React.FC = () => {
       if (!gameState.user) return alert("请先登录");
       if (isSubmitting) return;
 
-      const currentPoints = gameState.user.points || 0;
+      // 1. Check Points before submit (anti-abuse)
+      const currentUser = await syncUserData();
+      const currentPoints = currentUser?.points || 0;
       if (currentPoints < 100) {
           alert(`您的积分 (${currentPoints}) 不足 100，功能已暂停。\n请先补充积分才能继续提交牌型。`);
           return;
@@ -479,8 +486,9 @@ const App: React.FC = () => {
       setIsSubmitting(true);
       const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
       
+      // 2. Submit to Real API
       try {
-          await fetch('/api/game/submit', {
+          const res = await fetch('/api/game/submit', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({
@@ -492,6 +500,7 @@ const App: React.FC = () => {
                   hand: gameState.currentArrangement
               })
           });
+          if (!res.ok) throw new Error("Submission Failed");
       } catch (e) {
           console.error("Submission failed", e);
           alert("提交失败，请重试");
@@ -526,6 +535,7 @@ const App: React.FC = () => {
   const handleShowSettlement = async () => {
       if (!gameState.user) return alert("请先登录");
       
+      // Sync before showing history to update balance in UI
       syncUserData();
 
       try {
@@ -552,10 +562,7 @@ const App: React.FC = () => {
 
       } catch(e) {
           console.error(e);
-          // Fallback if fetch fails (e.g. offline)
-          const pid = `u_${gameState.user.id}`;
-          const report = settleGame(pid);
-          setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
+          alert("无法获取战绩，请检查网络");
       }
   };
 
