@@ -146,6 +146,7 @@ const App: React.FC = () => {
           const data = await res.json() as any;
           if (data.error) throw new Error(data.error);
           alert("注册成功，请登录");
+          // Switch to login mode but keep the phone number filled
           setShowAuthModal('login');
       } catch (e: any) {
           alert(e.message);
@@ -734,39 +735,62 @@ const App: React.FC = () => {
                      </div>
                      <button onClick={() => setShowIOSPrompt(false)} className="text-yellow-400 font-bold text-sm">我知道了</button>
                  </div>
-                 {/* Arrow pointer roughly where Safari share button is */}
                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 bg-green-900 border-b border-r border-white/20 transform rotate-45"></div>
             </div>
         </div>
       )}
 
-      {/* ... Auth & Wallet Modals (Same as before) ... */}
+      {/* Auth Modal (Refactored with Tabs) */}
       {showAuthModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
-                  <button onClick={() => setShowAuthModal(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
-                  <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">{showAuthModal === 'login' ? '账号登录' : '新用户注册'}</h2>
-                  <div className="space-y-4">
+              <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
+                  <button onClick={() => setShowAuthModal(null)} className="absolute top-4 right-4 text-white/50 hover:text-white z-10">✕</button>
+                  
+                  {/* Tabs */}
+                  <div className="flex border-b border-white/10 mb-6 shrink-0">
+                      <button 
+                          onClick={() => setShowAuthModal('login')} 
+                          className={`flex-1 pb-3 text-lg font-bold transition-all ${showAuthModal === 'login' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/40'}`}
+                      >
+                          账号登录
+                      </button>
+                      <button 
+                          onClick={() => setShowAuthModal('register')} 
+                          className={`flex-1 pb-3 text-lg font-bold transition-all ${showAuthModal === 'register' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-white/40'}`}
+                      >
+                          新用户注册
+                      </button>
+                  </div>
+
+                  <div className="space-y-4 overflow-y-auto p-1">
                       <div>
                           <label className="text-xs text-white/50 mb-1 block">手机号</label>
-                          <input type="tel" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} />
+                          <input type="tel" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500 transition-colors" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} placeholder="请输入手机号" />
                       </div>
+                      
                       {showAuthModal === 'register' && (
-                          <div>
+                          <div className="animate-pop-in">
                               <label className="text-xs text-white/50 mb-1 block">昵称</label>
-                              <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.nickname} onChange={e => setAuthForm({...authForm, nickname: e.target.value})} />
+                              <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500 transition-colors" value={authForm.nickname} onChange={e => setAuthForm({...authForm, nickname: e.target.value})} placeholder="游戏中显示的名称" />
                           </div>
                       )}
+                      
                       <div>
-                          <label className="text-xs text-white/50 mb-1 block">密码</label>
-                          <input type="password" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} />
+                          <label className="text-xs text-white/50 mb-1 block">密码 {showAuthModal === 'register' && '(至少6位)'}</label>
+                          <input type="password" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500 transition-colors" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} placeholder="请输入密码" />
                       </div>
-                      <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all">{showAuthModal === 'login' ? '立即登录' : '提交注册'}</button>
+
+                      <div className="pt-2">
+                          <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3.5 rounded-xl active:scale-95 transition-all shadow-lg">
+                              {showAuthModal === 'login' ? '立即登录' : '提交注册'}
+                          </button>
+                      </div>
                   </div>
               </div>
           </div>
       )}
 
+      {/* Wallet Modal */}
       {showWalletModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
@@ -844,32 +868,38 @@ const App: React.FC = () => {
           </div>
       ) : gameState.phase === GamePhase.LOBBY ? (
         <div className="flex-1 flex flex-col h-full w-full relative">
-            <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-10 shrink-0 relative">
-                {/* Left Side: User/Login */}
-                {gameState.user ? (
-                    <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors z-20">
-                        <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border border-white/10 font-bold text-xs">
-                            {gameState.user.nickname[0]}
-                        </div>
-                        <div className="flex flex-col items-start">
-                             <span className="text-sm font-bold leading-none">{gameState.user.nickname}</span>
-                             <span className="text-[10px] text-white/40">退出</span>
-                        </div>
-                    </button>
-                ) : (
-                    <button onClick={() => setShowAuthModal('login')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors z-20">
-                        <span className="text-sm font-bold">登录/注册</span>
-                    </button>
-                )}
+            {/* Lobby Header - UPDATED LAYOUT */}
+            <div className="w-full h-16 bg-black/20 backdrop-blur-md border-b border-white/5 grid grid-cols-3 items-center px-4 z-10 shrink-0">
                 
-                {/* Center: Battle Record (Absolute Centered) */}
-                <button onClick={handleShowSettlement} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group z-10">
-                    <span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span>
-                    <span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span>
-                </button>
+                {/* Left: User Profile */}
+                <div className="flex justify-start">
+                    {gameState.user ? (
+                        <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border border-white/10 font-bold text-xs shrink-0">
+                                {gameState.user.nickname[0]}
+                            </div>
+                            <div className="flex flex-col items-start overflow-hidden">
+                                 <span className="text-sm font-bold leading-none truncate max-w-[80px]">{gameState.user.nickname}</span>
+                                 <span className="text-[10px] text-white/40">退出</span>
+                            </div>
+                        </button>
+                    ) : (
+                        <button onClick={() => setShowAuthModal('login')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors">
+                            <span className="text-sm font-bold">登录/注册</span>
+                        </button>
+                    )}
+                </div>
+                
+                {/* Center: Battle Record */}
+                <div className="flex justify-center">
+                    <button onClick={handleShowSettlement} className="flex flex-col items-center group">
+                        <span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span>
+                        <span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span>
+                    </button>
+                </div>
 
-                {/* Right Side: Install + Points */}
-                <div className="flex items-center gap-2 z-20">
+                {/* Right: Install + Points */}
+                <div className="flex justify-end items-center gap-2">
                     {(installPrompt || isIOS) && (
                         <button 
                             onClick={handleInstallClick} 
