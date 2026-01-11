@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '../types';
 import { getRankSymbol, getSuitSymbol, getSuitColor, getCardSvgName } from '../services/deck';
@@ -30,16 +29,19 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
     <div
       onClick={onClick}
       className={`
-        relative bg-white rounded-lg shadow-md select-none
+        relative rounded-lg shadow-md select-none
         flex flex-col items-center justify-center
         cursor-pointer shrink-0
         outline-none
         overflow-hidden
         
+        ${imgError ? 'bg-white' : ''}
+
         ${selected 
-            ? 'ring-2 ring-yellow-400 bg-yellow-50 brightness-105' 
+            ? 'ring-2 ring-yellow-400 brightness-110' 
             : ''
         }
+        
         ${small 
             ? 'w-10 h-14 text-xs' 
             : 'w-24 h-36 sm:w-32 sm:h-48 text-3xl sm:text-6xl'
@@ -52,7 +54,7 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
           key={imgSrc} // Force reload if src changes
           src={imgSrc} 
           alt={svgName}
-          className="w-full h-full object-contain pointer-events-none"
+          className="w-full h-full object-fill pointer-events-none"
           onError={handleError}
           draggable={false}
         />
