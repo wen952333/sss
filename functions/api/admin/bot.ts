@@ -7,6 +7,7 @@ interface D1PreparedStatement {
 }
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
+  batch<T = unknown>(statements: D1PreparedStatement[]): Promise<{ success: boolean; results?: T[] }[]>;
 }
 type PagesFunction<Env = unknown> = (context: { request: Request; env: Env; }) => Promise<Response>;
 
@@ -101,9 +102,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             }
         } 
         else if (action === 'del') {
-            await env.DB.prepare('DELETE FROM Users WHERE id = ?').bind(uid).run();
-            await answerCallback(cb.id, `🗑 用户 ${uid} 已删除`, true);
-            await sendMessage(currentChatId, `⚠️ 用户 ID ${uid} 已被删除。`);
+            // CASCADE DELETE Logic
+            await env.DB.batch([
+                // 1. Clear active seats (Prevent ghost players)
+                env.DB.prepare('DELETE FROM CarriageSeats WHERE user_id = ?').bind(uid),
+                // 2. Clear game history (Hand submissions)
+                env.DB.prepare('DELETE FROM HandSubmissions WHERE user_id = ?').bind(uid),
+                // 3. Clear transaction logs
+                env.DB.prepare('DELETE FROM Transactions WHERE from_user_id = ? OR to_user_id = ?').bind(uid, uid),
+                // 4. Finally delete the user
+                env.DB.prepare('DELETE FROM Users WHERE id = ?').bind(uid)
+            ]);
+            
+            await answerCallback(cb.id, `🗑 用户 ${uid} 及其所有数据已彻底清除`, true);
+            await sendMessage(currentChatId, `⚠️ 用户 ID ${uid} 及其关联的战绩、座位、交易记录已被彻底删除。`);
         } 
         else {
             await answerCallback(cb.id, "");
