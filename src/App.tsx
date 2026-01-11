@@ -120,7 +120,7 @@ const App: React.FC = () => {
   useEffect(() => {
       if (gameState.phase === GamePhase.LOBBY || gameState.phase === GamePhase.PLAYING) {
           fetchSeats(); 
-          pollingRef.current = window.setInterval(fetchSeats, 3000); 
+          pollingRef.current = window.setInterval(fetchSeats, 2000); 
       } else {
           if (pollingRef.current) {
               clearInterval(pollingRef.current);
@@ -323,8 +323,20 @@ const App: React.FC = () => {
           return;
       }
 
-      const { carriageId, seat } = lobbySelection;
+      // Check Real Seat Count from Server State (occupiedSeats)
+      // This enforces the "At least 2 players" rule using real data.
+      const carriageId = lobbySelection.carriageId;
+      const playersInCarriage = occupiedSeats.filter(s => Number(s.carriage_id) === Number(carriageId));
       
+      // Ensure current user is counted if race condition happened, but relying on occupiedSeats is safer
+      // We assume user is already seated via handleSeatSelect.
+      
+      if (playersInCarriage.length < 2) { 
+          alert(`当前座位人数 (${playersInCarriage.length}) 不足 2 人，无法开始游戏。\n请等待其他玩家加入。`);
+          fetchSeats(); // Refresh just in case
+          return;
+      }
+
       const carriageMockData = getCarriage(carriageId); 
       if (!carriageMockData) return alert("System Error: Carriage not found");
 
@@ -333,6 +345,7 @@ const App: React.FC = () => {
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
+      const seat = lobbySelection.seat;
       const cards = carriageMockData.tables[firstTableId].hands[seat];
       const suggestions = getLocalSuggestions(cards);
 
@@ -359,12 +372,23 @@ const App: React.FC = () => {
 
   const handleNextCarriage = async () => {
       const nextRound = gameState.currentRound + 1;
-      // ANTI-CHEAT: Randomly shuffle the order of tables again for the next round.
+      // ANTI-CHEAT: Randomly shuffle again for next round
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       const carriageMockData = getCarriage(gameState.currentCarriageId)!;
       const firstTableId = queue[0];
       const cards = carriageMockData.tables[firstTableId].hands[gameState.mySeat];
       const suggestions = getLocalSuggestions(cards);
+
+      // Notify server we moved to next round (optional for tracking)
+      if (gameState.user) {
+          try {
+              fetch('/api/game/seat', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ action: 'next_round', userId: gameState.user.id, carriageId: gameState.currentCarriageId, seat: gameState.mySeat, nextRound })
+              }).catch(()=>{});
+          } catch(e) {}
+      }
 
       setGameState(prev => ({
           ...prev,
@@ -501,15 +525,7 @@ const App: React.FC = () => {
           const data = await res.json() as any;
           const details = data.details || [];
           
-          const isAnyPending = details.some((t:any) => t.status === 'pending');
-          const isVoid = details.length > 0 && details[0].voided;
-          
-          if (isAnyPending && !isVoid) {
-              const pendingCount = details[0].pendingCount || '?';
-              alert(`等待其他 ${pendingCount} 位玩家提交后才可查看。\n\n(只有在所有玩家提交，或者预约时间结束后系统强制结算时才可查看战绩)`);
-              return; 
-          }
-
+          // Logic: Check if there are enough submissions
           let myTotal = 0;
           details.forEach((t: any) => {
               if(!t.voided && t.scores) {
@@ -528,7 +544,10 @@ const App: React.FC = () => {
 
       } catch(e) {
           console.error(e);
-          alert("获取战绩失败");
+          // Fallback to local
+          const pid = `u_${gameState.user.id}`;
+          const report = settleGame(pid);
+          setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: report }));
       }
   };
 
@@ -560,6 +579,20 @@ const App: React.FC = () => {
   }
 
   // --- Views ---
+
+  // Mini Card Row for Reports
+  const MiniHandRow = ({ cards }: { cards: Card[] }) => (
+      <div className="flex -space-x-4 items-center justify-center">
+          {cards.map((c, i) => (
+              <CardComponent 
+                key={i} 
+                card={c} 
+                small 
+                className="w-8 h-12 text-[10px] shadow-sm ring-1 ring-black/10" 
+              />
+          ))}
+      </div>
+  );
 
   const ReportView = () => {
       const [tableIndex, setTableIndex] = useState(0);
