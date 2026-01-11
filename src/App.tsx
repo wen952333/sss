@@ -57,6 +57,11 @@ const App: React.FC = () => {
   });
   const [walletMsg, setWalletMsg] = useState('');
 
+  // --- PWA Install State ---
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+
   // --- Initialization ---
 
   useEffect(() => {
@@ -73,6 +78,23 @@ const App: React.FC = () => {
       const pid = gameState.user ? `u_${gameState.user.id}` : TEMP_GUEST_ID;
       const subs = getPlayerSubmissions(pid);
       setGameState(prev => ({ ...prev, submissions: subs }));
+
+      // PWA Install Detection
+      const handler = (e: any) => {
+        e.preventDefault(); // Prevent mini-infobar
+        setInstallPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+
+      // Detect iOS
+      const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      // Check if not already in standalone mode
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+      if (isIosDevice && !isStandalone) {
+          setIsIOS(true);
+      }
+
+      return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   useEffect(() => {
@@ -200,6 +222,19 @@ const App: React.FC = () => {
           setShowWalletModal(false);
       } catch (e: any) {
           alert(e.message);
+      }
+  };
+
+  // --- PWA Installation Logic ---
+  const handleInstallClick = async () => {
+      if (isIOS) {
+          setShowIOSPrompt(true);
+      } else if (installPrompt) {
+          installPrompt.prompt();
+          const { outcome } = await installPrompt.userChoice;
+          if (outcome === 'accepted') {
+              setInstallPrompt(null);
+          }
       }
   };
 
@@ -684,6 +719,27 @@ const App: React.FC = () => {
     <div className="h-screen w-screen bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-800 to-green-950 font-sans flex flex-col overflow-hidden relative">
       <div className="absolute inset-0 opacity-5 pointer-events-none z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}></div>
 
+      {/* iOS Install Prompt Modal */}
+      {showIOSPrompt && (
+        <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4">
+            <div className="bg-green-900 border border-white/20 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-pop-in mb-8">
+                 <div className="text-center">
+                     <h3 className="text-xl font-bold text-yellow-400 mb-2">安装到手机</h3>
+                     <p className="text-white/70 text-sm mb-4">
+                         在 iOS Safari 上，请点击底部的 <strong className="text-white">分享图标</strong>
+                         <br/>然后选择 <strong className="text-white">添加到主屏幕</strong>。
+                     </p>
+                     <div className="w-12 h-12 bg-white/10 rounded-xl mx-auto flex items-center justify-center mb-4">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                     </div>
+                     <button onClick={() => setShowIOSPrompt(false)} className="text-yellow-400 font-bold text-sm">我知道了</button>
+                 </div>
+                 {/* Arrow pointer roughly where Safari share button is */}
+                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 bg-green-900 border-b border-r border-white/20 transform rotate-45"></div>
+            </div>
+        </div>
+      )}
+
       {/* ... Auth & Wallet Modals (Same as before) ... */}
       {showAuthModal && (
           <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -707,6 +763,47 @@ const App: React.FC = () => {
                       </div>
                       <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all">{showAuthModal === 'login' ? '立即登录' : '提交注册'}</button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {showWalletModal && (
+          <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                   <button onClick={() => setShowWalletModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
+                   <h2 className="text-xl font-bold text-yellow-400 mb-2 text-center">积分管理</h2>
+                   <p className="text-center text-white/50 text-sm mb-6">当前积分: <span className="text-white font-mono">{gameState.user?.points || 0}</span></p>
+
+                   <div className="space-y-4">
+                       <div className="flex gap-2">
+                           <input 
+                               type="tel" 
+                               className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-yellow-500" 
+                               placeholder="输入对方手机号"
+                               value={walletForm.searchPhone}
+                               onChange={e => setWalletForm({...walletForm, searchPhone: e.target.value})}
+                           />
+                           <button onClick={handleSearchUser} className="bg-white/10 px-4 rounded-lg hover:bg-white/20">搜索</button>
+                       </div>
+                       
+                       {walletMsg && <div className="text-xs text-center text-red-400">{walletMsg}</div>}
+
+                       {walletForm.targetUser && (
+                           <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                               <div className="text-sm text-white/70">接收人: <span className="text-yellow-400 font-bold">{walletForm.targetUser.nickname}</span></div>
+                               <input 
+                                   type="number" 
+                                   className="w-full mt-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-white outline-none"
+                                   placeholder="转账金额"
+                                   value={walletForm.amount}
+                                   onChange={e => setWalletForm({...walletForm, amount: e.target.value})}
+                               />
+                               <button onClick={handleTransfer} className="w-full mt-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded text-sm">
+                                   确认转账
+                               </button>
+                           </div>
+                       )}
+                   </div>
               </div>
           </div>
       )}
@@ -763,9 +860,18 @@ const App: React.FC = () => {
                         <span className="text-sm font-bold">登录/注册</span>
                     </button>
                 )}
-                <button onClick={handleShowSettlement} className="flex flex-col items-center group relative top-1">
-                    <span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform">我的战绩</span>
-                </button>
+                
+                {/* --- INSTALL PWA BUTTON --- */}
+                {(installPrompt || isIOS) && (
+                    <button 
+                        onClick={handleInstallClick} 
+                        className="flex items-center gap-1.5 bg-yellow-600/20 border border-yellow-500/50 rounded-full px-3 py-1 animate-pulse"
+                    >
+                        <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span className="text-[10px] text-yellow-400 font-bold">安装应用</span>
+                    </button>
+                )}
+
                 <button onClick={() => { if(gameState.user) setShowWalletModal(true); else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95">
                    <span className="text-yellow-400 font-mono font-bold text-sm">积分</span>
                 </button>
@@ -801,8 +907,17 @@ const App: React.FC = () => {
                             {lobbySelection ? `${LOBBY_TABLES.find(t => t.carriageId === lobbySelection.carriageId)?.name} - ${lobbySelection.seat === 'North' ? '北' : lobbySelection.seat === 'South' ? '南' : lobbySelection.seat === 'West' ? '西' : '东'}` : ''}
                         </span>
                     </button>
+                    <p className="text-center text-white/40 text-xs mt-2">系统将自动检测场次人数，满足2人即可开赛</p>
                 </div>
             </div>
+
+            {!lobbySelection && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/30 backdrop-blur-md border-t border-white/5 py-4 px-4 text-center z-10">
+                    <p className="text-white/50 text-xs sm:text-sm font-medium tracking-wide">
+                        请选择结算时间场然后选择任意空位 · 至少2个玩家才能开始游戏
+                    </p>
+                </div>
+            )}
         </div>
       ) : (
         <div className="h-full w-full flex flex-col items-center p-2 max-w-3xl mx-auto overflow-hidden relative">
