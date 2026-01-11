@@ -235,13 +235,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         await sendMessage(currentChatId, `<b>👋 十三水管理员后台</b>\n\n请选择下方按钮进行操作。`, { reply_markup: mainKeyboard });
     }
 
+    // --- ADDED HELP COMMAND ---
+    else if (command === '/help') {
+        const helpMsg = 
+            `<b>📚 管理员帮助手册</b>\n\n` +
+            `<b>1. 查阅用户</b>\n点击底部菜单【📋 最新用户】查看最近注册列表。\n\n` +
+            `<b>2. 搜索用户</b>\n点击【🔍 搜索用户】或直接发送 <b>手机号</b> / <b>昵称</b> 进行查找。\n\n` +
+            `<b>3. 积分增减</b>\n在用户卡片下方点击【➕ 加分】或【➖ 减分】，随后按提示回复具体数字即可。\n\n` +
+            `<b>4. 数据清理</b>\n点击【❌ 删除】将彻底清除该用户及其所有战绩、座位和交易记录（不可恢复）。`;
+        
+        await sendMessage(currentChatId, helpMsg, { reply_markup: mainKeyboard });
+    }
+
     else if (command === '/list') {
         const users = await env.DB.prepare('SELECT * FROM Users ORDER BY id DESC LIMIT 5').all<{ id: number, nickname: string, phone: string, points: number }>();
         
         if(!users.results || users.results.length === 0) {
             await sendMessage(currentChatId, "📭 暂无用户数据", { reply_markup: mainKeyboard });
         } else {
-            await sendMessage(currentChatId, `📋 <b>最新 5 位注册用户:</b>`, { reply_markup: mainKeyboard });
+            // FIX: Dynamic Header Text based on actual count
+            const count = users.results.length;
+            await sendMessage(currentChatId, `📋 <b>最新注册用户 (显示 ${count} 位):</b>`, { reply_markup: mainKeyboard });
+            
             for (const u of users.results) {
                 const info = `🆔 <code>${u.id}</code> | 👤 <b>${u.nickname}</b>\n📱 <code>${u.phone}</code>\n💰 积分: <b>${u.points}</b>`;
                 const inlineMarkup = {
@@ -274,7 +289,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             await sendMessage(currentChatId, `⚠️ 未找到 "<b>${query}</b>"`, { reply_markup: mainKeyboard });
         } else {
             const hits = results.results.slice(0, 5); 
-            await sendMessage(currentChatId, `🔎 <b>搜索结果:</b>`, { reply_markup: mainKeyboard });
+            await sendMessage(currentChatId, `🔎 <b>搜索结果 (共 ${hits.length} 条):</b>`, { reply_markup: mainKeyboard });
             for (const u of hits) {
                 const info = `👤 <b>${u.nickname}</b>\n🆔 <code>${u.id}</code>\n📱 <code>${u.phone}</code>\n💰 积分: <b>${u.points}</b>`;
                 const inlineMarkup = {
