@@ -320,7 +320,8 @@ const App: React.FC = () => {
       const carriageMockData = getCarriage(carriageId); 
       if (!carriageMockData) return alert("System Error: Carriage not found");
 
-      // REVERTED: Random Queue for Anti-Cheat
+      // ANTI-CHEAT: Randomly shuffle the order of tables (0-9).
+      // This prevents players from colluding by comparing hands in real-time.
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       
       const firstTableId = queue[0];
@@ -350,7 +351,7 @@ const App: React.FC = () => {
 
   const handleNextCarriage = async () => {
       const nextRound = gameState.currentRound + 1;
-      // REVERTED: Random Queue for Anti-Cheat
+      // ANTI-CHEAT: Randomly shuffle the order of tables again for the next round.
       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
       const carriageMockData = getCarriage(gameState.currentCarriageId)!;
       const firstTableId = queue[0];
