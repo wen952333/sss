@@ -1,17 +1,19 @@
+
 {
   "short_name": "十三水",
-  "name": "十三水",
+  "name": "十三水 Gemini",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14532d",
+  "theme_color": "#14532d",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
-      "sizes": "192x192 512x512"
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
     }
-  ],
-  "start_url": "/",
-  "background_color": "#14532d",
-  "display": "standalone",
-  "scope": "/",
-  "theme_color": "#14532d",
-  "orientation": "portrait"
+  ]
 }
