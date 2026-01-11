@@ -4,12 +4,13 @@ import { Card, GamePhase, GameState, PlayerHand, Seat, TableResult, User } from 
 import { getLocalSuggestions, isValidArrangement } from './services/suggestions';
 import { HandRow } from './components/HandRow';
 import { CardComponent } from './components/CardComponent';
-import { getCarriage } from './services/mockBackend'; // Only used for static deck data now
+import { getCarriage, getPlayerSubmissions, submitPlayerHand, settleGame, getCarriagePlayerCount } from './services/mockBackend';
 
-// UPDATED: Min Score Display
+const TEMP_GUEST_ID = 'guest_' + Math.floor(Math.random() * 10000);
+
 const LOBBY_TABLES = [
-  { id: 1, name: "今晚 20:00 结算场", carriageId: 1, minScore: 300 },
-  { id: 2, name: "明日 12:00 结算场", carriageId: 2, minScore: 300 },
+  { id: 1, name: "今晚 20:00 结算场", carriageId: 1, minScore: 100 },
+  { id: 2, name: "明日 12:00 结算场", carriageId: 2, minScore: 100 },
 ];
 
 const INITIAL_STATE: GameState = {
@@ -94,7 +95,15 @@ const App: React.FC = () => {
       return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // 2. Polling Logic (Get Seats)
+  useEffect(() => {
+     if (gameState.user) {
+         const pid = `u_${gameState.user.id}`;
+         const subs = getPlayerSubmissions(pid);
+         setGameState(prev => ({ ...prev, submissions: subs }));
+     }
+  }, [gameState.user]);
+
+  // Polling Logic (Get Seats)
   const fetchSeats = useCallback(async () => {
       try {
           const res = await fetch('/api/game/seat');
@@ -106,25 +115,6 @@ const App: React.FC = () => {
           console.error("Polling error", e);
       }
   }, []);
-
-  // Sync User Points
-  const syncUserData = async () => {
-      if (!gameState.user) return;
-      try {
-          const res = await fetch('/api/user/sync', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({ userId: gameState.user.id })
-          });
-          const data = await res.json() as any;
-          if (data.success && data.user) {
-              setGameState(prev => ({ ...prev, user: data.user }));
-              localStorage.setItem('shisanshui_user', JSON.stringify(data.user));
-          }
-      } catch (e) {
-          console.error("Sync error", e);
-      }
-  };
 
   // Combined Polling Effect
   useEffect(() => {
@@ -142,6 +132,24 @@ const App: React.FC = () => {
       };
   }, [gameState.phase, fetchSeats]);
 
+  // --- Helper: Sync User Data ---
+  const syncUserData = async () => {
+      if (!gameState.user) return;
+      try {
+          const res = await fetch('/api/user/sync', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ userId: gameState.user.id })
+          });
+          const data = await res.json() as any;
+          if (data.success && data.user) {
+              setGameState(prev => ({ ...prev, user: data.user }));
+              localStorage.setItem('shisanshui_user', JSON.stringify(data.user));
+          }
+      } catch (e) {
+          console.error("Sync error", e);
+      }
+  };
 
   // --- Auth Handlers ---
   const handleRegister = async () => {
@@ -738,7 +746,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0 opacity-5 pointer-events-none z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}></div>
 
       {showIOSPrompt && (
-        <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4">
             <div className="bg-green-900 border border-white/20 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-pop-in mb-8">
                  <div className="text-center">
                      <h3 className="text-xl font-bold text-yellow-400 mb-2">安装到手机</h3>
@@ -750,7 +758,7 @@ const App: React.FC = () => {
       )}
 
       {showAuthModal && (
-          <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
                   <button onClick={() => setShowAuthModal(null)} className="absolute top-4 right-4 text-white/50 hover:text-white z-10">✕</button>
                   <div className="flex border-b border-white/10 mb-6 shrink-0">
@@ -763,6 +771,47 @@ const App: React.FC = () => {
                       <input type="password" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} placeholder="密码" />
                       <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3.5 rounded-xl shadow-lg">{showAuthModal === 'login' ? '立即登录' : '提交注册'}</button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {showWalletModal && (
+          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+                   <button onClick={() => setShowWalletModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
+                   <h2 className="text-xl font-bold text-yellow-400 mb-2 text-center">积分管理</h2>
+                   <p className="text-center text-white/50 text-sm mb-6">当前积分: <span className="text-white font-mono">{gameState.user?.points || 0}</span></p>
+
+                   <div className="space-y-4">
+                       <div className="flex gap-2">
+                           <input 
+                               type="tel" 
+                               className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-yellow-500" 
+                               placeholder="输入对方手机号"
+                               value={walletForm.searchPhone}
+                               onChange={e => setWalletForm({...walletForm, searchPhone: e.target.value})}
+                           />
+                           <button onClick={handleSearchUser} className="bg-white/10 px-4 rounded-lg hover:bg-white/20">搜索</button>
+                       </div>
+                       
+                       {walletMsg && <div className="text-xs text-center text-red-400">{walletMsg}</div>}
+
+                       {walletForm.targetUser && (
+                           <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                               <div className="text-sm text-white/70">接收人: <span className="text-yellow-400 font-bold">{walletForm.targetUser.nickname}</span></div>
+                               <input 
+                                   type="number" 
+                                   className="w-full mt-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-white outline-none"
+                                   placeholder="转账金额"
+                                   value={walletForm.amount}
+                                   onChange={e => setWalletForm({...walletForm, amount: e.target.value})}
+                               />
+                               <button onClick={handleTransfer} className="w-full mt-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded text-sm">
+                                   确认转账
+                               </button>
+                           </div>
+                       )}
+                   </div>
               </div>
           </div>
       )}
@@ -797,7 +846,7 @@ const App: React.FC = () => {
                     <button onClick={handleShowSettlement} className="flex flex-col items-center group"><span className="text-yellow-400 font-black text-lg leading-none tracking-wider group-hover:scale-110 transition-transform drop-shadow-md">我的战绩</span><span className="text-[9px] text-white/40 group-hover:text-white/60">点击查看</span></button>
                 </div>
                 <div className="flex justify-end items-center gap-2">
-                    {(installPrompt || isIOS) && <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-yellow-600/20 border border-yellow-500/50 rounded-full px-3 py-1 animate-pulse"><span className="text-[10px] text-yellow-400 font-bold hidden sm:inline">APP</span></button>}
+                    {(installPrompt || isIOS) && <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-yellow-600 border border-yellow-400 text-white rounded-full px-3 py-1 shadow-lg hover:bg-yellow-500 transition-all"><span className="text-[10px] font-bold hidden sm:inline">APP</span></button>}
                     <button onClick={() => { if(gameState.user) { syncUserData(); setShowWalletModal(true); } else alert("请先登录"); }} className="flex items-center gap-2 bg-black/30 border border-yellow-500/30 rounded-full px-3 py-1.5 active:scale-95"><span className="text-yellow-400 font-mono font-bold text-sm">积分</span></button>
                 </div>
             </div>
