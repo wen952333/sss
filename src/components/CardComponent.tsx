@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '../types';
 import { getRankSymbol, getSuitSymbol, getSuitColor, getCardSvgName } from '../services/deck';
@@ -22,7 +23,7 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
   }, [card.id]);
 
   const handleError = () => {
-      console.error(`[CardComponent] Failed to load image: ${imgSrc}. Please ensure the file exists in 'frontend/public/cards/'.`);
+      // Prevent infinite loop if fallback fails, but we use CSS fallback anyway
       setImgError(true);
   };
 
@@ -33,7 +34,7 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
         relative select-none
         flex flex-col items-center justify-center
         cursor-pointer shrink-0
-        transition-transform duration-200
+        transition-all duration-150 ease-out
         overflow-hidden
         
         ${imgError 
@@ -41,9 +42,16 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
             : 'drop-shadow-md rounded-lg' /* Allow SVG to define shape/border if transparent */
         }
 
+        /* 
+           SELECTION LOGIC UPDATE:
+           - Removed -translate-y (no pop up)
+           - Removed z-20 (keep natural stack order, so visible right edge implies overlapped by next card)
+           - Added ring-4 yellow (high visibility border)
+           - Added brightness boost
+        */
         ${selected 
-            ? '-translate-y-4 sm:-translate-y-6 z-20 ring-2 ring-yellow-400' 
-            : 'hover:-translate-y-2'
+            ? 'ring-4 ring-yellow-400 ring-inset brightness-110 bg-yellow-50' 
+            : 'hover:-translate-y-1 brightness-100'
         }
         
         ${small 
@@ -58,7 +66,7 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
           key={imgSrc} // Force reload if src changes
           src={imgSrc} 
           alt={svgName}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain pointer-events-none"
           onError={handleError}
           draggable={false}
         />
@@ -77,9 +85,9 @@ export const CardComponent: React.FC<CardProps> = ({ card, selected, onClick, sm
         </div>
       )}
       
-      {/* Selected Indicator Badge */}
+      {/* Selected Indicator Badge - Moved to TOP LEFT because in a fan, the right side is covered */}
       {selected && (
-          <div className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-xs font-bold shadow-sm z-30 ring-2 ring-white">
+          <div className="absolute top-1 left-1 bg-yellow-500 text-black rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-xs font-black shadow-md z-30 border border-white/50">
               ✓
           </div>
       )}
