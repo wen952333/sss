@@ -1,10 +1,13 @@
 
-const CACHE_NAME = 'thirteen-water-v1';
+const CACHE_NAME = 'thirteen-water-v4';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg'
+  '/icon-192.png',
+  '/icon-512.png',
+  '/1280x720.png',
+  '/720x1280.png'
 ];
 
 self.addEventListener('install', event => {
