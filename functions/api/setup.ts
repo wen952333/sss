@@ -1,3 +1,4 @@
+
 // Types for Cloudflare Pages Functions
 interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
@@ -31,7 +32,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
-    // 2. Create Transactions Table (Audit Log)
+    // 2. Create Transactions Table
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS Transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,41 +44,48 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
-    // 3. Create GameDecks Table (Inventory System)
+    // 3. Create GameDecks Table
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS GameDecks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cards_json TEXT NOT NULL, -- JSON array of 4 hands
+        cards_json TEXT NOT NULL, 
         is_used BOOLEAN DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       );
     `).run();
 
-    // 4. Create GameResults Table (Settlement History)
+    // 4. Create GameResults Table
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS GameResults (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         deck_id INTEGER,
-        player_results_json TEXT, -- Stores scores per player
+        player_results_json TEXT, 
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       );
     `).run();
 
-    // 5. Create CarriageSeats Table (Real-time Seating)
-    // Tracks who is currently sitting in which carriage/event
+    // 5. Create CarriageSeats Table
+    // Modified: Add game_round to track which "Carriage Number" the player is in within the Lobby
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS CarriageSeats (
         carriage_id INTEGER NOT NULL,
-        seat TEXT NOT NULL, -- 'North', 'South', 'East', 'West'
+        seat TEXT NOT NULL, 
         user_id INTEGER NOT NULL,
         nickname TEXT NOT NULL,
+        game_round INTEGER DEFAULT 1, -- New field: The logical carriage number (1, 2, 3...)
         updated_at INTEGER DEFAULT (strftime('%s', 'now')),
         PRIMARY KEY (carriage_id, seat)
       );
     `).run();
+    
+    // Attempt to add column if it doesn't exist (SQLite doesn't support IF NOT EXISTS for columns easily in one statement)
+    try {
+        await db.prepare('ALTER TABLE CarriageSeats ADD COLUMN game_round INTEGER DEFAULT 1').run();
+    } catch (e) {
+        // Ignore error if column exists
+    }
 
-    // 6. Create HandSubmissions Table (Real-time Gameplay)
-    // Stores player hand submissions for the server to settle
+    // 6. Create HandSubmissions Table
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS HandSubmissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -43,18 +43,41 @@ export const generateDeck = (): Card[] => {
 };
 
 const getRankValue = (r: Rank): number => r;
+const getSuitValue = (s: Suit): number => {
+    // UPDATED: Spades > Hearts > Clubs > Diamonds
+    switch (s) {
+      case 'spades': return 4;
+      case 'hearts': return 3;
+      case 'clubs': return 2;
+      case 'diamonds': return 1;
+    }
+    return 0;
+};
+
 const sortCards = (cards: Card[]) => [...cards].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank));
 
-export const analyze5 = (cards: Card[]): { type: HandType, values: number[] } => {
+interface AnalyzedHand {
+    type: HandType;
+    values: number[];
+    isWheel?: boolean; // A-2-3-4-5
+    topCard?: Card;
+    cards?: Card[];
+}
+
+export const analyze5 = (cards: Card[]): AnalyzedHand => {
   const sorted = sortCards(cards);
   const ranks = sorted.map(c => getRankValue(c.rank));
   const isFlush = cards.every(c => c.suit === cards[0].suit);
   
   let isStraight = true;
+  let isWheel = false;
+
   for (let i = 0; i < 4; i++) {
     if (ranks[i] - ranks[i+1] !== 1) {
+      // Check for Wheel: A(14), 5, 4, 3, 2
       if (i === 0 && ranks[0] === 14 && ranks[1] === 5 && ranks[2] === 4 && ranks[3] === 3 && ranks[4] === 2) {
-        continue;
+        isWheel = true;
+        continue; 
       }
       isStraight = false; 
       break;
@@ -65,37 +88,88 @@ export const analyze5 = (cards: Card[]): { type: HandType, values: number[] } =>
   ranks.forEach(r => counts[r] = (counts[r] || 0) + 1);
   const uniqueRanks = Object.keys(counts).map(Number).sort((a,b) => counts[b] - counts[a] || b - a);
   const countValues = Object.values(counts);
+  const topCard = sorted[0];
+  const resultBase = { values: uniqueRanks, isWheel, topCard, cards: sorted };
 
-  if (isStraight && isFlush) return { type: HandType.STRAIGHT_FLUSH, values: uniqueRanks };
-  if (countValues.includes(4)) return { type: HandType.FOUR_OF_A_KIND, values: uniqueRanks };
-  if (countValues.includes(3) && countValues.includes(2)) return { type: HandType.FULL_HOUSE, values: uniqueRanks };
-  if (isFlush) return { type: HandType.FLUSH, values: ranks };
-  if (isStraight) return { type: HandType.STRAIGHT, values: uniqueRanks }; 
-  if (countValues.includes(3)) return { type: HandType.THREE_OF_A_KIND, values: uniqueRanks };
-  if (countValues.filter(x => x === 2).length === 2) return { type: HandType.TWO_PAIRS, values: uniqueRanks };
-  if (countValues.includes(2)) return { type: HandType.ONE_PAIR, values: uniqueRanks };
+  if (isStraight && isFlush) return { type: HandType.STRAIGHT_FLUSH, ...resultBase, values: ranks };
+  if (countValues.includes(4)) return { type: HandType.FOUR_OF_A_KIND, ...resultBase };
+  if (countValues.includes(3) && countValues.includes(2)) return { type: HandType.FULL_HOUSE, ...resultBase };
+  if (isFlush) return { type: HandType.FLUSH, ...resultBase, values: ranks };
+  if (isStraight) return { type: HandType.STRAIGHT, ...resultBase, values: ranks }; 
+  if (countValues.includes(3)) return { type: HandType.THREE_OF_A_KIND, ...resultBase };
+  if (countValues.filter(x => x === 2).length === 2) return { type: HandType.TWO_PAIRS, ...resultBase };
+  if (countValues.includes(2)) return { type: HandType.ONE_PAIR, ...resultBase };
   
-  return { type: HandType.HIGH_CARD, values: ranks };
+  return { type: HandType.HIGH_CARD, ...resultBase, values: ranks };
 };
 
-export const analyze3 = (cards: Card[]): { type: HandType, values: number[] } => {
+export const analyze3 = (cards: Card[]): AnalyzedHand => {
   const sorted = sortCards(cards);
   const ranks = sorted.map(c => getRankValue(c.rank));
   const counts: Record<number, number> = {};
   ranks.forEach(r => counts[r] = (counts[r] || 0) + 1);
   const uniqueRanks = Object.keys(counts).map(Number).sort((a,b) => counts[b] - counts[a] || b - a);
   const countValues = Object.values(counts);
+  const topCard = sorted[0];
+  const resultBase = { values: uniqueRanks, topCard, cards: sorted };
 
-  if (countValues.includes(3)) return { type: HandType.THREE_OF_A_KIND, values: uniqueRanks };
-  if (countValues.includes(2)) return { type: HandType.ONE_PAIR, values: uniqueRanks };
-  return { type: HandType.HIGH_CARD, values: ranks };
+  if (countValues.includes(3)) return { type: HandType.THREE_OF_A_KIND, ...resultBase };
+  if (countValues.includes(2)) return { type: HandType.ONE_PAIR, ...resultBase };
+  return { type: HandType.HIGH_CARD, ...resultBase, values: ranks };
 };
 
-export const compareAnalyzed = (h1: { type: HandType, values: number[] }, h2: { type: HandType, values: number[] }): number => {
+const getStraightEffectiveValue = (h: AnalyzedHand): number => {
+    // 10-J-Q-K-A (14,13,12,11,10) -> Max Rank 14.
+    // A-2-3-4-5 -> Second Largest. Let's give it 13.5
+    // K-Q-J-10-9 (13...) -> 13
+    if (h.isWheel) return 13.5; 
+    if (h.values && h.values.length > 0) return h.values[0];
+    return 0;
+};
+
+export const compareAnalyzed = (h1: AnalyzedHand, h2: AnalyzedHand): number => {
   if (h1.type !== h2.type) return h1.type - h2.type;
+
+  // Straight / SF Logic
+  if (h1.type === HandType.STRAIGHT || h1.type === HandType.STRAIGHT_FLUSH) {
+      const v1 = getStraightEffectiveValue(h1);
+      const v2 = getStraightEffectiveValue(h2);
+      
+      // Rank Category Priority
+      if (v1 !== v2) return v1 - v2;
+      
+      // Tie-breaker: Suit of top card
+      // Note: For Wheel (A-2-3-4-5), Ace is the "Top Card" for suit comparison usually.
+      // analyze5 sorts cards descending, so sorted[0] is Ace.
+      const s1 = getSuitValue(h1.topCard!.suit);
+      const s2 = getSuitValue(h2.topCard!.suit);
+      return s1 - s2;
+  }
+
+  // Flush Logic
+  if (h1.type === HandType.FLUSH) {
+      // 1. Compare Ranks first (Lexicographical)
+      for (let i = 0; i < h1.values.length; i++) {
+        if (h1.values[i] !== h2.values[i]) return h1.values[i] - h2.values[i];
+      }
+      // 2. If ranks identical (impossible in 1 deck), compare Suit of top card
+      const s1 = getSuitValue(h1.cards![0].suit);
+      const s2 = getSuitValue(h2.cards![0].suit);
+      return s1 - s2;
+  }
+
+  // General Logic (Quads, Full House, Trips, Pairs, High Card)
+  // Compare values (Rank)
   for (let i = 0; i < h1.values.length; i++) {
     if (h1.values[i] !== h2.values[i]) return h1.values[i] - h2.values[i];
   }
+  
+  // Tie-breaker: Suit of top card
+  // (Standard practice for Equal Pairs or Equal High Cards)
+  if (h1.topCard && h2.topCard) {
+      return getSuitValue(h1.topCard.suit) - getSuitValue(h2.topCard.suit);
+  }
+
   return 0;
 };
 
@@ -113,7 +187,7 @@ export enum SpecialHandType {
   SAN_HUA_TWO_SF = 36.1    
 }
 
-export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, water: number } | null => {
+export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, water: number, name: string } | null => {
   const allCards = [...hand.top, ...hand.middle, ...hand.bottom];
   const sorted = sortCards(allCards);
   const ranks = sorted.map(c => c.rank);
@@ -123,7 +197,7 @@ export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, wat
   const botA = analyze5(hand.bottom);
 
   if (uniqueRanks.size === 13) {
-      return { type: SpecialHandType.DRAGON, water: 26 };
+      return { type: SpecialHandType.DRAGON, water: 26, name: '至尊清龙' };
   }
 
   const counts: Record<number, number> = {};
@@ -133,9 +207,9 @@ export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, wat
   Object.values(counts).forEach(c => pairCount += Math.floor(c / 2));
 
   if (pairCount === 6) {
-      if (quads === 2) return { type: SpecialHandType.LIU_DUI_TWO_QUADS, water: 30 };
-      if (quads === 1) return { type: SpecialHandType.LIU_DUI_ONE_QUAD, water: 14 };
-      return { type: SpecialHandType.LIU_DUI_BAN, water: 3 };
+      if (quads === 2) return { type: SpecialHandType.LIU_DUI_TWO_QUADS, water: 30, name: '六对半(双四条)' };
+      if (quads === 1) return { type: SpecialHandType.LIU_DUI_ONE_QUAD, water: 14, name: '六对半(带四条)' };
+      return { type: SpecialHandType.LIU_DUI_BAN, water: 3, name: '六对半' };
   }
 
   const isTopFlush = hand.top.every(c => c.suit === hand.top[0].suit);
@@ -147,9 +221,9 @@ export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, wat
       if (midA.type === HandType.STRAIGHT_FLUSH) sfCount++;
       if (botA.type === HandType.STRAIGHT_FLUSH) sfCount++;
       
-      if (sfCount === 2) return { type: SpecialHandType.SAN_HUA_TWO_SF, water: 36 };
-      if (sfCount === 1) return { type: SpecialHandType.SAN_HUA_ONE_SF, water: 16 };
-      return { type: SpecialHandType.SAN_HUA, water: 6 };
+      if (sfCount === 2) return { type: SpecialHandType.SAN_HUA_TWO_SF, water: 36, name: '三同花(双同花顺)' };
+      if (sfCount === 1) return { type: SpecialHandType.SAN_HUA_ONE_SF, water: 16, name: '三同花(带同花顺)' };
+      return { type: SpecialHandType.SAN_HUA, water: 6, name: '三同花' };
   }
 
   const topRanks = hand.top.map(c => c.rank).sort((a,b) => a-b);
@@ -162,9 +236,9 @@ export const checkSpecialHand = (hand: PlayerHand): { type: SpecialHandType, wat
       if (midA.type === HandType.STRAIGHT_FLUSH) sfCount++;
       if (botA.type === HandType.STRAIGHT_FLUSH) sfCount++;
 
-      if (sfCount === 2) return { type: SpecialHandType.SAN_SHUN_TWO_SF, water: 36 };
-      if (sfCount === 1) return { type: SpecialHandType.SAN_SHUN_ONE_SF, water: 16 };
-      return { type: SpecialHandType.SAN_SHUN, water: 6 };
+      if (sfCount === 2) return { type: SpecialHandType.SAN_SHUN_TWO_SF, water: 36, name: '三顺子(双同花顺)' };
+      if (sfCount === 1) return { type: SpecialHandType.SAN_SHUN_ONE_SF, water: 16, name: '三顺子(带同花顺)' };
+      return { type: SpecialHandType.SAN_SHUN, water: 6, name: '三顺子' };
   }
 
   return null;
@@ -209,7 +283,7 @@ export const calculateTableScores = (
                 let w = 0;
                 if (p1.special && p2.special) w = p1.special.water - p2.special.water;
                 else if (p1.special) w = p1.special.water;
-                else w = -p2.special.water;
+                else w = -p2.special?.water!;
                 
                 finalScores[p1.playerId] += w * 2;
                 finalScores[p2.playerId] -= w * 2;

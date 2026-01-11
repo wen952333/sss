@@ -1,3 +1,4 @@
+
 interface D1Database {
   prepare(query: string): any;
 }
@@ -7,19 +8,21 @@ interface Env {
   DB: D1Database;
 }
 
+// NOTE: Automatic cleanup removed to support Reservation Mode. 
+// Seats are held until manually left or explicitly reset by game logic.
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
   const carriageId = url.searchParams.get("carriageId");
 
   try {
-    // If carriageId is provided, get specific, else get all valid seats
-    // We filter out stale seats (e.g., older than 2 hours) to avoid ghost players
-    let query = 'SELECT * FROM CarriageSeats WHERE updated_at > (strftime("%s", "now") - 7200)';
+    // Fetch all occupied seats
+    let query = 'SELECT * FROM CarriageSeats';
     let results;
 
     if (carriageId) {
-        query += ' AND carriage_id = ?';
+        query += ' WHERE carriage_id = ?';
         results = await env.DB.prepare(query).bind(carriageId).all();
     } else {
         results = await env.DB.prepare(query).all();
@@ -36,15 +39,26 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   try {
-    const { carriageId, seat, userId, nickname, action } = await request.json() as any;
+    const { carriageId, seat, userId, nickname, action, nextRound } = await request.json() as any;
 
+    // --- LEAVE ---
     if (action === 'leave') {
         if (!userId) return new Response(JSON.stringify({ error: "Missing User ID" }), { status: 400 });
         await env.DB.prepare('DELETE FROM CarriageSeats WHERE user_id = ?').bind(userId).run();
         return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
     }
 
-    // Default action: Join/Sit
+    // --- NEXT ROUND (Jump to next carriage) ---
+    if (action === 'next_round') {
+        if (!userId || !carriageId || !seat) return new Response(JSON.stringify({ error: "Missing info" }), { status: 400 });
+        
+        await env.DB.prepare('UPDATE CarriageSeats SET game_round = ?, updated_at = (strftime("%s", "now")) WHERE carriage_id = ? AND seat = ? AND user_id = ?')
+            .bind(nextRound, carriageId, seat, userId).run();
+            
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+    }
+
+    // --- JOIN / SIT ---
     if (!carriageId || !seat || !userId) {
       return new Response(JSON.stringify({ error: "Missing info" }), { status: 400 });
     }
@@ -54,22 +68,29 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .bind(carriageId, seat).first();
 
     if (existing) {
-        // If it's the same user, that's fine, update timestamp
         if ((existing as any).user_id === userId) {
-             await env.DB.prepare('UPDATE CarriageSeats SET updated_at = (strftime("%s", "now")) WHERE carriage_id = ? AND seat = ?').bind(carriageId, seat).run();
+             // Just refreshing own seat, assume valid
              return new Response(JSON.stringify({ success: true, message: "Welcome back" }), { headers: { "Content-Type": "application/json" } });
         }
         return new Response(JSON.stringify({ error: `该位置已被 ${(existing as any).nickname} 占据` }), { status: 409 });
     }
 
-    // Remove user from other seats in ANY carriage (one seat per person globally to prevent multi-tabbing)
+    // Smart Round Logic:
+    const others = await env.DB.prepare('SELECT game_round FROM CarriageSeats WHERE carriage_id = ?').bind(carriageId).all();
+    let joinRound = 1;
+    if (others.results && others.results.length > 0) {
+        const rounds = others.results.map((r: any) => r.game_round || 1);
+        joinRound = Math.max(...rounds);
+    }
+
+    // Remove user from other seats (ensure 1 seat per user)
     await env.DB.prepare('DELETE FROM CarriageSeats WHERE user_id = ?').bind(userId).run();
 
     // Take seat
-    await env.DB.prepare('INSERT INTO CarriageSeats (carriage_id, seat, user_id, nickname) VALUES (?, ?, ?, ?)')
-      .bind(carriageId, seat, userId, nickname).run();
+    await env.DB.prepare('INSERT INTO CarriageSeats (carriage_id, seat, user_id, nickname, game_round) VALUES (?, ?, ?, ?, ?)')
+      .bind(carriageId, seat, userId, nickname, joinRound).run();
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, joinedRound: joinRound }), {
       headers: { "Content-Type": "application/json" }
     });
 
