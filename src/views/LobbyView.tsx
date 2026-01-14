@@ -110,7 +110,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                                <div className="w-[70%] h-[60%] bg-green-700 rounded-2xl border-4 border-yellow-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] relative flex flex-col items-center justify-center">
                                    <div className="text-yellow-100/10 font-black text-3xl tracking-widest absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none">无尽模式</div>
                                    <div className="text-yellow-400 font-bold text-lg z-10 shadow-black drop-shadow-md text-center px-2">{table.name}</div>
-                                   <div className="text-white/40 text-xs mt-1 z-10 font-mono">底分: {table.minScore}</div>
+                                   <div className="text-white/40 text-xs mt-1 z-10 font-mono">{table.minScore} 积分才能进入</div>
                                </div>
                                {renderSeatButton(table.carriageId, 'North', '北', 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/3')}
                                {renderSeatButton(table.carriageId, 'South', '南', 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/3')}

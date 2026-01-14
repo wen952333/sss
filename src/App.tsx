@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GamePhase, GameState } from './types';
 
 // Views
@@ -12,11 +11,13 @@ import { useAuth } from './hooks/useAuth';
 import { useWallet } from './hooks/useWallet';
 import { useSeats } from './hooks/useSeats';
 import { useGameLogic } from './hooks/useGameLogic';
+import { getCarriage } from './services/mockBackend';
+import { getLocalSuggestions } from './services/suggestions';
 
 // CONFIG
 const LOBBY_TABLES = [
-  { id: 1, name: "无尽乱序场 (20:00)", carriageId: 1, minScore: 300 },
-  { id: 2, name: "无尽乱序场 (12:00)", carriageId: 1, minScore: 300 }, 
+  { id: 1, name: "1号桌", carriageId: 1, minScore: 100 },
+  { id: 2, name: "2号桌", carriageId: 2, minScore: 100 }, 
 ];
 
 const INITIAL_STATE: GameState = {
@@ -39,7 +40,6 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
   
   // --- Hooks Initialization ---
-  
   const { 
       showAuthModal, setShowAuthModal, authForm, setAuthForm, 
       handleLogin, handleRegister, handleLogout, syncUserData 
@@ -55,14 +55,90 @@ const App: React.FC = () => {
   const {
       selectedCardIds, lobbySelection, isSubmitting,
       handleSeatSelect, handleLeaveSeat, handleEnterGame, handleQuitGame,
-      handleCardClick, handleRowClick, handleSmartArrange, submitHand
+      handleCardClick, handleRowClick, handleSmartArrange, submitHand, submitAndExit, setLobbySelection
   } = useGameLogic({
       gameState, setGameState, occupiedSeats, setOccupiedSeats, 
       syncUserData: () => syncUserData(gameState.user), 
       setShowAuthModal, fetchSeats, lobbyTables: LOBBY_TABLES
   });
 
-  // --- PWA Install State ---
+  // --- RECONNECTION LOGIC ---
+  // Runs once on mount (or when user logs in) to check if they have an active game.
+  useEffect(() => {
+      const checkReconnection = async () => {
+          // 1. Get Local User
+          const cachedUser = localStorage.getItem('shisanshui_user');
+          if (!cachedUser) return;
+          
+          let userObj = null;
+          try { userObj = JSON.parse(cachedUser); } catch(e){}
+          if (!userObj) return;
+
+          // 2. Fetch Latest Seats from Server
+          try {
+              const res = await fetch('/api/game/seat');
+              if (!res.ok) return;
+              const data = await res.json() as any;
+              const seats = data.seats || [];
+              setOccupiedSeats(seats);
+
+              // 3. Find My Seat
+              const mySeatInfo = seats.find((s: any) => Number(s.user_id) === Number(userObj.id));
+
+              if (mySeatInfo) {
+                  // SCENARIO A: User is Seated -> RECONNECT
+                  console.log("Found active seat, reconnecting...", mySeatInfo);
+                  
+                  // Restore Game State
+                  const cId = mySeatInfo.carriage_id;
+                  const round = mySeatInfo.game_round || 1;
+                  const seat = mySeatInfo.seat;
+
+                  // Load Deck Data (Mock or Real)
+                  const deckId = (round % 20) || 20;
+                  const carriageData = getCarriage(deckId); 
+                  
+                  if (carriageData) {
+                      // We need to know which table within the round? 
+                      // Simplify: Always start at Table 0 of that Round for re-connection or verify specific progress.
+                      // Ideally backend tells us "pending table index". 
+                      // For now, assume start of that Round's loop.
+                      
+                      const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5); 
+                      const cards = carriageData.tables[queue[0]].hands[seat as any];
+                      const suggestions = getLocalSuggestions(cards);
+
+                      setGameState(prev => ({
+                          ...prev,
+                          user: userObj, // Ensure user is logged in state
+                          phase: GamePhase.PLAYING,
+                          currentCarriageId: cId,
+                          currentRound: round,
+                          currentTableIndex: 0,
+                          tableQueue: queue,
+                          mySeat: seat,
+                          currentCards: cards,
+                          currentArrangement: suggestions[0],
+                          aiSuggestions: suggestions,
+                          currentSuggestionIndex: 0
+                      }));
+                      return; // Done reconnecting
+                  }
+              } 
+              
+              // SCENARIO B: No Seat Found -> Stay in Lobby (Standard)
+              // This covers the case where "C finished the game" -> A's seat was removed by C's completion or timeout.
+              console.log("No active seat found. Staying in Lobby.");
+
+          } catch(e) {
+              console.error("Reconnection check failed", e);
+          }
+      };
+
+      checkReconnection();
+  }, []); // Empty dependency array = runs on mount
+
+  // --- PWA Install State (Existing) ---
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -70,74 +146,36 @@ const App: React.FC = () => {
 
   useEffect(() => {
       fetch('/api/setup').catch(() => {});
-
-      const cachedUser = localStorage.getItem('shisanshui_user');
-      if (cachedUser) {
-          try {
-              const u = JSON.parse(cachedUser);
-              setGameState(prev => ({ ...prev, user: u }));
-          } catch(e) {}
-      }
-      
-      const handler = (e: any) => {
-        e.preventDefault(); 
-        setInstallPrompt(e);
-        setShowInstallBanner(true);
-      };
+      const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
       window.addEventListener('beforeinstallprompt', handler);
-
       const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-      if (isIosDevice && !isStandalone) {
-          setIsIOS(true);
-      }
-
+      if (isIosDevice && !isStandalone) setIsIOS(true);
       return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
-      if (isIOS) {
-          setShowIOSPrompt(true);
-      } else if (installPrompt) {
+      if (isIOS) setShowIOSPrompt(true);
+      else if (installPrompt) {
           installPrompt.prompt();
           const { outcome } = await installPrompt.userChoice;
-          if (outcome === 'accepted') {
-              setInstallPrompt(null);
-              setShowInstallBanner(false);
-          }
+          if (outcome === 'accepted') { setInstallPrompt(null); setShowInstallBanner(false); }
       }
   };
 
   const handleShowSettlement = async () => {
       if (!gameState.user) return alert("请先登录");
       syncUserData(gameState.user);
-
       try {
           const res = await fetch(`/api/game/history?carriageId=${gameState.currentCarriageId}`);
           if (!res.ok) throw new Error("Failed");
           const data = await res.json() as any;
-          const details = data.details || [];
-          
-          let myTotal = 0;
-          details.forEach((t: any) => {
-              if(!t.voided && t.scores) {
-                  myTotal += (t.scores[`u_${gameState.user?.id}`] || 0);
-              }
-          });
-
           setGameState(prev => ({ 
               ...prev, 
               phase: GamePhase.SETTLEMENT_VIEW, 
-              settlementReport: { 
-                  totalScore: myTotal, 
-                  details: details 
-              } 
+              settlementReport: { totalScore: 0, details: data.details || [] } // Recalc total locally if needed or rely on API
           }));
-
-      } catch(e) {
-          console.error(e);
-          alert("无法获取战绩，请检查网络");
-      }
+      } catch(e) { console.error(e); alert("无法获取战绩"); }
   };
 
   const fetchHistory = async () => {
@@ -146,25 +184,11 @@ const App: React.FC = () => {
           const res = await fetch(`/api/game/history?carriageId=${gameState.currentCarriageId}`);
           if (!res.ok) throw new Error("Failed");
           const data = await res.json() as any;
-          
-          let myTotal = 0;
-          const details = data.details || [];
-          details.forEach((t: any) => {
-              if(!t.voided && t.scores) {
-                  myTotal += (t.scores[`u_${gameState.user?.id}`] || 0);
-              }
-          });
-
           setGameState(prev => ({ 
               ...prev, 
-              settlementReport: { 
-                  totalScore: myTotal, 
-                  details: details 
-              } 
+              settlementReport: { totalScore: 0, details: data.details || [] } 
           }));
-      } catch(e) {
-          console.error(e);
-      }
+      } catch(e) {}
   };
 
   // --- Main Render ---
@@ -209,55 +233,26 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-green-900 border border-yellow-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
                   <button onClick={() => setShowAuthModal(null)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
-                  <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">
-                      {showAuthModal === 'login' ? '账号登录' : '新用户注册'}
-                  </h2>
+                  <h2 className="text-xl font-bold text-yellow-400 mb-6 text-center">{showAuthModal === 'login' ? '账号登录' : '新用户注册'}</h2>
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs text-white/50 mb-1 block">手机号</label>
-                          <input 
-                              type="tel" 
-                              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                              placeholder="请输入手机号"
-                              value={authForm.phone}
-                              onChange={e => setAuthForm({...authForm, phone: e.target.value})}
-                          />
+                          <input type="tel" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} />
                       </div>
                       {showAuthModal === 'register' && (
                           <div>
                               <label className="text-xs text-white/50 mb-1 block">昵称</label>
-                              <input 
-                                  type="text" 
-                                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                                  placeholder="游戏中显示的名称"
-                                  value={authForm.nickname}
-                                  onChange={e => setAuthForm({...authForm, nickname: e.target.value})}
-                              />
+                              <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.nickname} onChange={e => setAuthForm({...authForm, nickname: e.target.value})} />
                           </div>
                       )}
                       <div>
                           <label className="text-xs text-white/50 mb-1 block">密码 (至少6位)</label>
-                          <input 
-                              type="password" 
-                              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" 
-                              placeholder="设置密码"
-                              value={authForm.password}
-                              onChange={e => setAuthForm({...authForm, password: e.target.value})}
-                          />
+                          <input type="password" className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white outline-none focus:border-yellow-500" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} />
                       </div>
-                      <button 
-                          onClick={showAuthModal === 'login' ? handleLogin : handleRegister}
-                          className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all"
-                      >
-                          {showAuthModal === 'login' ? '立即登录' : '提交注册'}
-                      </button>
+                      <button onClick={showAuthModal === 'login' ? handleLogin : handleRegister} className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded-xl mt-4 active:scale-95 transition-all">{showAuthModal === 'login' ? '立即登录' : '提交注册'}</button>
                       
                       <div className="text-center mt-4 text-sm text-white/40">
-                          {showAuthModal === 'login' ? (
-                              <span onClick={() => setShowAuthModal('register')} className="underline cursor-pointer hover:text-white">没有账号？去注册</span>
-                          ) : (
-                              <span onClick={() => setShowAuthModal('login')} className="underline cursor-pointer hover:text-white">已有账号？去登录</span>
-                          )}
+                          {showAuthModal === 'login' ? (<span onClick={() => setShowAuthModal('register')} className="underline cursor-pointer hover:text-white">没有账号？去注册</span>) : (<span onClick={() => setShowAuthModal('login')} className="underline cursor-pointer hover:text-white">已有账号？去登录</span>)}
                       </div>
                   </div>
               </div>
@@ -270,34 +265,17 @@ const App: React.FC = () => {
                    <button onClick={() => setShowWalletModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white">✕</button>
                    <h2 className="text-xl font-bold text-yellow-400 mb-2 text-center">积分管理</h2>
                    <p className="text-center text-white/50 text-sm mb-6">当前积分: <span className="text-white font-mono">{gameState.user?.points || 0}</span></p>
-
                    <div className="space-y-4">
                        <div className="flex gap-2">
-                           <input 
-                               type="tel" 
-                               className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-yellow-500" 
-                               placeholder="输入对方手机号"
-                               value={walletForm.searchPhone}
-                               onChange={e => setWalletForm({...walletForm, searchPhone: e.target.value})}
-                           />
+                           <input type="tel" className="flex-1 bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-yellow-500" placeholder="输入对方手机号" value={walletForm.searchPhone} onChange={e => setWalletForm({...walletForm, searchPhone: e.target.value})} />
                            <button onClick={handleSearchUser} className="bg-white/10 px-4 rounded-lg hover:bg-white/20">搜索</button>
                        </div>
-                       
                        {walletMsg && <div className="text-xs text-center text-red-400">{walletMsg}</div>}
-
                        {walletForm.targetUser && (
                            <div className="bg-white/5 p-3 rounded-lg border border-white/10">
                                <div className="text-sm text-white/70">接收人: <span className="text-yellow-400 font-bold">{walletForm.targetUser.nickname}</span></div>
-                               <input 
-                                   type="number" 
-                                   className="w-full mt-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-white outline-none"
-                                   placeholder="转账金额"
-                                   value={walletForm.amount}
-                                   onChange={e => setWalletForm({...walletForm, amount: e.target.value})}
-                               />
-                               <button onClick={handleTransfer} className="w-full mt-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded text-sm">
-                                   确认转账
-                               </button>
+                               <input type="number" className="w-full mt-2 bg-black/40 border border-white/10 rounded px-2 py-1 text-white outline-none" placeholder="转账金额" value={walletForm.amount} onChange={e => setWalletForm({...walletForm, amount: e.target.value})} />
+                               <button onClick={handleTransfer} className="w-full mt-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded text-sm">确认转账</button>
                            </div>
                        )}
                    </div>
@@ -340,6 +318,7 @@ const App: React.FC = () => {
               onRowClick={handleRowClick}
               onSmartArrange={handleSmartArrange}
               onSubmit={submitHand}
+              onSubmitAndExit={submitAndExit}
               onQuit={handleQuitGame}
           />
       )}

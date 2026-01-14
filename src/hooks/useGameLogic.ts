@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Card, GamePhase, GameState, Seat } from '../types';
 import { getLocalSuggestions, isValidArrangement } from '../services/suggestions';
-import { getCarriage } from '../services/mockBackend';
+import { getCarriage, submitPlayerHand } from '../services/mockBackend';
 import { ServerSeat } from './useSeats';
 
 interface GameLogicProps {
@@ -42,7 +42,7 @@ export const useGameLogic = ({
         const currentPoints = currentUser?.points || 0;
         
         const tableConfig = lobbyTables.find(t => t.carriageId === carriageId);
-        const minScore = tableConfig ? tableConfig.minScore : 300; 
+        const minScore = tableConfig ? tableConfig.minScore : 100; 
 
         if (currentPoints < minScore) {
             alert(`您的积分 (${currentPoints}) 不足 ${minScore}，无法入座。\n请联系管理员或好友获取积分。`);
@@ -50,34 +50,11 @@ export const useGameLogic = ({
         }
 
         if (lobbySelection?.carriageId === carriageId && lobbySelection?.seat === seat) {
-            await handleLeaveSeat();
+            setLobbySelection(null);
             return;
         }
 
         setLobbySelection({ carriageId, seat });
-        try {
-            const res = await fetch('/api/game/seat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    carriageId,
-                    seat,
-                    userId: gameState.user.id,
-                    nickname: gameState.user.nickname,
-                    action: 'join'
-                })
-            });
-            
-            if (!res.ok) {
-                const data = await res.json() as any;
-                alert(data.error || "抢座失败");
-                setLobbySelection(null); 
-            }
-            fetchSeats();
-        } catch (e) {
-            console.error(e);
-            setLobbySelection(null);
-        }
     };
 
     const handleLeaveSeat = async () => {
@@ -103,51 +80,64 @@ export const useGameLogic = ({
             return;
         }
 
-        let currentOccupants = occupiedSeats;
-        try {
-            const res = await fetch('/api/game/seat');
-            if (res.ok) {
-                const data = await res.json() as any;
-                if (data.seats) {
-                    currentOccupants = data.seats;
-                    setOccupiedSeats(data.seats);
-                }
-            }
-        } catch(e) {}
-
         const { carriageId, seat } = lobbySelection;
-        const playersInCarriage = currentOccupants.filter(s => Number(s.carriage_id) === Number(carriageId));
         
-        if (playersInCarriage.length < 2) { 
-            alert(`当前座位人数 (${playersInCarriage.length}) 不足 2 人，无法开始游戏。\n至少需要 2 位玩家同时在座。`);
-            return;
+        // Optimistic Seat Taking
+        try {
+            const res = await fetch('/api/game/seat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    carriageId,
+                    seat,
+                    userId: gameState.user.id,
+                    nickname: gameState.user.nickname,
+                    action: 'join'
+                })
+            });
+            
+            if (!res.ok) {
+                const data = await res.json() as any;
+                alert(data.error || "入座失败，位置可能已被抢占");
+                setLobbySelection(null); 
+                fetchSeats();
+                return;
+            }
+            
+            const data = await res.json() as any;
+            fetchSeats();
+            
+            // Start Game Logic
+            const deckIdToFetch = (data.joinedRound % 20) || 20; 
+            const carriageMockData = getCarriage(deckIdToFetch); 
+            
+            if (!carriageMockData) return alert("System Error: Local Carriage Data not found");
+
+            const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+            
+            const firstTableId = queue[0];
+            const cards = carriageMockData.tables[firstTableId].hands[seat];
+            const suggestions = getLocalSuggestions(cards);
+
+            setGameState(prev => ({
+              ...prev,
+              phase: GamePhase.PLAYING,
+              currentCarriageId: carriageId,
+              currentRound: data.joinedRound || 1, 
+              currentTableIndex: 0,
+              tableQueue: queue,
+              mySeat: seat, 
+              currentCards: cards,
+              currentArrangement: suggestions[0],
+              aiSuggestions: suggestions,
+              currentSuggestionIndex: 0
+            }));
+            setSelectedCardIds([]);
+
+        } catch (e) {
+            console.error(e);
+            alert("网络错误");
         }
-
-        const deckIdToFetch = 1; 
-        const carriageMockData = getCarriage(deckIdToFetch); 
-        
-        if (!carriageMockData) return alert("System Error: Local Carriage Data not found");
-
-        const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
-        
-        const firstTableId = queue[0];
-        const cards = carriageMockData.tables[firstTableId].hands[seat];
-        const suggestions = getLocalSuggestions(cards);
-
-        setGameState(prev => ({
-          ...prev,
-          phase: GamePhase.PLAYING,
-          currentCarriageId: carriageId,
-          currentRound: 1, 
-          currentTableIndex: 0,
-          tableQueue: queue,
-          mySeat: seat, 
-          currentCards: cards,
-          currentArrangement: suggestions[0],
-          aiSuggestions: suggestions,
-          currentSuggestionIndex: 0
-        }));
-        setSelectedCardIds([]);
     };
 
     const handleQuitGame = async () => {
@@ -196,16 +186,10 @@ export const useGameLogic = ({
         setSelectedCardIds([]);
     };
 
-    const submitHand = async () => {
+    // Shared submission logic
+    const processSubmission = async (shouldExit: boolean) => {
         if (!gameState.user) return alert("请先登录");
         if (isSubmitting) return;
-
-        const currentUser = await syncUserData();
-        const currentPoints = currentUser?.points || 0;
-        if (currentPoints < 100) {
-            alert(`您的积分 (${currentPoints}) 不足 100，功能已暂停。\n请先补充积分才能继续提交牌型。`);
-            return;
-        }
 
         const { top, middle, bottom } = gameState.currentArrangement;
         if (top.length !== 3 || middle.length !== 5 || bottom.length !== 5) {
@@ -222,6 +206,8 @@ export const useGameLogic = ({
         setIsSubmitting(true);
         const currentTableId = gameState.tableQueue[gameState.currentTableIndex];
         
+        let jumpToRound: number | null = null;
+
         try {
             const res = await fetch('/api/game/submit', {
                 method: 'POST',
@@ -235,7 +221,21 @@ export const useGameLogic = ({
                     hand: gameState.currentArrangement
                 })
             });
-            if (!res.ok) throw new Error("Submission Failed");
+            const data = await res.json() as any;
+            if (data.jumpToRound) {
+                jumpToRound = data.jumpToRound;
+            }
+            
+            // Mock sync for local view
+            submitPlayerHand(`u_${gameState.user.id}`, {
+                 carriageId: gameState.currentCarriageId,
+                 roundId: gameState.currentRound,
+                 tableId: currentTableId,
+                 seat: gameState.mySeat,
+                 hand: gameState.currentArrangement,
+                 timestamp: Date.now()
+            });
+
         } catch (e) {
             console.error("Submission failed", e);
             alert("提交失败，请重试");
@@ -243,11 +243,36 @@ export const useGameLogic = ({
             return;
         }
 
-        const nextIndex = gameState.currentTableIndex + 1;
+        // --- BRANCH: EXIT ---
+        if (shouldExit) {
+            await handleLeaveSeat();
+            setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: null }));
+            setIsSubmitting(false);
+            return;
+        }
+
+        // --- BRANCH: CONTINUE ---
         
-        if (nextIndex >= 10) {
-            // Endless mode transition
-            const nextRound = gameState.currentRound + 1;
+        let nextRound = gameState.currentRound;
+        let nextTableIndex = gameState.currentTableIndex + 1;
+        let queue = gameState.tableQueue;
+
+        // CHECK 1: FORCE JUMP (Lagging player catches up)
+        if (jumpToRound && jumpToRound > nextRound) {
+            // Reset to Table 0 of the NEW round
+            nextRound = jumpToRound;
+            nextTableIndex = 0;
+            // Regenerate queue for new round
+            queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+            console.log(`Syncing: Jumping to Round ${nextRound}`);
+        } 
+        // CHECK 2: Standard Round Transition
+        else if (nextTableIndex >= 10) {
+            nextRound = gameState.currentRound + 1;
+            nextTableIndex = 0;
+            queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+            
+            // Notify server of natural progression
             try {
                 fetch('/api/game/seat', {
                     method: 'POST',
@@ -261,55 +286,41 @@ export const useGameLogic = ({
                     })
                 }).catch(()=>{});
             } catch(e) {}
-
-            const nextDeckId = (nextRound % 20) || 20; 
-            const carriageMockData = getCarriage(nextDeckId); 
-            
-            if (!carriageMockData) {
-                alert("已完成所有牌局！");
-                setGameState(prev => ({ ...prev, phase: GamePhase.LOBBY }));
-                setIsSubmitting(false);
-                return;
-            }
-
-            const newQueue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
-            const firstTableId = newQueue[0];
-            const nextCards = carriageMockData.tables[firstTableId].hands[gameState.mySeat];
-            const suggestions = getLocalSuggestions(nextCards);
-
-            setGameState(prev => ({
-                ...prev,
-                currentRound: nextRound,
-                currentTableIndex: 0,
-                tableQueue: newQueue,
-                currentCards: nextCards,
-                currentArrangement: suggestions[0],
-                aiSuggestions: suggestions,
-                currentSuggestionIndex: 0
-            }));
-            
-        } else {
-            // Next table in current round
-            const deckId = (gameState.currentRound % 20) || 20;
-            const carriage = getCarriage(deckId)!;
-            
-            const nextTableId = gameState.tableQueue[nextIndex];
-            const nextCards = carriage.tables[nextTableId].hands[gameState.mySeat];
-            const suggestions = getLocalSuggestions(nextCards);
-
-            setGameState(prev => ({
-                ...prev,
-                currentTableIndex: nextIndex,
-                currentCards: nextCards,
-                currentArrangement: suggestions[0],
-                aiSuggestions: suggestions,
-                currentSuggestionIndex: 0
-            }));
         }
+
+        // Load Next Cards
+        const nextDeckId = (nextRound % 20) || 20; 
+        const carriageMockData = getCarriage(nextDeckId); 
+        
+        if (!carriageMockData) {
+            alert("系统错误：牌组加载失败");
+            await handleLeaveSeat();
+            setGameState(prev => ({ ...prev, phase: GamePhase.SETTLEMENT_VIEW, settlementReport: null }));
+            setIsSubmitting(false);
+            return;
+        }
+
+        const firstTableId = queue[nextTableIndex];
+        const nextCards = carriageMockData.tables[firstTableId].hands[gameState.mySeat];
+        const suggestions = getLocalSuggestions(nextCards);
+
+        setGameState(prev => ({
+            ...prev,
+            currentRound: nextRound,
+            currentTableIndex: nextTableIndex,
+            tableQueue: queue,
+            currentCards: nextCards,
+            currentArrangement: suggestions[0],
+            aiSuggestions: suggestions,
+            currentSuggestionIndex: 0
+        }));
 
         setSelectedCardIds([]);
         setIsSubmitting(false);
     };
+
+    const submitHand = () => processSubmission(false);
+    const submitAndExit = () => processSubmission(true);
 
     return {
         selectedCardIds,
@@ -323,6 +334,7 @@ export const useGameLogic = ({
         handleRowClick,
         handleSmartArrange,
         submitHand,
+        submitAndExit, 
         setLobbySelection
     };
 };

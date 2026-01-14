@@ -65,39 +65,46 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     `).run();
 
     // 5. Create CarriageSeats Table
-    // Modified: Add game_round to track which "Carriage Number" the player is in within the Lobby
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS CarriageSeats (
         carriage_id INTEGER NOT NULL,
         seat TEXT NOT NULL, 
         user_id INTEGER NOT NULL,
         nickname TEXT NOT NULL,
-        game_round INTEGER DEFAULT 1, -- New field: The logical carriage number (1, 2, 3...)
+        game_round INTEGER DEFAULT 1, 
         updated_at INTEGER DEFAULT (strftime('%s', 'now')),
         PRIMARY KEY (carriage_id, seat)
       );
     `).run();
     
-    // Attempt to add column if it doesn't exist (SQLite doesn't support IF NOT EXISTS for columns easily in one statement)
     try {
         await db.prepare('ALTER TABLE CarriageSeats ADD COLUMN game_round INTEGER DEFAULT 1').run();
-    } catch (e) {
-        // Ignore error if column exists
-    }
+    } catch (e) {}
 
     // 6. Create HandSubmissions Table
+    // Updated Schema for Endless Mode: Include round_id in UNIQUE constraint
+    // Note: D1/SQLite doesn't support easy ALTER TABLE DROP CONSTRAINT. 
+    // Ideally, for a real migration, we would rename the old table and copy data.
+    // For this prototype, we create if not exists with the NEW schema.
+    // If the table exists with the OLD schema, we attempt to add the column.
+    
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS HandSubmissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         carriage_id INTEGER NOT NULL,
+        round_id INTEGER DEFAULT 1,
         table_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         seat TEXT NOT NULL,
         hand_json TEXT NOT NULL,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
-        UNIQUE(carriage_id, table_id, user_id)
+        UNIQUE(carriage_id, round_id, table_id, user_id)
       );
     `).run();
+
+    try {
+        await db.prepare('ALTER TABLE HandSubmissions ADD COLUMN round_id INTEGER DEFAULT 1').run();
+    } catch (e) {}
 
     return new Response(JSON.stringify({ message: "Database schema updated successfully" }), {
       headers: { "Content-Type": "application/json" }

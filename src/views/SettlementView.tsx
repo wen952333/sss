@@ -10,20 +10,6 @@ interface SettlementViewProps {
     onRefresh: () => Promise<void>;
 }
 
-// Mini Card Row for Reports
-const MiniHandRow = ({ cards }: { cards: Card[] }) => (
-    <div className="flex -space-x-4 items-center justify-center">
-        {cards.map((c, i) => (
-            <CardComponent 
-              key={i} 
-              card={c} 
-              small 
-              className="w-8 h-12 text-[10px] shadow-sm ring-1 ring-black/10" 
-            />
-        ))}
-    </div>
-);
-
 export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentUser, onBack, onRefresh }) => {
     const [tableIndex, setTableIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(!report);
@@ -83,6 +69,7 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentU
                     <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isMe ? 'bg-yellow-600 text-white' : 'bg-black/50 text-white/70'}`}>
                         {p.name}
                     </div>
+                    {/* Only show score if NOT voided and NOT pending */}
                     {!voided && !isPending && (
                         <div className={`text-sm font-black font-mono ${p.score >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                             {p.score > 0 ? '+' : ''}{p.score}
@@ -138,11 +125,11 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentU
                     <div>{renderPlayerCell('South')}</div>
                 </div>
 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none w-full flex justify-center">
                     {voided ? (
-                        <div className="bg-black/80 px-4 py-2 rounded-xl border border-red-500/50 backdrop-blur flex flex-col items-center animate-pulse">
-                            <div className="text-red-500 font-black text-2xl">等待中</div>
-                            <div className="text-white/50 text-[10px]">其他玩家未提交</div>
+                        <div className="bg-black/90 px-6 py-3 rounded-2xl border border-red-500/50 backdrop-blur flex flex-col items-center shadow-2xl">
+                            <div className="text-red-500 font-black text-2xl tracking-widest">无效局</div>
+                            <div className="text-white/60 text-xs mt-1">人数不足 (Score: 0)</div>
                         </div>
                     ) : (
                         <div className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center border border-white/10 shadow-xl backdrop-blur">
