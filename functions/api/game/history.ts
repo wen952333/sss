@@ -28,8 +28,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const carriageId = parseInt(carriageIdStr);
   const AFK_THRESHOLD_SECONDS = 600; // 10 Minutes
+  const CLEANUP_SECONDS = 86400; // 24 Hours
 
   try {
+    // 0. AUTO-CLEANUP: Delete records older than 24 hours
+    // This runs silently on every history fetch to keep DB clean
+    const now = Math.floor(Date.now() / 1000);
+    try {
+        await env.DB.prepare("DELETE FROM HandSubmissions WHERE created_at < ?").bind(now - CLEANUP_SECONDS).run();
+    } catch(e) { console.error("Cleanup error", e); }
+
     // 1. Get all currently seated players
     const seatsRes = await env.DB.prepare('SELECT user_id, seat, nickname, game_round FROM CarriageSeats WHERE carriage_id = ?').bind(carriageId).all<any>();
     const seats = seatsRes.results || [];
@@ -47,8 +55,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         userSubs.sort((a:any, b:any) => b.created_at - a.created_at);
         return userSubs[0].created_at; 
     };
-
-    const currentTime = Math.floor(Date.now() / 1000);
 
     const grouped: any = {};
     submissions.forEach(sub => {
@@ -81,34 +87,29 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                 if (!submittedUserIds.has(seat.user_id)) {
                     
                     const lastActive = getLastActiveTime(seat.user_id);
-                    const timeDiff = currentTime - lastActive;
+                    const timeDiff = now - lastActive;
                     
                     // CASE 1: ACTIVE (Thinking) -> Skip (Partial Settlement will happen below)
-                    // If they played recently (within 10 mins), assume they are just slow.
-                    // We DO NOT auto-play. We leave them out of this round's calc.
                     if (lastActive > 0 && timeDiff < AFK_THRESHOLD_SECONDS) {
                         continue; 
                     }
 
                     // CASE 2: TIMEOUT / AFK -> Auto-Play AND KICK
-                    // Player hasn't moved in 10 mins.
-                    
-                    const fullDeck = generateDeck(); // Ideally specific to table seed
+                    const fullDeck = generateDeck(); 
                     const myCards = fullDeck.slice(0, 13); 
                     const autoHand = autoArrangeHand(myCards);
                     
                     // 2a. Insert Auto Submission
                     await env.DB.prepare(
                         'INSERT INTO HandSubmissions (carriage_id, round_id, table_id, user_id, seat, hand_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-                    ).bind(carriageId, roundId, tableId, seat.user_id, seat.seat, JSON.stringify(autoHand), currentTime).run();
+                    ).bind(carriageId, roundId, tableId, seat.user_id, seat.seat, JSON.stringify(autoHand), now).run();
                     
                     // 2b. KICK PLAYER (Delete from Seats)
-                    // This ensures when they come back, they see Lobby.
                     await env.DB.prepare(
                         'DELETE FROM CarriageSeats WHERE carriage_id = ? AND user_id = ?'
                     ).bind(carriageId, seat.user_id).run();
 
-                    // 2c. Add to local group so they are included in THIS settlement
+                    // 2c. Add to local group
                     grouped[rId][tIdStr].push({
                         user_id: seat.user_id,
                         nickname: seat.nickname + " (超时托管)",
@@ -137,7 +138,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
             // Only calculate if >= 2 players
             if (calcPayload.length >= 2) {
-                // Now supports dynamic player counts (2, 3, or 4)
                 const scores = calculateTableScores(calcPayload); 
                 
                 reportDetails.push({
@@ -152,11 +152,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                     voided: false
                 });
             } else {
-                // Void
+                // Void - SCRUB HAND DATA
                 reportDetails.push({
                     roundId: parseInt(rId),
                     tableId: parseInt(tId),
-                    details: finalSubs.map((s:any) => ({ name: s.nickname, score: 0, hand: s.hand, seat: s.seat })),
+                    details: finalSubs.map((s:any) => ({ 
+                        name: s.nickname, 
+                        score: 0, 
+                        hand: null, // Clear hand for voided games
+                        seat: s.seat 
+                    })),
                     voided: true
                 });
             }

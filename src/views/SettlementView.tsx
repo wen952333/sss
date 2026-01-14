@@ -52,6 +52,19 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentU
     const renderPlayerCell = (seat: Seat) => {
         const p = currentTable.details.find((d: any) => d.seat === seat);
         
+        // --- VOIDED STATE ---
+        // If voided, strictly do not show cards.
+        if (voided) {
+            if (!p) return <div className="w-full h-full bg-black/20 border border-white/5"></div>;
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black/40 border border-white/10 p-2">
+                    <div className="text-white/40 font-bold mb-1 text-sm tracking-widest">无效局</div>
+                    <div className="text-[10px] text-white/30">{p.name}</div>
+                    <div className="text-[10px] text-white/20 mt-2">牌局人数不足</div>
+                </div>
+            );
+        }
+
         if (!p) {
             return (
                 <div className="w-full h-full flex flex-col items-center justify-center border border-white/5 bg-black/20 text-white/20">
@@ -69,8 +82,7 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentU
                     <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isMe ? 'bg-yellow-600 text-white' : 'bg-black/50 text-white/70'}`}>
                         {p.name}
                     </div>
-                    {/* Only show score if NOT voided and NOT pending */}
-                    {!voided && !isPending && (
+                    {!isPending && (
                         <div className={`text-sm font-black font-mono ${p.score >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                             {p.score > 0 ? '+' : ''}{p.score}
                         </div>
@@ -87,15 +99,15 @@ export const SettlementView: React.FC<SettlementViewProps> = ({ report, currentU
                             </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-1 items-center transform scale-90 sm:scale-100 origin-center w-full">
-                            <div className="flex -space-x-4 justify-center w-full">
-                                {p.hand.top.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="w-10 h-14 sm:w-12 sm:h-16 shadow-md ring-1 ring-black/30" />)}
+                        <div className="flex flex-col gap-1.5 items-center w-full">
+                            <div className="flex -space-x-8 justify-center w-full">
+                                {p.hand.top.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="!w-14 !h-20 sm:!w-20 sm:!h-28 shadow-md ring-1 ring-black/30" />)}
                             </div>
-                            <div className="flex -space-x-4 justify-center w-full">
-                                {p.hand.middle.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="w-10 h-14 sm:w-12 sm:h-16 shadow-md ring-1 ring-black/30" />)}
+                            <div className="flex -space-x-8 justify-center w-full">
+                                {p.hand.middle.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="!w-14 !h-20 sm:!w-20 sm:!h-28 shadow-md ring-1 ring-black/30" />)}
                             </div>
-                            <div className="flex -space-x-4 justify-center w-full">
-                                {p.hand.bottom.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="w-10 h-14 sm:w-12 sm:h-16 shadow-md ring-1 ring-black/30" />)}
+                            <div className="flex -space-x-8 justify-center w-full">
+                                {p.hand.bottom.map((c:Card, i:number) => <CardComponent key={i} card={c} small className="!w-14 !h-20 sm:!w-20 sm:!h-28 shadow-md ring-1 ring-black/30" />)}
                             </div>
                         </div>
                     )}
