@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GamePhase, GameState } from './types';
+import { GamePhase, GameState, Seat } from './types';
 
 // Views
 import { LobbyView } from './views/LobbyView';
@@ -93,7 +93,7 @@ const App: React.FC = () => {
                   // Restore Game State
                   const cId = mySeatInfo.carriage_id;
                   const round = mySeatInfo.game_round || 1;
-                  const seat = mySeatInfo.seat;
+                  const seat = mySeatInfo.seat as Seat; // Explicitly cast to Seat
 
                   // Load Deck Data (Mock or Real)
                   const deckId = (round % 20) || 20;
@@ -106,7 +106,7 @@ const App: React.FC = () => {
                       // For now, assume start of that Round's loop.
                       
                       const queue = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5); 
-                      const cards = carriageData.tables[queue[0]].hands[seat as any];
+                      const cards = carriageData.tables[queue[0]].hands[seat];
                       const suggestions = getLocalSuggestions(cards);
 
                       setGameState(prev => ({
