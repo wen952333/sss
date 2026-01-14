@@ -27,7 +27,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   const carriageId = parseInt(carriageIdStr);
-  const AFK_THRESHOLD_SECONDS = 300; // 5 Minutes
+  const AFK_THRESHOLD_SECONDS = 600; // 10 Minutes
 
   try {
     // 1. Get all currently seated players
@@ -84,14 +84,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
                     const timeDiff = currentTime - lastActive;
                     
                     // CASE 1: ACTIVE (Thinking) -> Skip (Partial Settlement will happen below)
-                    // If they played recently (within 5 mins), assume they are just slow.
+                    // If they played recently (within 10 mins), assume they are just slow.
                     // We DO NOT auto-play. We leave them out of this round's calc.
                     if (lastActive > 0 && timeDiff < AFK_THRESHOLD_SECONDS) {
                         continue; 
                     }
 
                     // CASE 2: TIMEOUT / AFK -> Auto-Play AND KICK
-                    // Player hasn't moved in 5 mins.
+                    // Player hasn't moved in 10 mins.
                     
                     const fullDeck = generateDeck(); // Ideally specific to table seed
                     const myCards = fullDeck.slice(0, 13); 

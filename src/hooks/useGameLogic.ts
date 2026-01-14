@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Card, GamePhase, GameState, Seat } from '../types';
 import { getLocalSuggestions, isValidArrangement } from '../services/suggestions';
-import { getCarriage, submitPlayerHand } from '../services/mockBackend';
+import { getCarriage } from '../services/mockBackend';
 import { ServerSeat } from './useSeats';
 
 interface GameLogicProps {
@@ -226,15 +226,8 @@ export const useGameLogic = ({
                 jumpToRound = data.jumpToRound;
             }
             
-            // Mock sync for local view
-            submitPlayerHand(`u_${gameState.user.id}`, {
-                 carriageId: gameState.currentCarriageId,
-                 roundId: gameState.currentRound,
-                 tableId: currentTableId,
-                 seat: gameState.mySeat,
-                 hand: gameState.currentArrangement,
-                 timestamp: Date.now()
-            });
+            // Mock sync for local view (optional, but good for instant feedback if offline mode supported)
+            // But since we are full API now, we rely on state updates below
 
         } catch (e) {
             console.error("Submission failed", e);

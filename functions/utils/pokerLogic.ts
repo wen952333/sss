@@ -44,15 +44,6 @@ export const generateDeck = (): Card[] => {
 };
 
 const getRankValue = (r: Rank): number => r;
-const getSuitValue = (s: Suit): number => {
-    switch (s) {
-      case 'spades': return 4;
-      case 'hearts': return 3;
-      case 'clubs': return 2;
-      case 'diamonds': return 1;
-    }
-    return 0;
-};
 
 const sortCards = (cards: Card[]) => [...cards].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank));
 
