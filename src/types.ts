@@ -50,6 +50,7 @@ export interface Player {
   isHuman: boolean;
   passes: number; // consecutive passes
   isReady?: boolean; // 新增：多人模式准备状态
+  uid?: number | null; // 新增：Telegram User ID，用于身份识别和断线重连
 }
 
 export interface Move {
@@ -94,12 +95,11 @@ export interface User {
   is_admin: boolean;
 }
 
-// 新增：支付记录接口
 export interface PaymentRecord {
   id: number;
   telegram_id: number;
   username: string;
-  amount: number; // 星星数量
+  amount: number; 
   product: string;
   telegram_payment_charge_id: string;
   created_at: string;

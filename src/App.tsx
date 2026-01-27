@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { GamePhase } from './types';
+import { GamePhase, GameMode } from './types';
 import { useTelegram } from './hooks/useTelegram';
 import { useGameLogic } from './hooks/useGameLogic';
 import { MainMenu } from './components/MainMenu';
@@ -8,7 +8,7 @@ import { GameBoard } from './components/GameBoard';
 import { RoomLobby } from './components/RoomLobby';
 import { AdminPanel } from './components/AdminPanel';
 import { getMuteState, toggleMute } from './services/audioService';
-import { BOT_USERNAME } from './constants'; // 导入 Bot 用户名配置
+import { BOT_USERNAME } from './constants';
 
 const App: React.FC = () => {
   // 1. Hooks Initialization
@@ -38,28 +38,23 @@ const App: React.FC = () => {
     setIsMatching
   } = useGameLogic(currentUser, setCurrentUser);
 
-  // 2. Local UI State
   const [isSoundOn, setIsSoundOn] = useState(!getMuteState());
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
 
-  // 3. Effects
   useEffect(() => {
-    // Sync check-in status
     if (currentUser?.last_check_in_date) {
         const today = new Date().toISOString().split('T')[0];
         setHasCheckedInToday(currentUser.last_check_in_date === today);
     }
   }, [currentUser]);
 
-  // Handle auto-join from Telegram deep links
   useEffect(() => {
     if (startParam && startParam.startsWith('room_') && currentUser) {
         handleJoinRoom(startParam);
     }
   }, [startParam, currentUser]);
 
-  // 4. Action Handlers
   const handleToggleSound = () => {
     const isMuted = toggleMute();
     setIsSoundOn(!isMuted);
@@ -80,22 +75,18 @@ const App: React.FC = () => {
         return;
     }
     
-    // Deduct points locally (in a real app, verify on server)
-    // setCurrentUser({ ...currentUser, points: currentUser.points - 100 });
-
-    const myName = currentUser.username;
+    // const myName = currentUser.username; // 不再需要手动传递名字，startDealing 内部处理
 
     if (mode === 'pve') {
-        startDealing([myName, "电脑 (左)", "电脑 (右)"], isNoShuffle);
+        startDealing(isNoShuffle, GameMode.PvE);
     } else if (mode === 'friends') {
         if (isMockMode) {
              tg.showAlert("【模拟模式】自动创建本地多人局");
-             startDealing([myName, "牌友 A", "牌友 B"], isNoShuffle);
+             startDealing(isNoShuffle, GameMode.Friends); // Mock mode fallback
         } else {
              handleCreateRoom();
         }
     } else if (mode === 'match') {
-        // 调用真实的匹配逻辑（尝试加入公共房间）
         handleAutoMatch();
     }
   };
@@ -103,33 +94,28 @@ const App: React.FC = () => {
   const handleShareRoom = () => {
      if (!gameState.roomId) return;
      
-     // 构建正确的 Telegram Share Link
-     // 格式: https://t.me/share/url?url={link}&text={text}
-     // Link 格式: https://t.me/{BOT_USERNAME}/app?startapp={roomId}
-     
      const botName = BOT_USERNAME || "GeminiDouDizhuBot";
      const gameLink = `https://t.me/${botName}/app?startapp=${gameState.roomId}`;
-     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent("三缺一，速来斗地主！")}`;
+     const shareText = `🃏 三缺一！${currentUser?.username || '我'} 邀请你来斗地主！\n房间号: ${gameState.roomId}\n点击链接直接加入 👇`;
+     
+     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent(shareText)}`;
      
      tg.openTelegramLink(shareUrl);
   };
 
   const handleRestart = () => {
-      // In multiplayer friends mode, usually only the host can restart.
       if (gameState.mode === 'FRIENDS' && myPlayerId !== 0) {
           tg.showAlert("只有房主可以重新开始游戏。");
           return;
       }
-      startDealing(gameState.players.map(p => p.name), false, gameState.mode);
+      startDealing(false, gameState.mode);
   };
 
   const handleOpenGroup = () => {
-      // 优先使用环境变量中的链接
       const groupLink = (import.meta as any).env?.VITE_TELEGRAM_GROUP_LINK || "https://t.me/GeminiDouDizhuGroup";
       tg.openTelegramLink(groupLink);
   };
 
-  // 5. Render Router
   return (
     <>
       {showAdminPanel && currentUser?.is_admin && (
