@@ -12,7 +12,7 @@ interface MainMenuProps {
   isPaying: boolean;
   onOpenGroup: () => void;
   onOpenAdmin: () => void;
-  onStartGame: (mode: 'pve' | 'friends' | 'match', isNoShuffle: boolean) => void;
+  onStartGame: (mode: 'pve' | 'friends', isNoShuffle: boolean) => void;
   isMatching: boolean;
 }
 
@@ -29,7 +29,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onStartGame,
   isMatching
 }) => {
-  const [activeModeModal, setActiveModeModal] = useState<'pve' | 'friends' | 'match' | null>(null);
+  const [activeModeModal, setActiveModeModal] = useState<'pve' | 'friends' | null>(null);
 
   const handleModeSelect = (isNoShuffle: boolean) => {
     if (activeModeModal) {
@@ -87,11 +87,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* Background */}
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/poker.png')] opacity-10 pointer-events-none fixed"></div>
         
-        {/* Matching Overlay */}
+        {/* Loading Overlay */}
         {isMatching && (
           <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center fixed">
             <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-yellow-500 mb-4"></div>
-            <div className="text-xl font-bold animate-pulse">正在匹配玩家...</div>
+            <div className="text-xl font-bold animate-pulse">正在创建房间...</div>
           </div>
         )}
         
@@ -122,32 +122,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({
            {user && <div className="mt-2 text-yellow-200 font-mono text-sm opacity-80">欢迎, {user.username}</div>}
         </div>
 
-        {/* Main Cards */}
-        <div className="z-10 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-5xl px-0 md:px-0">
-          <button onClick={() => setActiveModeModal('pve')} className="group relative h-40 md:h-80 bg-gradient-to-b from-blue-600 to-blue-800 rounded-2xl border-4 border-blue-400 shadow-2xl overflow-hidden transform transition-all active:scale-95 hover:shadow-blue-500/50">
+        {/* Main Cards - Updated Layout for 2 buttons */}
+        <div className="z-10 flex flex-col md:flex-row justify-center items-center gap-6 w-full max-w-4xl px-4 md:px-0">
+          <button onClick={() => setActiveModeModal('pve')} className="group relative h-48 md:h-80 w-full md:w-1/3 bg-gradient-to-b from-blue-600 to-blue-800 rounded-2xl border-4 border-blue-400 shadow-2xl overflow-hidden transform transition-all active:scale-95 hover:shadow-blue-500/50">
             <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
             <div className="flex flex-col items-center justify-center h-full p-4">
-              <div className="text-4xl md:text-6xl mb-2 md:mb-4 group-hover:animate-bounce">🤖</div>
-              <h2 className="text-2xl md:text-3xl font-bold mb-1">人机对战</h2>
-              <p className="text-blue-200 text-xs md:text-sm">单机畅玩 智能对手</p>
+              <div className="text-5xl md:text-7xl mb-4 group-hover:animate-bounce">🤖</div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">人机对战</h2>
+              <p className="text-blue-200 text-sm">单机畅玩 智能对手</p>
             </div>
           </button>
           
-          <button onClick={() => setActiveModeModal('friends')} className="group relative h-40 md:h-80 bg-gradient-to-b from-purple-600 to-purple-800 rounded-2xl border-4 border-purple-400 shadow-2xl overflow-hidden transform transition-all active:scale-95 hover:shadow-purple-500/50">
+          <button onClick={() => setActiveModeModal('friends')} className="group relative h-48 md:h-80 w-full md:w-1/3 bg-gradient-to-b from-purple-600 to-purple-800 rounded-2xl border-4 border-purple-400 shadow-2xl overflow-hidden transform transition-all active:scale-95 hover:shadow-purple-500/50">
             <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
             <div className="flex flex-col items-center justify-center h-full p-4">
-              <div className="text-4xl md:text-6xl mb-2 md:mb-4 group-hover:rotate-12 transition-transform">🤝</div>
-              <h2 className="text-2xl md:text-3xl font-bold mb-1">牌友约战</h2>
-              <p className="text-purple-200 text-xs md:text-sm">邀请好友 实时对决</p>
-            </div>
-          </button>
-          
-          <button onClick={() => setActiveModeModal('match')} className="group relative h-40 md:h-80 bg-gradient-to-b from-orange-600 to-orange-800 rounded-2xl border-4 border-orange-400 shadow-2xl overflow-hidden transform transition-all active:scale-95 hover:shadow-orange-500/50">
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
-            <div className="flex flex-col items-center justify-center h-full p-4">
-              <div className="text-4xl md:text-6xl mb-2 md:mb-4 group-hover:scale-110 transition-transform">⚡</div>
-              <h2 className="text-2xl md:text-3xl font-bold mb-1">自动匹配</h2>
-              <p className="text-orange-200 text-xs md:text-sm">极速开局 真人PK</p>
+              <div className="text-5xl md:text-7xl mb-4 group-hover:rotate-12 transition-transform">🤝</div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">牌友约战</h2>
+              <p className="text-purple-200 text-sm">邀请好友 实时对决</p>
             </div>
           </button>
         </div>

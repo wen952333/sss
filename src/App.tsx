@@ -32,7 +32,6 @@ const App: React.FC = () => {
     playTurn,
     handleCreateRoom,
     handleJoinRoom,
-    handleAutoMatch,
     resetGame,
     isMatching,
     setIsMatching
@@ -68,15 +67,13 @@ const App: React.FC = () => {
     tg.showAlert("签到成功！获得 1000 积分！");
   };
 
-  const handleGameStartRequest = (mode: 'pve' | 'friends' | 'match', isNoShuffle: boolean) => {
+  const handleGameStartRequest = (mode: 'pve' | 'friends', isNoShuffle: boolean) => {
     if (!currentUser) return;
     if (currentUser.points < 100) {
         tg.showAlert("积分不足 (需100)，请签到或购买！");
         return;
     }
     
-    // const myName = currentUser.username; // 不再需要手动传递名字，startDealing 内部处理
-
     if (mode === 'pve') {
         startDealing(isNoShuffle, GameMode.PvE);
     } else if (mode === 'friends') {
@@ -86,25 +83,37 @@ const App: React.FC = () => {
         } else {
              handleCreateRoom();
         }
-    } else if (mode === 'match') {
-        handleAutoMatch();
     }
   };
 
   const handleShareRoom = () => {
      if (!gameState.roomId) return;
      
+     // 确保 BOT_USERNAME 有值
      const botName = BOT_USERNAME || "GeminiDouDizhuBot";
-     const gameLink = `https://t.me/${botName}/app?startapp=${gameState.roomId}`;
-     const shareText = `🃏 三缺一！${currentUser?.username || '我'} 邀请你来斗地主！\n房间号: ${gameState.roomId}\n点击链接直接加入 👇`;
      
+     // 构建 Mini App 启动链接
+     const gameLink = `https://t.me/${botName}/app?startapp=${gameState.roomId}`;
+     
+     // 确保名字存在
+     const myName = currentUser?.username || "神秘玩家";
+     const shareText = `🃏 三缺一！${myName} 邀请你来斗地主！\n房间号: ${gameState.roomId}\n点击链接直接加入 👇`;
+     
+     // 构建分享 URL
      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent(shareText)}`;
      
-     tg.openTelegramLink(shareUrl);
+     // 尝试调用 Telegram 原生分享
+     try {
+       tg.openTelegramLink(shareUrl);
+     } catch (e) {
+       console.error("Share failed", e);
+       // 浏览器回退
+       window.open(shareUrl, '_blank');
+     }
   };
 
   const handleRestart = () => {
-      if (gameState.mode === 'FRIENDS' && myPlayerId !== 0) {
+      if (gameState.mode === GameMode.Friends && myPlayerId !== 0) {
           tg.showAlert("只有房主可以重新开始游戏。");
           return;
       }

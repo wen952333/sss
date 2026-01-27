@@ -38,8 +38,7 @@ export enum GamePhase {
 
 export enum GameMode {
   PvE = 'PVE',
-  Friends = 'FRIENDS',
-  Match = 'MATCH'
+  Friends = 'FRIENDS'
 }
 
 export interface Player {

@@ -43,13 +43,12 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
   const lastPollTimestamp = useRef<number>(0);
 
   // --- 自动视角修正 (Auto Rotate) ---
-  // 当从服务器同步到新的 gameState 时，检查 players 中是否有我自己
-  // 如果有，强制更新 myPlayerId，确保视角正确旋转到底部
+  // 确保我在 0 号位 (底部)，通过设置 myPlayerId 来偏移渲染
   useEffect(() => {
     if (currentUser && gameState.players.length > 0) {
-      const me = gameState.players.find(p => p.uid === currentUser.telegram_id);
+      // 使用 weak comparison (==) 避免 string/number 类型不一致问题
+      const me = gameState.players.find(p => p.uid == currentUser.telegram_id);
       if (me && me.id !== myPlayerId) {
-        console.log(`[AutoRotate] Found me at index ${me.id}, correcting view.`);
         setMyPlayerId(me.id);
       }
     }
@@ -75,7 +74,6 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
                   if (data.timestamp > lastPollTimestamp.current) {
                       lastPollTimestamp.current = data.timestamp;
                       setGameState(prevState => {
-                          // 收到服务端更新时，我们信任服务端的 players 状态
                           return data.state;
                       });
                   }
@@ -106,7 +104,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
 
   const handleCreateRoom = async () => {
       if (!currentUser) return;
-      setIsMatching(true);
+      setIsMatching(true); // Reusing isMatching as isLoading
       const roomId = `room_${Math.floor(Math.random() * 89999) + 10000}`;
       try {
           const res = await fetch('/api/game/sync', {
@@ -169,45 +167,6 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
       }
   };
 
-  const handleAutoMatch = async () => {
-    if (!currentUser) return;
-    setIsMatching(true);
-    const randomRoomId = `public_lobby_${Math.floor(Math.random() * 5) + 1}`;
-
-    try {
-        const joinRes = await fetch('/api/game/sync', {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'join',
-                roomId: randomRoomId,
-                userId: currentUser.telegram_id,
-                username: currentUser.username
-            })
-        });
-        const joinData = await joinRes.json();
-
-        if (joinData.success) {
-            setMyPlayerId(joinData.playerId);
-            const pollRes = await fetch('/api/game/sync', {
-                  method: 'POST',
-                  body: JSON.stringify({ action: 'poll', roomId: randomRoomId })
-            });
-            const pollData = await pollRes.json();
-            if (pollData.success) {
-                setGameState({ ...pollData.state, roomId: randomRoomId, mode: GameMode.Friends });
-                startPolling(randomRoomId);
-            }
-        } else {
-            handleCreateRoom(); 
-        }
-    } catch (e) {
-        tg.showAlert("匹配服务暂时不可用");
-    } finally {
-        setIsMatching(false);
-    }
-  };
-
-
   // --- Dealing Logic ---
   const startDealing = (isNoShuffle: boolean, mode: GameMode = GameMode.PvE) => {
     if (!currentUser) return;
@@ -225,7 +184,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     const isPvE = mode === GameMode.PvE;
     
     // 继承大厅中的玩家信息 (UID, Name)
-    // 这样在游戏开始后，我们依然知道谁是谁，从而能正确旋转视角
+    // 关键：确保游戏开始后 UID 不丢失，以便 AutoRotate 继续工作
     let currentLobbyPlayers = gameState.players;
     if (currentLobbyPlayers.length < 3 || mode === GameMode.PvE) {
         // 如果是 PVE 或数据不全，使用默认/虚拟填充
@@ -484,7 +443,6 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     playTurn,
     handleCreateRoom,
     handleJoinRoom,
-    handleAutoMatch, 
     resetGame,
     stopPolling
   };
