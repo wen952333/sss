@@ -29,10 +29,17 @@ export enum PlayerRole {
 
 export enum GamePhase {
   MainMenu = 'MAIN_MENU',
+  RoomLobby = 'ROOM_LOBBY', // 新增：房间等待阶段
   Dealing = '发牌中',
   Bidding = '叫地主',
   Playing = '游戏中',
   GameOver = '游戏结束'
+}
+
+export enum GameMode {
+  PvE = 'PVE',
+  Friends = 'FRIENDS',
+  Match = 'MATCH'
 }
 
 export interface Player {
@@ -42,6 +49,7 @@ export interface Player {
   role: PlayerRole | null;
   isHuman: boolean;
   passes: number; // consecutive passes
+  isReady?: boolean; // 房间准备状态
 }
 
 export interface Move {
@@ -67,13 +75,15 @@ export interface GameState {
   deck: Card[];
   players: Player[];
   phase: GamePhase;
+  mode: GameMode; // 新增：游戏模式
   landlordCards: Card[];
   currentTurnIndex: number; // 0, 1, 2
   lastMove: Move | null;
   winnerId: number | null;
   multiplier: number; // 当前倍数
   baseScore: number;  // 底分
-  bidsCount: number;  // 记录叫牌次数(用于判断流局)
+  bidsCount: number;  // 记录叫牌次数
+  roomId?: string;    // 房间号
 }
 
 export interface User {

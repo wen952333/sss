@@ -1,3 +1,4 @@
+
 import { Card, HandType, Rank } from '../types';
 
 export const sortCards = (cards: Card[]): Card[] => {
@@ -90,44 +91,135 @@ export const canPlayHand = (currentCards: Card[], lastCards: Card[] | null, last
 
 // Basic greedy bot logic
 export const findMove = (hand: Card[], lastCards: Card[] | null): Card[] | null => {
+  const possible = findPossibleMoves(hand, lastCards);
+  return possible.length > 0 ? possible[0] : null;
+}
+
+// 核心逻辑：寻找所有可能的出牌组合（用于“建议”功能）
+export const findPossibleMoves = (hand: Card[], lastCards: Card[] | null): Card[][] => {
   const sortedHand = sortCards(hand);
+  const moves: Card[][] = [];
+
+  // Group cards by value
+  const groups: { [value: number]: Card[] } = {};
+  sortedHand.forEach(c => {
+    if (!groups[c.value]) groups[c.value] = [];
+    groups[c.value].push(c);
+  });
   
-  // If free turn (start or everyone passed), play smallest single to get rid of cards
+  const values = Object.keys(groups).map(Number).sort((a, b) => a - b);
+
+  // Helper to find Rocket
+  const findRocket = () => {
+    const jokers = sortedHand.filter(c => c.value >= 20);
+    if (jokers.length === 2) moves.push(jokers);
+  };
+  
+  // Helper to find Bombs
+  const findBombs = (minValue: number = 0) => {
+    values.forEach(v => {
+      if (v > minValue && groups[v].length === 4) {
+        moves.push(groups[v]);
+      }
+    });
+  };
+
+  // If leading (free play), suggest smallest single, pair, or triple
   if (!lastCards || lastCards.length === 0) {
-    // Try to play a straight or triple first? Too complex for basic AI. 
-    // Just play lowest single.
-    return [sortedHand[sortedHand.length - 1]]; 
+    // Return all valid minimal moves (one of each type available)
+    // 1. Smallest Single
+    moves.push([sortedHand[sortedHand.length - 1]]);
+    
+    // 2. Smallest Pair
+    for (let v of values) {
+      if (groups[v].length >= 2) {
+        moves.push(groups[v].slice(0, 2));
+        break;
+      }
+    }
+    
+    // 3. Smallest Triple
+    for (let v of values) {
+        if (groups[v].length >= 3) {
+            moves.push(groups[v].slice(0, 3));
+            break;
+        }
+    }
+    // 如果啥都没有，就单出
+    if (moves.length === 0 && sortedHand.length > 0) {
+        moves.push([sortedHand[sortedHand.length - 1]]);
+    }
+    return moves;
   }
 
   const lastHandInfo = determineHandType(lastCards);
-  
-  // Try to find a valid response
-  // 1. Check for Rocket
-  const jokers = sortedHand.filter(c => c.value >= 20);
-  if (jokers.length === 2 && lastHandInfo.type !== HandType.Rocket) {
-    // Only play rocket if really needed or last resort? 
-    // AI: Hold rocket for end? No, let's win if we can. 
-    // Simple AI: Don't waste rocket on a 3. 
+  const lastValue = lastHandInfo.value;
+
+  // Always check for Rocket if last wasn't Rocket
+  if (lastHandInfo.type !== HandType.Rocket) {
+    findRocket();
   }
 
-  // 2. Simple response search (Singles, Pairs, Triples)
-  // This is a simplified search. A real engine would generate all subsets.
-  
-  if (lastHandInfo.type === HandType.Single) {
-    for (let i = sortedHand.length - 1; i >= 0; i--) {
-       if (sortedHand[i].value > lastHandInfo.value) return [sortedHand[i]];
-    }
+  // Check for Bombs (if last wasn't Rocket, and if last was Bomb, must be bigger)
+  if (lastHandInfo.type !== HandType.Rocket) {
+    const minBombValue = lastHandInfo.type === HandType.Bomb ? lastValue : 0;
+    findBombs(minBombValue);
   }
 
-  if (lastHandInfo.type === HandType.Pair) {
-    // Find pair
-    for (let i = sortedHand.length - 1; i > 0; i--) {
-      if (sortedHand[i].value === sortedHand[i-1].value && sortedHand[i].value > lastHandInfo.value) {
-        return [sortedHand[i-1], sortedHand[i]];
-      }
-    }
+  // Type specific search
+  switch (lastHandInfo.type) {
+    case HandType.Single:
+      values.forEach(v => {
+        if (v > lastValue) moves.push([groups[v][0]]);
+      });
+      break;
+
+    case HandType.Pair:
+      values.forEach(v => {
+        if (v > lastValue && groups[v].length >= 2) moves.push(groups[v].slice(0, 2));
+      });
+      break;
+
+    case HandType.Triple:
+      values.forEach(v => {
+        if (v > lastValue && groups[v].length >= 3) moves.push(groups[v].slice(0, 3));
+      });
+      break;
+      
+    case HandType.TripleWithOne:
+       values.forEach(v => {
+           if (v > lastValue && groups[v].length >= 3) {
+               // Find a kicker (single)
+               const triple = groups[v].slice(0, 3);
+               // Simple strategy: pick smallest single that is not part of this triple
+               for (let k of values) {
+                   if (k !== v) {
+                       moves.push([...triple, groups[k][0]]);
+                       // Just finding one variation per triple is enough for UX usually
+                       break; 
+                   }
+               }
+           }
+       });
+       break;
+
+     case HandType.TripleWithPair:
+        values.forEach(v => {
+            if (v > lastValue && groups[v].length >= 3) {
+                const triple = groups[v].slice(0, 3);
+                for (let k of values) {
+                    if (k !== v && groups[k].length >= 2) {
+                        moves.push([...triple, ...groups[k].slice(0, 2)]);
+                        break;
+                    }
+                }
+            }
+        });
+        break;
+
+      // TODO: Implement Straight logic for full completeness
+      // For now, simplify to basic types
   }
-  
-  // Pass if no simple beat found
-  return null;
-}
+
+  return moves;
+};
