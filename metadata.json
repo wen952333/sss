@@ -1,0 +1,5 @@
+{
+  "name": "Gemini 斗地主",
+  "description": "经典的斗地主游戏，包含AI对手和由Gemini驱动的智能军师。",
+  "requestFramePermissions": []
+}
