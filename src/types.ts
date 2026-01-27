@@ -93,3 +93,14 @@ export interface User {
   last_check_in_date: string | null;
   is_admin: boolean;
 }
+
+// 新增：支付记录接口
+export interface PaymentRecord {
+  id: number;
+  telegram_id: number;
+  username: string;
+  amount: number; // 星星数量
+  product: string;
+  telegram_payment_charge_id: string;
+  created_at: string;
+}

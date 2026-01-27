@@ -1,4 +1,11 @@
+
 import { Card, Rank, Suit } from './types';
+
+// ==========================================
+// ⚠️ 请在此处配置您的 Telegram Bot 用户名 (不带 @)
+// 这用于生成邀请链接
+export const BOT_USERNAME = "GeminiDouDizhuBot"; 
+// ==========================================
 
 export const CARD_RANKS = [
   { rank: Rank.Three, label: '3', value: 3 },
@@ -13,7 +20,7 @@ export const CARD_RANKS = [
   { rank: Rank.Queen, label: 'Q', value: 12 },
   { rank: Rank.King, label: 'K', value: 13 },
   { rank: Rank.Ace, label: 'A', value: 14 },
-  { rank: Rank.Two, label: '2', value: 16 } // 2 is higher than Ace in Dou Dizhu
+  { rank: Rank.Two, label: '2', value: 16 }
 ];
 
 export const SUITS = [
@@ -40,7 +47,6 @@ export const generateDeck = (): Card[] => {
     });
   });
 
-  // Jokers
   deck.push({
     id: `card-${idCounter++}`,
     suit: Suit.None,
@@ -72,35 +78,21 @@ export const shuffleDeck = (deck: Card[]): Card[] => {
 };
 
 export const shuffleDeckNoShuffle = (deck: Card[]): Card[] => {
-  // Simulate "No Shuffle" (不洗牌) mode:
-  // Creates a deck with high probability of bombs and sequences.
-  
-  // 1. Sort by Rank to create initial clumps
   let tempDeck = [...deck].sort((a, b) => a.value - b.value); 
-  
-  // 2. Cut the deck into random chunks (e.g., 5-8 chunks) to keep sequences/bombs together
   const chunks: Card[][] = [];
   while (tempDeck.length > 0) {
-    // Random chunk size between 4 and 10 cards
     const chunkSize = Math.floor(Math.random() * 7) + 4; 
     chunks.push(tempDeck.splice(0, chunkSize));
   }
-  
-  // 3. Shuffle the chunks order
   for (let i = chunks.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [chunks[i], chunks[j]] = [chunks[j], chunks[i]];
   }
-  
-  // 4. Flatten back to deck
   let stackedDeck = chunks.flat();
-  
-  // 5. Add a little noise (swap ~15 random pairs) to prevent it being too artificial
   for (let k = 0; k < 15; k++) {
      const i = Math.floor(Math.random() * stackedDeck.length);
      const j = Math.floor(Math.random() * stackedDeck.length);
      [stackedDeck[i], stackedDeck[j]] = [stackedDeck[j], stackedDeck[i]];
   }
-  
   return stackedDeck;
 };

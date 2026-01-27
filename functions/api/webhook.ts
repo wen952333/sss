@@ -81,12 +81,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     // 2. 处理支付成功
     if (body.message?.successful_payment) {
       const payment = body.message.successful_payment;
-      const userId = body.message.from.id;
+      const user = body.message.from;
+      const userId = user.id;
+      const username = user.username || user.first_name || "Unknown";
+
       try {
         const payload = JSON.parse(payment.invoice_payload);
         if (payload.product === "points_2000" && env.DB) {
+           // A. 更新用户积分
            await env.DB.prepare("UPDATE users SET points = points + 2000 WHERE telegram_id = ?").bind(userId).run();
-           await sendMessage(token, userId, `✅ <b>支付成功！</b>\n积分已到账。`);
+           
+           // B. 记录账单 (新增)
+           await env.DB.prepare(`
+             INSERT INTO payments (telegram_id, username, amount, product, telegram_payment_charge_id)
+             VALUES (?, ?, ?, ?, ?)
+           `).bind(userId, username, payment.total_amount, payload.product, payment.telegram_payment_charge_id).run();
+
+           await sendMessage(token, userId, `✅ <b>支付成功！</b>\n2000 积分已到账。`);
         }
       } catch (e) { console.error("Payment DB Error", e); }
       return new Response("OK");
@@ -101,11 +112,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       const username = user.username || user.first_name || "玩家";
       const safeName = escapeHtml(username);
       
-      // 获取 Web App URL (当前域名)
       const webAppUrl = new URL(request.url).origin;
 
-      // --- 定义键盘菜单 ---
-      // 1. ReplyKeyboardMarkup (输入框下方的快捷按钮)
       const mainKeyboard = {
         keyboard: [
           [{ text: "🎮 开始游戏", web_app: { url: webAppUrl } }],
@@ -116,16 +124,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         persistent: true
       };
 
-      // 2. InlineKeyboardMarkup (消息下方的按钮)
       const startInlineKeyboard = {
         inline_keyboard: [[{ text: "🚀 启动 Gemini 斗地主", web_app: { url: webAppUrl } }]]
       };
 
-      // --- 逻辑分支 ---
-
       // A. /start 命令
       if (text === "/start" || text === "🎮 开始游戏") {
-        // 初始化用户
         if (env.DB) {
           try {
             await env.DB.prepare(`INSERT OR IGNORE INTO users (telegram_id, username, points) VALUES (?, ?, 1000)`).bind(userId, username).run();
@@ -135,10 +139,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const welcomeMsg = `👋 欢迎 <b>${safeName}</b>！\n\nGemini 斗地主已就绪。\n点击下方按钮开始对局，或使用菜单查询积分。`;
         
         await sendMessage(token, chatId, welcomeMsg, {
-          reply_markup: mainKeyboard // 发送主菜单
+          reply_markup: mainKeyboard 
         });
         
-        // 额外发一个带 Inline 按钮的消息引导点击
         await sendMessage(token, chatId, "👇 点击下方按钮进入 Web App", {
             reply_markup: startInlineKeyboard
         });
@@ -186,6 +189,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   } catch (err: any) {
     console.error("Webhook Error:", err);
-    return new Response("OK"); // Always return 200 to TG
+    return new Response("OK"); 
   }
 };

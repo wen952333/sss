@@ -21,6 +21,7 @@ const mockTelegramWebApp = {
     }
   },
   openTelegramLink: (url: string) => {
+    // 在浏览器中直接打开
     window.open(url, '_blank');
   },
   showAlert: (message: string) => alert(message),
@@ -66,7 +67,6 @@ export const useTelegram = () => {
     if (param) setStartParam(param);
 
     if (tgUser) {
-      // In a real app, fetch user from DB here
       const existingUser = adminUserList.find(u => u.telegram_id === tgUser.id);
       if (existingUser) {
         setCurrentUser(existingUser);
@@ -78,7 +78,6 @@ export const useTelegram = () => {
           last_check_in_date: null,
           is_admin: false 
         };
-        // Auto-admin for specific ID for testing
         if (MOCK_DB_USERS.find(u => u.telegram_id === tgUser.id)?.is_admin) {
             newUser.is_admin = true;
         }
@@ -86,7 +85,6 @@ export const useTelegram = () => {
         setCurrentUser(newUser);
       }
     } else {
-        // Fallback for browser testing
         setCurrentUser(MOCK_DB_USERS[0]);
     }
   }, []);
@@ -97,10 +95,22 @@ export const useTelegram = () => {
     
     if (isMockMode) {
         const confirmed = window.confirm("【模拟模式】当前不在 Telegram 环境，将进行模拟支付。是否继续？");
-        if (!confirmed) {
+        if (confirmed) {
+            // 在 Mock 模式下，直接调用模拟回调，不请求后端
+            setTimeout(() => {
+                setIsPaying(false);
+                if (currentUser) {
+                    const pointsAmount = 2000;
+                    const updatedUser = { ...currentUser, points: currentUser.points + pointsAmount };
+                    setCurrentUser(updatedUser);
+                    setAdminUserList(prev => prev.map(u => u.telegram_id === currentUser.telegram_id ? updatedUser : u));
+                    tg.showAlert(`【模拟】支付成功！获得 ${pointsAmount} 积分。`);
+                }
+            }, 1000);
+        } else {
             setIsPaying(false);
-            return;
         }
+        return; // 重要：Mock 模式下不继续执行真实网络请求
     }
 
     try {
@@ -116,6 +126,8 @@ export const useTelegram = () => {
          if (status === "paid") {
             const pointsAmount = 2000;
             if (currentUser) {
+                // 注意：这里只是前端乐观更新，实际积分增加由 Webhook 处理
+                // 为了用户体验，我们在这里也更新一下
                 const updatedUser = { ...currentUser, points: currentUser.points + pointsAmount };
                 setCurrentUser(updatedUser);
                 setAdminUserList(prev => prev.map(u => u.telegram_id === currentUser.telegram_id ? updatedUser : u));

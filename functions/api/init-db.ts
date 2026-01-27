@@ -48,11 +48,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     `).run();
 
     // 3. 房间表 (核心：存储多人游戏状态)
-    // room_id: 房间号
-    // players_json: 存储 [{id, name, isReady...}]
-    // game_state_json: 存储完整的 GameState (牌堆、出牌记录等)
-    // status: 'waiting', 'playing', 'finished'
-    // updated_at: 用于轮询判断版本
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS rooms (
         room_id TEXT PRIMARY KEY,
@@ -64,9 +59,22 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
+    // 4. 支付流水表 (新增)
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id INTEGER,
+        username TEXT,
+        amount INTEGER,
+        product TEXT,
+        telegram_payment_charge_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `).run();
+
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Database tables (including 'rooms') created successfully." 
+      message: "Database tables (users, rooms, payments) created successfully." 
     }), {
       headers: { "Content-Type": "application/json" }
     });

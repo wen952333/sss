@@ -32,6 +32,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const [isGettingHint, setIsGettingHint] = useState(false);
 
   // Helper to get relative players for UI positioning
+  // 视角旋转逻辑：
+  // 如果我是 0: pMe=0, pRight=1, pLeft=2
+  // 如果我是 1: pMe=1, pRight=2, pLeft=0
+  // 如果我是 2: pMe=2, pRight=0, pLeft=1
+  // 这确保了逆时针/顺时针的视觉顺序正确
   const getRelativePlayer = (offset: number) => {
     const idx = (myPlayerId + offset) % 3;
     return gameState.players[idx];

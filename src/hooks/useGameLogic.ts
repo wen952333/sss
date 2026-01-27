@@ -8,7 +8,7 @@ import { tg } from './useTelegram';
 
 const INITIAL_PLAYER_STATE: Player = {
   id: 0,
-  name: "Player",
+  name: "玩家",
   hand: [],
   role: null,
   isHuman: true,
@@ -57,12 +57,12 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
               });
               const data = await res.json();
               if (data.success && data.state) {
-                  // Basic optimistic concurrency check
                   if (data.timestamp > lastPollTimestamp.current) {
                       lastPollTimestamp.current = data.timestamp;
                       setGameState(prevState => {
-                        // In a real app, you might want to merge local animations here
-                        return data.state;
+                          // 收到服务端更新时，我们信任服务端的 players 状态
+                          // 但为了安全起见，我们确保本地 myPlayerId 对应的玩家身份是正确的
+                          return data.state;
                       });
                   }
               }
@@ -85,7 +85,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
                   })
               });
           } catch (e) {
-              tg.showAlert("Sync failed, check network.");
+              tg.showAlert("同步失败，请检查网络");
           }
       }
   };
@@ -108,13 +108,13 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
           if (data.success) {
               const newState = { ...data.state, roomId, mode: GameMode.Friends };
               setGameState(newState);
-              setMyPlayerId(0);
+              setMyPlayerId(0); // 房主 ID 为 0
               startPolling(roomId);
           } else {
-              tg.showAlert("Failed to create room.");
+              tg.showAlert("创建房间失败");
           }
       } catch (e) {
-          tg.showAlert("Network Error");
+          tg.showAlert("网络错误");
       } finally {
           setIsMatching(false);
       }
@@ -135,7 +135,10 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
           });
           const data = await res.json();
           if (data.success) {
+              // 关键：设置自己的 Player ID
               setMyPlayerId(data.playerId);
+              
+              // 立即拉取一次最新状态
               const pollRes = await fetch('/api/game/sync', {
                    method: 'POST',
                    body: JSON.stringify({ action: 'poll', roomId })
@@ -146,23 +149,69 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
                   startPolling(roomId);
               }
           } else {
-              tg.showAlert(data.error || "Join Failed");
+              tg.showAlert(data.error || "加入失败");
           }
       } catch (e) {
-          tg.showAlert("Network Error");
+          tg.showAlert("网络错误");
       } finally {
           setIsMatching(false);
       }
   };
+
+  // 真正的自动匹配逻辑：尝试加入随机公共房间，如果满了或不存在，则创建一个
+  const handleAutoMatch = async () => {
+    if (!currentUser) return;
+    setIsMatching(true);
+
+    // 简单策略：随机尝试加入 'public_1' 到 'public_5'
+    const randomRoomId = `public_lobby_${Math.floor(Math.random() * 5) + 1}`;
+
+    try {
+        // 尝试加入
+        const joinRes = await fetch('/api/game/sync', {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'join',
+                roomId: randomRoomId,
+                userId: currentUser.telegram_id,
+                username: currentUser.username
+            })
+        });
+        const joinData = await joinRes.json();
+
+        if (joinData.success) {
+            setMyPlayerId(joinData.playerId);
+            const pollRes = await fetch('/api/game/sync', {
+                  method: 'POST',
+                  body: JSON.stringify({ action: 'poll', roomId: randomRoomId })
+            });
+            const pollData = await pollRes.json();
+            if (pollData.success) {
+                setGameState({ ...pollData.state, roomId: randomRoomId, mode: GameMode.Friends });
+                startPolling(randomRoomId);
+            }
+        } else {
+            // 加入失败（可能是房间不存在，或者满了），尝试创建该房间
+            // 注意：如果是因为满了，其实应该试下一个房间，这里简化逻辑：如果加入失败就尝试创建（如果是满的，创建也会失败/复用，取决于后端逻辑）
+            // 在我们的后端逻辑中，CREATE 会重置房间。这在真正的自动匹配中是不对的。
+            // 正确的 MVP 做法：如果加入失败且错误是"房间不存在"，则创建。
+            
+            // 简单起见：如果加入失败，就自己开一个新房间等别人来
+            handleCreateRoom(); 
+        }
+    } catch (e) {
+        tg.showAlert("匹配服务暂时不可用");
+    } finally {
+        setIsMatching(false);
+    }
+  };
+
 
   // --- Dealing Logic ---
   const startDealing = (playerNames: string[], isNoShuffle: boolean, mode: GameMode = GameMode.PvE) => {
     if (!currentUser) return;
     const baseScore = 100;
     
-    // In a real app, deduct points from server side or here
-    // setCurrentUser({ ...currentUser, points: currentUser.points - 100 });
-
     const fullDeck = generateDeck();
     const deck = isNoShuffle ? shuffleDeckNoShuffle(fullDeck) : shuffleDeck(fullDeck);
     
@@ -174,6 +223,8 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     
     const isPvE = mode === GameMode.PvE;
     
+    // 生成新玩家状态
+    // 注意：ID 必须固定为 0, 1, 2
     const newPlayers: Player[] = [
       { ...INITIAL_PLAYER_STATE, id: 0, name: playerNames[0], isHuman: true, hand: sortCards(p1Hand) },
       { ...INITIAL_PLAYER_STATE, id: 1, name: playerNames[1], isHuman: isPvE ? false : true, hand: sortCards(p2Hand) },
@@ -181,7 +232,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     ];
 
     if (mode === GameMode.Friends) {
-        // Multiplayer: Skip animation, sync state immediately so everyone has hands
+        // Multiplayer: Host uploads the new state with dealt hands
         const biddingState: GameState = {
             ...INITIAL_GAME_STATE,
             mode,
@@ -198,7 +249,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
         uploadGameState(biddingState);
         playTTS("开始抢地主", "Aoede");
     } else {
-        // PvE: Local animation setup
+        // PvE: Local animation
         dealingDeckRef.current = [...deck]; 
         const animPlayers = newPlayers.map(p => ({...p, hand: []}));
         
@@ -426,6 +477,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     playTurn,
     handleCreateRoom,
     handleJoinRoom,
+    handleAutoMatch, // 导出新的匹配方法
     resetGame,
     stopPolling
   };

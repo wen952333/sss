@@ -8,6 +8,7 @@ import { GameBoard } from './components/GameBoard';
 import { RoomLobby } from './components/RoomLobby';
 import { AdminPanel } from './components/AdminPanel';
 import { getMuteState, toggleMute } from './services/audioService';
+import { BOT_USERNAME } from './constants'; // 导入 Bot 用户名配置
 
 const App: React.FC = () => {
   // 1. Hooks Initialization
@@ -31,6 +32,7 @@ const App: React.FC = () => {
     playTurn,
     handleCreateRoom,
     handleJoinRoom,
+    handleAutoMatch,
     resetGame,
     isMatching,
     setIsMatching
@@ -93,32 +95,38 @@ const App: React.FC = () => {
              handleCreateRoom();
         }
     } else if (mode === 'match') {
-        setIsMatching(true);
-        setTimeout(() => {
-            setIsMatching(false);
-            const r1 = Math.floor(Math.random() * 900) + 100;
-            const r2 = Math.floor(Math.random() * 900) + 100;
-            startDealing([myName, `玩家${r1}`, `玩家${r2}`], isNoShuffle);
-        }, 2000);
+        // 调用真实的匹配逻辑（尝试加入公共房间）
+        handleAutoMatch();
     }
   };
 
   const handleShareRoom = () => {
      if (!gameState.roomId) return;
-     const bot = (import.meta as any).env?.VITE_BOT_USERNAME || "GeminiDouDizhuBot";
-     const link = `https://t.me/${bot}/app?startapp=${gameState.roomId}`;
-     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("三缺一，速来！")}`);
+     
+     // 构建正确的 Telegram Share Link
+     // 格式: https://t.me/share/url?url={link}&text={text}
+     // Link 格式: https://t.me/{BOT_USERNAME}/app?startapp={roomId}
+     
+     const botName = BOT_USERNAME || "GeminiDouDizhuBot";
+     const gameLink = `https://t.me/${botName}/app?startapp=${gameState.roomId}`;
+     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent("三缺一，速来斗地主！")}`;
+     
+     tg.openTelegramLink(shareUrl);
   };
 
   const handleRestart = () => {
       // In multiplayer friends mode, usually only the host can restart.
-      // But for simplicity in this demo, if anyone clicks restart, we try to deal.
-      // However, startDealing logic in useGameLogic handles updating the server state.
       if (gameState.mode === 'FRIENDS' && myPlayerId !== 0) {
           tg.showAlert("只有房主可以重新开始游戏。");
           return;
       }
       startDealing(gameState.players.map(p => p.name), false, gameState.mode);
+  };
+
+  const handleOpenGroup = () => {
+      // 优先使用环境变量中的链接
+      const groupLink = (import.meta as any).env?.VITE_TELEGRAM_GROUP_LINK || "https://t.me/GeminiDouDizhuGroup";
+      tg.openTelegramLink(groupLink);
   };
 
   // 5. Render Router
@@ -141,7 +149,7 @@ const App: React.FC = () => {
           isSoundOn={isSoundOn}
           onBuyPoints={handleBuyStars}
           isPaying={isPaying}
-          onOpenGroup={() => tg.openTelegramLink("https://t.me/GeminiDouDizhuGroup")}
+          onOpenGroup={handleOpenGroup}
           onOpenAdmin={() => setShowAdminPanel(true)}
           onStartGame={handleGameStartRequest}
           isMatching={isMatching}
