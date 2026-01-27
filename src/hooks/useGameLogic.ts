@@ -8,7 +8,7 @@ import { tg } from './useTelegram';
 
 const INITIAL_PLAYER_STATE: Player = {
   id: 0,
-  name: "玩家",
+  name: "等待中...",
   hand: [],
   role: null,
   isHuman: true,
@@ -36,26 +36,30 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
   const [isMatching, setIsMatching] = useState(false);
 
-  // Refs for logic
-  const dealingDeckRef = useRef<Card[]>([]);
-  const dealingIntervalRef = useRef<number | null>(null);
   const pollIntervalRef = useRef<number | null>(null);
   const lastPollTimestamp = useRef<number>(0);
+  const dealingDeckRef = useRef<Card[]>([]);
+  const dealingIntervalRef = useRef<number | null>(null);
 
-  // --- 自动视角修正 (Auto Rotate) ---
-  // 确保我在 0 号位 (底部)，通过设置 myPlayerId 来偏移渲染
+  /**
+   * 关键改进：视角自动对齐 (Auto-Alignment)
+   * 无论通过何种方式进入游戏，系统会实时对比 gameState.players 中的 uid 与当前用户的 telegram_id。
+   * 一旦匹配成功，自动更新 myPlayerId，驱动 UI 将该玩家显示在正下方。
+   */
   useEffect(() => {
-    if (currentUser && gameState.players.length > 0) {
-      // 使用 weak comparison (==) 避免 string/number 类型不一致问题
-      const me = gameState.players.find(p => p.uid == currentUser.telegram_id);
-      if (me && me.id !== myPlayerId) {
-        setMyPlayerId(me.id);
+    if (currentUser && gameState.players && gameState.players.length > 0) {
+      const myTelegramId = String(currentUser.telegram_id);
+      
+      // 在当前房间的玩家列表中寻找自己
+      const foundIdx = gameState.players.findIndex(p => p.uid && String(p.uid) === myTelegramId);
+      
+      if (foundIdx !== -1 && foundIdx !== myPlayerId) {
+        console.log(`[ViewSync] Matched current user to player slot: ${foundIdx}`);
+        setMyPlayerId(foundIdx);
       }
     }
   }, [gameState.players, currentUser, myPlayerId]);
 
-
-  // --- Network Sync Logic ---
   const stopPolling = useCallback(() => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -73,9 +77,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
               if (data.success && data.state) {
                   if (data.timestamp > lastPollTimestamp.current) {
                       lastPollTimestamp.current = data.timestamp;
-                      setGameState(prevState => {
-                          return data.state;
-                      });
+                      setGameState(data.state);
                   }
               }
           } catch (e) {
@@ -85,7 +87,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
   }, [stopPolling]);
 
   const uploadGameState = async (newState: GameState) => {
-      setGameState(newState); // Optimistic Update locally
+      setGameState(newState); 
       if (newState.mode === GameMode.Friends && newState.roomId) {
           try {
               await fetch('/api/game/sync', {
@@ -97,14 +99,14 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
                   })
               });
           } catch (e) {
-              tg.showAlert("同步失败，请检查网络");
+              console.warn("Sync failed");
           }
       }
   };
 
   const handleCreateRoom = async () => {
       if (!currentUser) return;
-      setIsMatching(true); // Reusing isMatching as isLoading
+      setIsMatching(true);
       const roomId = `room_${Math.floor(Math.random() * 89999) + 10000}`;
       try {
           const res = await fetch('/api/game/sync', {
@@ -120,13 +122,11 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
           if (data.success) {
               const newState = { ...data.state, roomId, mode: GameMode.Friends };
               setGameState(newState);
-              setMyPlayerId(0); // 房主 ID 为 0
+              setMyPlayerId(0); 
               startPolling(roomId);
-          } else {
-              tg.showAlert("创建房间失败");
           }
       } catch (e) {
-          tg.showAlert("网络错误");
+          tg.showAlert("创建失败");
       } finally {
           setIsMatching(false);
       }
@@ -147,6 +147,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
           });
           const data = await res.json();
           if (data.success) {
+              // 注意：这里设置 myPlayerId 是初始化的，后续会被上面的 useEffect 自动校准
               setMyPlayerId(data.playerId);
               const pollRes = await fetch('/api/game/sync', {
                    method: 'POST',
@@ -158,24 +159,20 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
                   startPolling(roomId);
               }
           } else {
-              tg.showAlert(data.error || "加入失败");
+              tg.showAlert(data.error || "房间不可用");
           }
       } catch (e) {
-          tg.showAlert("网络错误");
+          tg.showAlert("连接失败");
       } finally {
           setIsMatching(false);
       }
   };
 
-  // --- Dealing Logic ---
   const startDealing = (isNoShuffle: boolean, mode: GameMode = GameMode.PvE) => {
     if (!currentUser) return;
-    const baseScore = 100;
-    
     const fullDeck = generateDeck();
     const deck = isNoShuffle ? shuffleDeckNoShuffle(fullDeck) : shuffleDeck(fullDeck);
     
-    // Distribute cards
     const p1Hand = deck.slice(0, 17);
     const p2Hand = deck.slice(17, 34);
     const p3Hand = deck.slice(34, 51);
@@ -183,23 +180,19 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     
     const isPvE = mode === GameMode.PvE;
     
-    // 继承大厅中的玩家信息 (UID, Name)
-    // 关键：确保游戏开始后 UID 不丢失，以便 AutoRotate 继续工作
     let currentLobbyPlayers = gameState.players;
     if (currentLobbyPlayers.length < 3 || mode === GameMode.PvE) {
-        // 如果是 PVE 或数据不全，使用默认/虚拟填充
-        const myName = currentUser.username;
         currentLobbyPlayers = [
-            { ...INITIAL_PLAYER_STATE, id: 0, name: myName, uid: currentUser.telegram_id },
-            { ...INITIAL_PLAYER_STATE, id: 1, name: "电脑 (左)", uid: null },
-            { ...INITIAL_PLAYER_STATE, id: 2, name: "电脑 (右)", uid: null }
+            { ...INITIAL_PLAYER_STATE, id: 0, name: currentUser.username, uid: currentUser.telegram_id, isReady: true },
+            { ...INITIAL_PLAYER_STATE, id: 1, name: "电脑 (左)", uid: null, isHuman: !isPvE },
+            { ...INITIAL_PLAYER_STATE, id: 2, name: "电脑 (右)", uid: null, isHuman: !isPvE }
         ];
     }
 
     const newPlayers: Player[] = [
-      { ...INITIAL_PLAYER_STATE, id: 0, name: currentLobbyPlayers[0].name, uid: currentLobbyPlayers[0].uid, isHuman: true, hand: sortCards(p1Hand) },
-      { ...INITIAL_PLAYER_STATE, id: 1, name: currentLobbyPlayers[1].name, uid: currentLobbyPlayers[1].uid, isHuman: isPvE ? false : true, hand: sortCards(p2Hand) },
-      { ...INITIAL_PLAYER_STATE, id: 2, name: currentLobbyPlayers[2].name, uid: currentLobbyPlayers[2].uid, isHuman: isPvE ? false : true, hand: sortCards(p3Hand) }
+      { ...currentLobbyPlayers[0], hand: sortCards(p1Hand) },
+      { ...currentLobbyPlayers[1], hand: sortCards(p2Hand) },
+      { ...currentLobbyPlayers[2], hand: sortCards(p3Hand) }
     ];
 
     if (mode === GameMode.Friends) {
@@ -211,7 +204,7 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
             phase: GamePhase.Bidding,
             currentTurnIndex: Math.floor(Math.random() * 3),
             roomId: gameState.roomId,
-            baseScore,
+            baseScore: 100,
             multiplier: 1,
             bidsCount: 0,
             lastMove: null
@@ -221,7 +214,6 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     } else {
         dealingDeckRef.current = [...deck]; 
         const animPlayers = newPlayers.map(p => ({...p, hand: []}));
-        
         setGameState({
             ...INITIAL_GAME_STATE,
             mode,
@@ -231,13 +223,12 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
             currentTurnIndex: Math.floor(Math.random() * 3), 
             lastMove: null,
             multiplier: 1,
-            baseScore,
+            baseScore: 100,
             bidsCount: 0
         });
     }
   };
 
-  // Dealing Animation Effect (PvE Only)
   useEffect(() => {
     if (gameState.phase === GamePhase.Dealing) {
         let cardIndex = 0;
@@ -269,7 +260,6 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     }
   }, [gameState.phase]);
 
-  // --- Auto Start Logic (Friends) ---
   useEffect(() => {
     if (gameState.mode === GameMode.Friends && gameState.phase === GamePhase.RoomLobby && myPlayerId === 0) {
         const readyCount = gameState.players.filter(p => p.isReady).length;
@@ -279,19 +269,11 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
     }
   }, [gameState.players, gameState.phase, gameState.mode, myPlayerId]);
 
-
-  // --- Game Actions ---
-  const getVoiceForPlayer = (playerIdx: number) => {
-     if (playerIdx === 0) return 'Aoede'; 
-     if (playerIdx === 1) return 'Puck'; 
-     return 'Kore'; 
-  };
-
   const handleBid = (claim: boolean) => {
     if (gameState.currentTurnIndex !== myPlayerId && gameState.mode === GameMode.Friends) return;
 
     const currentPlayerIdx = gameState.currentTurnIndex;
-    const voice = getVoiceForPlayer(currentPlayerIdx);
+    const voice = currentPlayerIdx === 0 ? 'Aoede' : (currentPlayerIdx === 1 ? 'Puck' : 'Kore');
     playTTS(claim ? "叫地主!" : "不叫", voice);
 
     let newState = { ...gameState };
@@ -320,10 +302,9 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
 
   const playTurn = (cardsToPlay: Card[]) => {
     const currentPlayerIdx = gameState.currentTurnIndex;
-    const voice = getVoiceForPlayer(currentPlayerIdx);
+    const voice = currentPlayerIdx === 0 ? 'Aoede' : (currentPlayerIdx === 1 ? 'Puck' : 'Kore');
     const handInfo = determineHandType(cardsToPlay);
     let isValid = false;
-    
     const isLeader = !gameState.lastMove || gameState.lastMove.playerId === currentPlayerIdx;
     
     if (cardsToPlay.length === 0) {
@@ -340,15 +321,10 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
 
     if (isValid) {
       let newMultiplier = gameState.multiplier;
-      if (handInfo.type === HandType.Bomb) newMultiplier *= 2;
-      if (handInfo.type === HandType.Rocket) newMultiplier *= 2;
+      if (handInfo.type === HandType.Bomb || handInfo.type === HandType.Rocket) newMultiplier *= 2;
 
       if (cardsToPlay.length > 0) {
-        if (handInfo.type === HandType.Single) playTTS(cardsToPlay[0].label, voice);
-        else if (handInfo.type === HandType.Pair) playTTS(`一对 ${cardsToPlay[0].label}`, voice);
-        else if (handInfo.type === HandType.Bomb) playTTS("炸弹!", voice);
-        else if (handInfo.type === HandType.Rocket) playTTS("王炸!", voice);
-        else playTTS(handInfo.type, voice);
+        playTTS(handInfo.type === HandType.Single ? cardsToPlay[0].label : handInfo.type, voice);
       }
 
       const newPlayers = [...gameState.players];
@@ -362,21 +338,8 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
         currentPlayer.passes += 1;
       }
 
-      // Check Win
       if (currentPlayer.hand.length === 0) {
         playTTS(currentPlayer.id === myPlayerId ? "我赢啦！" : "你输了", "Aoede");
-        
-        const finalScore = gameState.baseScore * newMultiplier;
-        if (currentUser && gameState.mode === GameMode.PvE) {
-            const myRole = newPlayers[myPlayerId].role;
-            const winnerRole = currentPlayer.role;
-            const amIWinner = (myRole === winnerRole); 
-            let scoreChange = 0;
-            if (myRole === PlayerRole.Landlord) scoreChange = amIWinner ? (finalScore * 2) : -(finalScore * 2);
-            else scoreChange = amIWinner ? finalScore : -finalScore;
-            setCurrentUser({ ...currentUser, points: currentUser.points + scoreChange });
-        }
-
         const gameOverState = {
           ...gameState,
           players: newPlayers,
@@ -400,29 +363,19 @@ export const useGameLogic = (currentUser: User | null, setCurrentUser: (u: User)
       
       if (gameState.mode === GameMode.Friends) uploadGameState(newState);
       else setGameState(newState);
-
     } else {
       tg.showAlert("出牌不符合规则！");
     }
   };
 
-  // --- Bot Logic ---
   useEffect(() => {
     if (gameState.mode !== GameMode.PvE) return;
     if (gameState.phase !== GamePhase.Playing && gameState.phase !== GamePhase.Bidding) return;
-    
     const player = gameState.players[gameState.currentTurnIndex];
-    if (player.isHuman) return;
-
+    if (player?.isHuman) return;
     const timer = setTimeout(() => {
-        if (gameState.phase === GamePhase.Bidding) {
-            handleBid(Math.random() < 0.4);
-        } else {
-            const isLeader = !gameState.lastMove || gameState.lastMove.playerId === player.id;
-            const lastCards = isLeader ? null : gameState.lastMove?.cards || null;
-            const move = findMove(player.hand, lastCards);
-            playTurn(move || []);
-        }
+        if (gameState.phase === GamePhase.Bidding) handleBid(Math.random() < 0.3);
+        else playTurn(findMove(player.hand, (!gameState.lastMove || gameState.lastMove.playerId === player.id) ? null : gameState.lastMove.cards) || []);
     }, 1200);
     return () => clearTimeout(timer);
   }, [gameState.phase, gameState.currentTurnIndex]);
