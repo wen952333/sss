@@ -18,7 +18,6 @@ interface Env {
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  // 仅允许 GET 或 POST 请求来触发初始化
   if (context.request.method !== "GET" && context.request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -27,34 +26,47 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const db = context.env.DB;
 
     // 1. 游戏结果表
-    const createGameResultsTable = `
+    await db.prepare(`
       CREATE TABLE IF NOT EXISTS game_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         winner_role TEXT NOT NULL,
         winner_name TEXT NOT NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
-    `;
+    `).run();
 
-    // 2. 用户表 (Telegram ID 作为唯一键)
-    const createUsersTable = `
+    // 2. 用户表
+    await db.prepare(`
       CREATE TABLE IF NOT EXISTS users (
         telegram_id INTEGER PRIMARY KEY,
         username TEXT,
-        points INTEGER DEFAULT 1000, -- 新用户默认赠送1000积分
-        last_check_in_date TEXT,     -- 格式 YYYY-MM-DD
+        points INTEGER DEFAULT 1000,
+        last_check_in_date TEXT,
         is_admin BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
-    `;
+    `).run();
 
-    // 执行 SQL
-    await db.prepare(createGameResultsTable).run();
-    await db.prepare(createUsersTable).run();
+    // 3. 房间表 (核心：存储多人游戏状态)
+    // room_id: 房间号
+    // players_json: 存储 [{id, name, isReady...}]
+    // game_state_json: 存储完整的 GameState (牌堆、出牌记录等)
+    // status: 'waiting', 'playing', 'finished'
+    // updated_at: 用于轮询判断版本
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS rooms (
+        room_id TEXT PRIMARY KEY,
+        host_id INTEGER,
+        players_json TEXT, 
+        game_state_json TEXT,
+        status TEXT DEFAULT 'waiting',
+        updated_at INTEGER
+      );
+    `).run();
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Success! Tables 'game_results' and 'users' are ready." 
+      message: "Database tables (including 'rooms') created successfully." 
     }), {
       headers: { "Content-Type": "application/json" }
     });
@@ -63,7 +75,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return new Response(JSON.stringify({ 
       success: false, 
       error: err.message,
-      hint: "Did you bind the D1 database with variable name 'DB' in Cloudflare Pages settings?"
+      hint: "Ensure D1 Database 'DB' is bound in Cloudflare Pages settings."
     }), {
       status: 500,
       headers: { "Content-Type": "application/json" }
