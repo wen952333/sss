@@ -1,11 +1,16 @@
 
 import { Card, Rank, Suit } from './types';
 
-// ==========================================
-// ⚠️ 请在此处配置您的 Telegram Bot 用户名 (不带 @)
-// 这用于生成邀请链接
-export const BOT_USERNAME = "GeminiDouDizhuBot"; 
-// ==========================================
+// 这些值现在会在 App 初始化时从 /api/config 动态覆盖
+export let BOT_CONFIG = {
+  username: "geminidoudizhubot",
+  appShortName: "app"
+};
+
+export const updateBotConfig = (config: { botUsername: string; appShortName: string }) => {
+  BOT_CONFIG.username = config.botUsername;
+  BOT_CONFIG.appShortName = config.appShortName;
+};
 
 export const CARD_RANKS = [
   { rank: Rank.Three, label: '3', value: 3 },
@@ -33,7 +38,6 @@ export const SUITS = [
 export const generateDeck = (): Card[] => {
   const deck: Card[] = [];
   let idCounter = 0;
-
   SUITS.forEach(s => {
     CARD_RANKS.forEach(r => {
       deck.push({
@@ -46,25 +50,8 @@ export const generateDeck = (): Card[] => {
       });
     });
   });
-
-  deck.push({
-    id: `card-${idCounter++}`,
-    suit: Suit.None,
-    rank: Rank.BlackJoker,
-    label: 'Joker',
-    color: 'black',
-    value: 20
-  });
-
-  deck.push({
-    id: `card-${idCounter++}`,
-    suit: Suit.None,
-    rank: Rank.RedJoker,
-    label: 'Joker',
-    color: 'red',
-    value: 21
-  });
-
+  deck.push({ id: `card-${idCounter++}`, suit: Suit.None, rank: Rank.BlackJoker, label: 'Joker', color: 'black', value: 20 });
+  deck.push({ id: `card-${idCounter++}`, suit: Suit.None, rank: Rank.RedJoker, label: 'Joker', color: 'red', value: 21 });
   return deck;
 };
 
