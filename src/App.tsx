@@ -9,7 +9,7 @@ import { playTTS, toggleMute, getMuteState } from './services/audioService';
 // 配置群组链接 (优先使用环境变量，否则使用默认)
 const TELEGRAM_GROUP_LINK = (import.meta as any).env?.VITE_TELEGRAM_GROUP_LINK || "https://t.me/GeminiDouDizhuGroup";
 
-// 模拟 Telegram WebApp 接口 (为了在浏览器开发时不出错)
+// 模拟 Telegram WebApp 接口 (仅在开发环境或 SDK 加载失败时使用)
 const mockTelegramWebApp = {
   initDataUnsafe: {
     user: {
@@ -21,7 +21,12 @@ const mockTelegramWebApp = {
   openInvoice: (url: string, callback: (status: string) => void) => {
     console.log("Mock Payment for URL:", url);
     // 模拟支付成功
-    setTimeout(() => callback("paid"), 1000);
+    const confirmed = window.confirm("【模拟模式】这是本地模拟支付，点击确定模拟支付成功（不扣费），点击取消模拟失败。");
+    if (confirmed) {
+       setTimeout(() => callback("paid"), 1000);
+    } else {
+       callback("cancelled");
+    }
   },
   openTelegramLink: (url: string) => {
     window.open(url, '_blank');
@@ -30,8 +35,15 @@ const mockTelegramWebApp = {
   ready: () => {}
 };
 
-// 获取 Telegram 对象
-const tg = (window as any).Telegram?.WebApp || mockTelegramWebApp;
+// 获取 Telegram 对象 (优先使用 window.Telegram.WebApp)
+const getTelegramWebApp = () => {
+  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+    return (window as any).Telegram.WebApp;
+  }
+  return mockTelegramWebApp;
+};
+
+const tg = getTelegramWebApp();
 
 // Initial state
 const INITIAL_PLAYER_STATE: Player = {
@@ -74,6 +86,7 @@ const App: React.FC = () => {
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [isMatching, setIsMatching] = useState(false); 
   const [isPaying, setIsPaying] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(false);
   
   // Audio State
   const [isSoundOn, setIsSoundOn] = useState(!getMuteState());
@@ -94,6 +107,13 @@ const App: React.FC = () => {
   // 初始化 Telegram WebApp 用户
   useEffect(() => {
     tg.ready();
+    
+    // 检测是否运行在 Mock 模式
+    if (!(window as any).Telegram?.WebApp) {
+        setIsMockMode(true);
+        console.warn("Telegram WebApp SDK not found. Running in Mock Mode.");
+    }
+
     const tgUser = tg.initDataUnsafe?.user;
     
     if (tgUser) {
@@ -148,10 +168,26 @@ const App: React.FC = () => {
   const handleBuyStars = async () => {
     if (isPaying) return;
     setIsPaying(true);
+    
+    // 如果是模拟模式，直接提示
+    if (isMockMode) {
+        const confirmed = window.confirm("【模拟模式】当前不在 Telegram 环境，将进行模拟支付（不扣费）。是否继续？");
+        if (!confirmed) {
+            setIsPaying(false);
+            return;
+        }
+    }
+
     try {
       const response = await fetch('/api/create-invoice', { method: 'POST' });
       const data = await response.json();
-      if (!response.ok || !data.invoiceLink) throw new Error(data.error || "Failed to create invoice");
+      
+      if (!response.ok || !data.invoiceLink) {
+          throw new Error(data.error || "Failed to create invoice");
+      }
+
+      // 如果是在真正的 Telegram 环境中，openInvoice 会唤起原生支付弹窗
+      // 如果是在浏览器中，会使用上面的 mockTelegramWebApp，直接回调成功
       tg.openInvoice(data.invoiceLink, (status: string) => {
          setIsPaying(false);
          if (status === "paid") {
@@ -160,9 +196,18 @@ const App: React.FC = () => {
                 const updatedUser = { ...currentUser, points: currentUser.points + pointsAmount };
                 setCurrentUser(updatedUser);
                 setAdminUserList(prev => prev.map(u => u.telegram_id === currentUser.telegram_id ? updatedUser : u));
-                tg.showAlert(`支付成功！获得 ${pointsAmount} 积分。`);
+                
+                if (isMockMode) {
+                    tg.showAlert(`【模拟】支付成功！获得 ${pointsAmount} 积分。`);
+                } else {
+                    tg.showAlert(`支付成功！获得 ${pointsAmount} 积分。`);
+                }
             }
-         } 
+         } else if (status === "cancelled") {
+            // 用户取消支付
+         } else {
+            tg.showAlert("支付状态异常: " + status);
+         }
       });
     } catch (e: any) {
       setIsPaying(false);
@@ -348,11 +393,6 @@ const App: React.FC = () => {
       // 3. If 3 passes (all passed), Redeal
       if (newBidsCount >= 3) {
         tg.showAlert("所有人都不叫，重新发牌！");
-        // Restart logic with same players
-        // We reuse startDealingLogic but need to reset deck
-        // For simplicity, just reset to Menu or restart dealing directly?
-        // Let's simplified: just return to lobby for now or reshuffle.
-        // Reshuffling logic needs deck regeneration.
         startDealingLogic(gameState.players.map(p => p.name), false); 
         return;
       }
@@ -441,10 +481,6 @@ const App: React.FC = () => {
         playTTS(currentPlayer.id === 0 ? "我赢啦！" : "你输了", "Aoede");
         
         // --- SCORING CALCULATION ---
-        // Formula: Base * Multiplier. 
-        // If Landlord wins: +2 * (Base*Mult), Peasants -1 * (Base*Mult)
-        // If Peasant wins: Landlord -2 * (Base*Mult), Peasants +1 * (Base*Mult)
-        
         const finalScore = gameState.baseScore * newMultiplier;
         const winnerRole = currentPlayer.role;
         

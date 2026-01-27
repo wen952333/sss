@@ -2,8 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Gemini 斗地主</title>
+    <!-- 必须引入 Telegram Web App 脚本 -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -13,6 +15,7 @@
         background-color: #1a472a; /* Poker Table Green */
         color: white;
         overflow: hidden; /* Prevent scrolling on game board */
+        overscroll-behavior: none;
       }
       .perspective-1000 {
         perspective: 1000px;
