@@ -1,5 +1,4 @@
 
-// Define types locally to ensure compatibility without extra config
 type D1Database = {
   prepare: (query: string) => { run: () => Promise<any> };
 };
@@ -18,10 +17,6 @@ interface Env {
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  if (context.request.method !== "GET" && context.request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
   try {
     const db = context.env.DB;
 
@@ -47,7 +42,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
-    // 3. 房间表 (核心：存储多人游戏状态)
+    // 3. 房间表
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS rooms (
         room_id TEXT PRIMARY KEY,
@@ -59,7 +54,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
-    // 4. 支付流水表 (新增)
+    // 4. 支付流水表
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,19 +67,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
     `).run();
 
+    // 5. 系统设置表 (关键：存储 Bot 用户名)
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
+    `).run();
+
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Database tables (users, rooms, payments) created successfully." 
+      message: "Database tables created successfully." 
     }), {
       headers: { "Content-Type": "application/json" }
     });
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: err.message,
-      hint: "Ensure D1 Database 'DB' is bound in Cloudflare Pages settings."
-    }), {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

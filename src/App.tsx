@@ -8,7 +8,7 @@ import { GameBoard } from './components/GameBoard';
 import { RoomLobby } from './components/RoomLobby';
 import { AdminPanel } from './components/AdminPanel';
 import { getMuteState, toggleMute } from './services/audioService';
-import { BOT_CONFIG, updateBotConfig } from './constants';
+import { BOT_CONFIG } from './constants';
 
 const App: React.FC = () => {
   const { 
@@ -39,18 +39,6 @@ const App: React.FC = () => {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
 
-  // 初始化拉取后端动态配置 (仅拉取 Bot 用户名，用于构造 t.me 链接)
-  useEffect(() => {
-    fetch('/api/config')
-      .then(res => res.json())
-      .then(data => {
-        if (data.botUsername) {
-          updateBotConfig(data);
-        }
-      })
-      .catch(err => console.error("Config fetch failed", err));
-  }, []);
-
   useEffect(() => {
     if (currentUser?.last_check_in_date) {
         const today = new Date().toISOString().split('T')[0];
@@ -58,12 +46,15 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // 处理通过邀请链接进入的情况
+  // 处理通过邀请链接进入的情况 (startapp=room_xxx)
   useEffect(() => {
+    // 只有当参数是 room_ 开头，且用户已登录，且当前不在该房间时才执行加入
     if (startParam && startParam.startsWith('room_') && currentUser) {
-        handleJoinRoom(startParam);
+        if (gameState.roomId !== startParam) {
+            handleJoinRoom(startParam);
+        }
     }
-  }, [startParam, currentUser]);
+  }, [startParam, currentUser, gameState.roomId]);
 
   const handleToggleSound = () => {
     const isMuted = toggleMute();
@@ -97,23 +88,27 @@ const App: React.FC = () => {
   };
 
   /**
-   * 彻底修复邀请逻辑：
-   * 1. 动态抓取：直接从 tg.initDataUnsafe.user 获取当前操作者的姓名。
-   * 2. 无需变量：不需要在环境变量里配置任何玩家名字，系统会自动识别。
+   * 动态生成分享链接
    */
   const handleShareRoom = () => {
      if (!gameState.roomId) return;
      
-     // 直接从 Telegram SDK 获取当前点击分享按钮的玩家姓名
+     // 检查配置，如果为空则提示用户 (避免生成 username not found 链接)
+     if (!BOT_CONFIG.username) {
+         tg.showAlert("⚠️ 配置错误：未检测到 VITE_BOT_USERNAME。\n请在 Cloudflare Pages 设置环境变量。");
+         return;
+     }
+
+     // 获取当前玩家姓名
      const currentPlayerName = tg.initDataUnsafe?.user?.first_name || 
                                tg.initDataUnsafe?.user?.username || 
-                               "您的好友";
+                               "神秘牌友";
      
-     // 构造指向当前 Bot 的 Mini App 链接
+     // 构造标准的 Mini App 链接
+     // 格式: https://t.me/<BOT_USERNAME>/<APP_NAME>?startapp=<ROOM_ID>
      const gameLink = `https://t.me/${BOT_CONFIG.username}/${BOT_CONFIG.appShortName}?startapp=${gameState.roomId}`;
      
-     // 动态生成的邀请文案
-     const shareText = `🃏 三缺一！[${currentPlayerName}] 喊你来开局！\n房间号: ${gameState.roomId}\n点击下方按钮立即入座 👇`;
+     const shareText = `🃏 三缺一！[${currentPlayerName}] 喊你来斗地主！\n🚪 房间号: ${gameState.roomId}\n👇 点击下方按钮入座`;
      
      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent(shareText)}`;
      

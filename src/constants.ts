@@ -1,15 +1,17 @@
 
 import { Card, Rank, Suit } from './types';
 
-// 这些值现在会在 App 初始化时从 /api/config 动态覆盖
-export let BOT_CONFIG = {
-  username: "geminidoudizhubot",
-  appShortName: "app"
-};
+// 声明全局常量（由 vite.config.ts注入）
+declare const __BOT_USERNAME__: string;
+declare const __BOT_APP_SHORT_NAME__: string;
 
-export const updateBotConfig = (config: { botUsername: string; appShortName: string }) => {
-  BOT_CONFIG.username = config.botUsername;
-  BOT_CONFIG.appShortName = config.appShortName;
+/**
+ * 核心配置
+ * 直接使用构建时注入的常量，不再回退到错误的默认机器人
+ */
+export const BOT_CONFIG = {
+  username: typeof __BOT_USERNAME__ !== 'undefined' ? __BOT_USERNAME__ : "",
+  appShortName: typeof __BOT_APP_SHORT_NAME__ !== 'undefined' ? __BOT_APP_SHORT_NAME__ : "app"
 };
 
 export const CARD_RANKS = [
