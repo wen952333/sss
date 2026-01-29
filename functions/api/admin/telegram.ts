@@ -4,16 +4,30 @@ interface Env { DB: any; TG_BOT_TOKEN: string; ADMIN_CHAT_ID: string; }
 // Use this endpoint to set webhook: https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook?url=https://<YOUR_DOMAIN>/api/admin/telegram
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   try {
+    // 1. Basic Config Check
+    if (!env.TG_BOT_TOKEN) {
+      console.error("❌ CRITICAL: TG_BOT_TOKEN is missing in Environment Variables!");
+      return new Response("Missing TG_BOT_TOKEN", { status: 500 });
+    }
+
     const update = await request.json() as any;
-    if (!update.message || !update.message.text) return new Response('OK');
+    
+    // Log update for debugging
+    console.log("📩 Received Telegram Update:", JSON.stringify(update));
+
+    if (!update.message || !update.message.text) {
+      return new Response('OK'); // Ignore non-text messages
+    }
 
     const chatId = String(update.message.chat.id);
     const text = update.message.text.trim();
     const command = text.split(' ')[0];
     const args = text.split(' ').slice(1);
+    const adminId = env.ADMIN_CHAT_ID;
 
-    // 1. Security Check
-    if (env.ADMIN_CHAT_ID && chatId !== env.ADMIN_CHAT_ID) {
+    // 2. Security Check
+    if (adminId && chatId !== adminId) {
+      console.warn(`⛔ Access Denied for User ${chatId} (Expected: ${adminId})`);
       await sendTgMessage(env, chatId, "⛔ <b>Access Denied</b>\nYou are not the administrator.");
       return new Response('OK');
     }
@@ -31,7 +45,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       persistent: true
     };
 
-    // 2. Logic Handler
+    // 3. Logic Handler
     switch (text) {
       case '/start':
       case '❓ 帮助':
@@ -40,6 +54,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         break;
 
       case '📊 系统概览':
+        if (!env.DB) { responseText = "❌ 数据库未连接"; break; }
         const userCount: any = await env.DB.prepare("SELECT count(*) as c FROM users").first();
         const tableCount: any = await env.DB.prepare("SELECT count(*) as c FROM game_tables").first();
         const activePlayers: any = await env.DB.prepare("SELECT count(*) as c FROM players").first();
@@ -53,6 +68,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         break;
 
       case '👥 用户榜单 (Top 10)':
+        if (!env.DB) { responseText = "❌ 数据库未连接"; break; }
         const { results } = await env.DB.prepare("SELECT phone, nickname, points FROM users ORDER BY points DESC LIMIT 10").all();
         if (!results || results.length === 0) {
           responseText = "暂无用户数据。";
@@ -75,7 +91,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         break;
 
       default:
-        // Command Handlers
+        if (!env.DB) { responseText = "❌ 数据库未连接"; break; }
         if (command === '/search') {
           if (!args[0]) responseText = "❌ 请输入手机号。例如: <code>/search 13800000000</code>";
           else {
@@ -121,17 +137,21 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         break;
     }
 
+    console.log(`📤 Sending response to ${chatId}:`, responseText.substring(0, 50) + "...");
     await sendTgMessage(env, chatId, responseText, replyMarkup);
     return new Response('OK');
 
   } catch (e: any) {
-    console.error(e);
+    console.error("❌ Telegram Webhook Error:", e);
     return new Response(e.message, { status: 500 });
   }
 };
 
 async function sendTgMessage(env: Env, chatId: string, text: string, replyMarkup: any = null) {
-  if (!env.TG_BOT_TOKEN) return;
+  if (!env.TG_BOT_TOKEN) {
+    console.error("❌ Cannot send message: TG_BOT_TOKEN is missing");
+    return;
+  }
   
   const body: any = {
     chat_id: chatId,
@@ -143,9 +163,17 @@ async function sendTgMessage(env: Env, chatId: string, text: string, replyMarkup
     body.reply_markup = replyMarkup;
   }
 
-  await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const result: any = await resp.json();
+    if (!result.ok) {
+        console.error("❌ Telegram API Error:", result);
+    }
+  } catch (err) {
+      console.error("❌ Fetch Error:", err);
+  }
 }
