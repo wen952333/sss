@@ -1,12 +1,12 @@
 
 interface Env { DB: any; TG_BOT_TOKEN: string; ADMIN_CHAT_ID: string; }
 
-// Keyboard Definition
+// Updated Keyboard Definition (Cleaner, Admin-focused)
 const MAIN_KEYBOARD = {
   keyboard: [
-    [{ text: "📊 统计数据" }, { text: "🔍 查询用户" }],
-    [{ text: "💰 增加积分" }, { text: "🆔 我的ID" }],
-    [{ text: "🛠 调试信息" }, { text: "❓ 帮助" }]
+    [{ text: "📊 统计数据" }, { text: "🏆 积分榜" }],
+    [{ text: "👥 用户列表" }, { text: "🔍 查询用户" }],
+    [{ text: "💰 增加积分" }, { text: "❌ 删除用户" }]
   ],
   resize_keyboard: true,
   is_persistent: true
@@ -25,7 +25,7 @@ async function sendTgMessage(token: string, chatId: string, text: string, replyM
     });
 
     if (response.status === 400) {
-      delete body.parse_mode; // Fallback for bad HTML
+      delete body.parse_mode; // Fallback
       body.text = text.replace(/<[^>]*>/g, ""); 
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     }
@@ -59,117 +59,151 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     const chatId = String(message.chat.id);
     const text = message.text.trim();
     const adminId = env.ADMIN_CHAT_ID ? env.ADMIN_CHAT_ID.trim() : "";
-    const isAdmin = adminId && chatId === adminId;
-
-    // --- 1. Universal Commands (Everyone) ---
     
-    if (text === '/start') {
-        await sendTgMessage(token, chatId, "👋 <b>欢迎使用十三水管理机器人</b>\n请使用下方菜单操作：", MAIN_KEYBOARD);
-        return new Response('OK');
-    }
-
-    if (text === '🆔 我的ID' || text === '/id') {
-        await sendTgMessage(token, chatId, `🆔 你的 Chat ID: <code>${chatId}</code>`, MAIN_KEYBOARD);
-        return new Response('OK');
-    }
-
-    if (text === '❓ 帮助' || text === '/help') {
-        await sendTgMessage(token, chatId, 
-            "📖 <b>使用说明</b>\n\n" +
-            "1. <b>查询用户</b>：点击按钮，然后直接发送手机号。\n" +
-            "2. <b>增加积分</b>：直接发送 \"手机号 积分\" (空格隔开)。\n" +
-            "3. <b>统计数据</b>：查看当前用户总量。\n\n" +
-            "<i>注：涉及数据的操作仅管理员可用。</i>",
-            MAIN_KEYBOARD
-        );
-        return new Response('OK');
-    }
-
-    if (text === '🛠 调试信息' || text === '/debug') {
-        const info = `DB: ${env.DB ? '✅' : '❌'}\nAdmin: ${isAdmin ? '✅ Verified' : '❌ Mismatch'}\nChatID: ${chatId}`;
-        await sendTgMessage(token, chatId, `🛠 <b>系统状态</b>\n${info}`, MAIN_KEYBOARD);
-        return new Response('OK');
-    }
-
-    // --- 2. Admin Only Commands ---
-
-    if (!isAdmin) {
-        // If user tries admin commands/buttons
-        if (["📊 统计数据", "🔍 查询用户", "💰 增加积分"].includes(text) || /^\d+/.test(text)) {
-             await sendTgMessage(token, chatId, "⛔ <b>无权访问</b>\n请联系管理员将您的 ID 添加到 ADMIN_CHAT_ID。", MAIN_KEYBOARD);
+    // Strict Admin Check for ALL operations
+    if (!adminId || chatId !== adminId) {
+        if (text === '/id' || text === 'id') {
+            await sendTgMessage(token, chatId, `Your ID: <code>${chatId}</code>`);
         }
         return new Response('OK');
     }
 
-    // A. Button Clicks
-    if (text === '📊 统计数据' || text === '/stats') {
+    // --- Admin Commands ---
+
+    if (text === '/start') {
+        await sendTgMessage(token, chatId, "👋 <b>管理员控制台</b>", MAIN_KEYBOARD);
+        return new Response('OK');
+    }
+
+    // 1. Button: Stats
+    if (text === '📊 统计数据') {
         if (!env.DB) return new Response('OK');
         const u: any = await env.DB.prepare("SELECT count(*) as c FROM users").first();
         const t: any = await env.DB.prepare("SELECT count(*) as c FROM game_tables").first();
-        await sendTgMessage(token, chatId, `📊 <b>当前数据</b>\n👥 注册用户: ${u?.c || 0}\n🃏 活跃桌子: ${t?.c || 0}`, MAIN_KEYBOARD);
+        await sendTgMessage(token, chatId, `📊 <b>统计</b>\n👥 用户: ${u?.c || 0}\n🃏 桌子: ${t?.c || 0}`, MAIN_KEYBOARD);
         return new Response('OK');
     }
 
+    // 2. Button: Rank List (Top 10)
+    if (text === '🏆 积分榜') {
+        if (!env.DB) return new Response('OK');
+        const { results } = await env.DB.prepare("SELECT nickname, phone, points FROM users ORDER BY points DESC LIMIT 10").all();
+        
+        if (!results || results.length === 0) {
+            await sendTgMessage(token, chatId, "暂无用户数据。", MAIN_KEYBOARD);
+        } else {
+            let msg = "🏆 <b>积分排行榜 (Top 10)</b>\n\n";
+            results.forEach((u: any, i: number) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+                msg += `${medal} <b>${u.nickname}</b> (${u.phone})\n   💰 ${u.points}\n`;
+            });
+            await sendTgMessage(token, chatId, msg, MAIN_KEYBOARD);
+        }
+        return new Response('OK');
+    }
+
+    // 3. Button: User List (Recent 20)
+    if (text === '👥 用户列表') {
+        if (!env.DB) return new Response('OK');
+        const { results } = await env.DB.prepare("SELECT nickname, phone, points FROM users ORDER BY created_at DESC LIMIT 20").all();
+        
+        if (!results || results.length === 0) {
+            await sendTgMessage(token, chatId, "暂无用户数据。", MAIN_KEYBOARD);
+        } else {
+            let msg = "👥 <b>最新用户列表 (Top 20)</b>\n\n";
+            results.forEach((u: any) => {
+                msg += `👤 <b>${u.nickname}</b> | 📱 <code>${u.phone}</code>\n   💰 ${u.points}\n`;
+            });
+            await sendTgMessage(token, chatId, msg, MAIN_KEYBOARD);
+        }
+        return new Response('OK');
+    }
+
+    // 4. Button: Search Help
     if (text === '🔍 查询用户') {
-        await sendTgMessage(token, chatId, "🔍 <b>查询模式</b>\n请直接发送 <b>手机号</b> (11位数字)", MAIN_KEYBOARD);
+        await sendTgMessage(token, chatId, "🔍 <b>查询</b>\n直接发送手机号 (如 <code>13800000000</code>)", MAIN_KEYBOARD);
         return new Response('OK');
     }
 
+    // 5. Button: Add Points Help
     if (text === '💰 增加积分') {
-        await sendTgMessage(token, chatId, "💰 <b>加分模式</b>\n请发送格式：<code>手机号 积分</code>\n例如：<code>13800000000 5000</code>", MAIN_KEYBOARD);
+        await sendTgMessage(token, chatId, "💰 <b>加分</b>\n发送: <code>手机号 金额</code>\n例: <code>13800000000 5000</code>", MAIN_KEYBOARD);
         return new Response('OK');
     }
 
-    // B. Intelligent Pattern Matching (No Prefix Needed)
+    // 6. Button: Delete User Help
+    if (text === '❌ 删除用户') {
+        await sendTgMessage(token, chatId, "⚠️ <b>删除用户</b>\n发送: <code>删除 手机号</code>\n例: <code>删除 13800000000</code>", MAIN_KEYBOARD);
+        return new Response('OK');
+    }
 
-    // Pattern 1: Search User (Just 11 digits)
-    // Regex: Starts with 1, followed by 10 digits, no spaces inside
+    // --- Intelligent Text Matching ---
+
+    // A. Search (Pure Phone Number)
     if (/^1\d{10}$/.test(text)) {
         if (!env.DB) return new Response('OK');
         const user: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(text).first();
         if (user) {
             await sendTgMessage(token, chatId, 
-                `👤 <b>用户查询结果</b>\n\n` +
-                `🆔 ID: <code>${user.id}</code>\n` +
-                `📱 手机: <code>${user.phone}</code>\n` +
-                `📛 昵称: ${user.nickname}\n` +
-                `💰 积分: <b>${user.points}</b>\n` +
-                `📅 注册: ${user.created_at}`,
+                `👤 <b>用户详情</b>\n` +
+                `📱 <code>${user.phone}</code>\n` +
+                `📛 ${user.nickname}\n` +
+                `💰 ${user.points}\n` +
+                `🆔 ${user.id}`,
                 MAIN_KEYBOARD
             );
         } else {
-            await sendTgMessage(token, chatId, `❌ 未找到手机号为 <code>${text}</code> 的用户。`, MAIN_KEYBOARD);
+            await sendTgMessage(token, chatId, `❌ 未找到: ${text}`, MAIN_KEYBOARD);
         }
         return new Response('OK');
     }
 
-    // Pattern 2: Add Points (Phone + Space + Amount)
-    // Regex: 11 digits, space(s), number (can be negative)
+    // B. Add Points (Phone + Amount)
     const addPointsMatch = text.match(/^(1\d{10})\s+(-?\d+)$/);
     if (addPointsMatch) {
         if (!env.DB) return new Response('OK');
         const phone = addPointsMatch[1];
         const amount = parseInt(addPointsMatch[2]);
+        
+        const check: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(phone).first();
+        if (!check) {
+             await sendTgMessage(token, chatId, `❌ 用户 ${phone} 不存在`, MAIN_KEYBOARD);
+             return new Response('OK');
+        }
 
+        await env.DB.prepare("UPDATE users SET points = points + ? WHERE phone = ?").bind(amount, phone).run();
+        const user: any = await env.DB.prepare("SELECT points, nickname FROM users WHERE phone = ?").bind(phone).first();
+        await sendTgMessage(token, chatId, 
+            `✅ <b>已加分</b>\n` +
+            `用户: ${user.nickname}\n` +
+            `变动: ${amount > 0 ? '+' : ''}${amount}\n` +
+            `当前: <b>${user.points}</b>`,
+            MAIN_KEYBOARD
+        );
+        return new Response('OK');
+    }
+
+    // C. Delete User (Delete + Phone)
+    const delUserMatch = text.match(/^(?:删除|delete|del)\s+(1\d{10})$/i);
+    if (delUserMatch) {
+        if (!env.DB) return new Response('OK');
+        const phone = delUserMatch[1];
+        
         const user: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(phone).first();
         if (!user) {
-            await sendTgMessage(token, chatId, `❌ 用户 ${phone} 不存在。`, MAIN_KEYBOARD);
+            await sendTgMessage(token, chatId, `❌ 用户 ${phone} 不存在`, MAIN_KEYBOARD);
         } else {
-            await env.DB.prepare("UPDATE users SET points = points + ? WHERE phone = ?").bind(amount, phone).run();
-            const newUser: any = await env.DB.prepare("SELECT points FROM users WHERE phone = ?").bind(phone).first();
+            await env.DB.prepare("DELETE FROM users WHERE phone = ?").bind(phone).run();
             await sendTgMessage(token, chatId, 
-                `✅ <b>积分变更成功</b>\n\n` +
-                `用户: ${user.nickname}\n` +
-                `变动: ${amount > 0 ? '+' : ''}${amount}\n` +
-                `当前: <b>${newUser.points}</b>`,
+                `🗑 <b>已删除用户</b>\n` +
+                `昵称: ${user.nickname}\n` +
+                `手机: ${phone}\n` +
+                `数据已清除。`,
                 MAIN_KEYBOARD
             );
         }
         return new Response('OK');
     }
-
-    // Default: Echo or Ignore
-    // await sendTgMessage(token, chatId, "🤖 无法识别的指令，请使用下方菜单。", MAIN_KEYBOARD);
 
     return new Response('OK');
   } catch (e: any) {
