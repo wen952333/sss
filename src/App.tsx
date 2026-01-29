@@ -20,12 +20,10 @@ function App() {
     currentTable,
     currentSeat,
     errorMsg,
-    isAiThinking,
     handleJoinGame,
     exitGame,
     handleCardInteraction,
     handleRowClick,
-    handleSmartArrange,
     handleSubmit,
     startGame
   } = useGameLogic();
@@ -106,8 +104,6 @@ function App() {
                         onCardClick={handleCardInteraction}
                         onRowClick={handleRowClick}
                         onSubmit={handleSubmit}
-                        onSmartArrange={handleSmartArrange}
-                        isAiLoading={isAiThinking}
                     />
                 </div>
             </div>

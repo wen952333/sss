@@ -30,6 +30,13 @@ export interface PlayerHand {
   [HandSegment.Back]: CardType[];
 }
 
+export interface User {
+  id: string;
+  phone: string;
+  nickname: string;
+  points: number;
+}
+
 export interface GameState {
   phase: 'lobby' | 'dealing' | 'arranging' | 'showdown';
   playerHand: CardType[]; // The 13 cards dealt to player

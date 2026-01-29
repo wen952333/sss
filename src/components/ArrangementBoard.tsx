@@ -2,7 +2,7 @@
 import React from 'react';
 import { CardType, HandSegment, PlayerHand } from '../types';
 import { Card } from './Card';
-import { Check, Sparkles, Loader2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 interface ArrangementBoardProps {
   arrangedHand: PlayerHand;
@@ -10,8 +10,6 @@ interface ArrangementBoardProps {
   onCardClick: (card: CardType) => void;
   onRowClick: (segment: HandSegment) => void;
   onSubmit: () => void;
-  onSmartArrange: () => void;
-  isAiLoading: boolean;
 }
 
 export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
@@ -19,9 +17,7 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
   selectedCards,
   onCardClick,
   onRowClick,
-  onSubmit,
-  onSmartArrange,
-  isAiLoading
+  onSubmit
 }) => {
   const renderRow = (segment: HandSegment, label: string) => {
     const cards = arrangedHand[segment];
@@ -85,19 +81,6 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
         </div>
         
         <div className="flex items-center gap-3">
-            <button
-                onClick={onSmartArrange}
-                disabled={isAiLoading}
-                className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl transition-all shadow-lg shadow-teal-900/50 text-base font-bold active:scale-95 border border-teal-500/30"
-            >
-                {isAiLoading ? (
-                    <Loader2 size={20} className="animate-spin" />
-                ) : (
-                    <Sparkles size={20} />
-                )}
-                <span>{isAiLoading ? '计算中...' : '智能理牌'}</span>
-            </button>
-
             <button 
                 onClick={onSubmit}
                 className="flex items-center gap-2 px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl transition-all shadow-lg shadow-yellow-900/50 text-base font-bold active:scale-95"

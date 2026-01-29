@@ -1,12 +1,8 @@
 
 import { useState, useEffect } from 'react';
+import { User } from '../types';
 
-export interface User {
-  id: string;
-  phone: string;
-  nickname: string;
-  points: number;
-}
+export type { User };
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
