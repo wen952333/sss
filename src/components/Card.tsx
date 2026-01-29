@@ -24,12 +24,12 @@ export const Card: React.FC<CardProps> = ({ card, selected, onClick, small }) =>
         ${selected ? '-translate-y-4' : 'hover:-translate-y-1'}
       `}
     >
-      {/* SVG Image */}
+      {/* SVG Image - Fixed white border issue by using object-cover and removing bg-white */}
       <img 
         src={imageSrc} 
         alt={`${card.rank} of ${card.suit}`}
         className={`
-          w-full h-full object-contain rounded-lg shadow-xl bg-white
+          w-full h-full object-cover rounded-lg shadow-xl
           ${selected ? 'ring-4 ring-yellow-400' : 'ring-1 ring-black/20'}
         `}
         draggable={false}
