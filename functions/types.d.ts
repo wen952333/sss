@@ -4,6 +4,8 @@
 export interface Env {
   DB: any;
   API_KEY?: string;
+  TG_BOT_TOKEN?: string;
+  ADMIN_CHAT_ID?: string;
 }
 
 export type PluginData = Record<string, unknown>;
