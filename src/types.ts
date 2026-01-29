@@ -1,105 +1,40 @@
 
 export enum Suit {
-  Hearts = '♥',
-  Diamonds = '♦',
-  Clubs = '♣',
   Spades = '♠',
-  None = '' // For Jokers
+  Hearts = '♥',
+  Clubs = '♣',
+  Diamonds = '♦'
 }
 
 export enum Rank {
-  Three = 3, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace, Two,
-  BlackJoker = 20,
-  RedJoker = 21
+  Two = '2', Three = '3', Four = '4', Five = '5', Six = '6', Seven = '7',
+  Eight = '8', Nine = '9', Ten = '10', Jack = 'J', Queen = 'Q', King = 'K', Ace = 'A'
 }
 
-export interface Card {
-  id: string;
+export interface CardType {
+  id: string; // Unique identifier for React keys
   suit: Suit;
   rank: Rank;
-  label: string;
-  color: 'red' | 'black';
-  value: number; // For comparison logic (3 is lowest, Joker highest)
+  value: number; // Numeric value for comparison (2=2, ..., A=14)
 }
 
-export enum PlayerRole {
-  Peasant = '农民',
-  Landlord = '地主'
+export enum HandSegment {
+  Front = 'front',   // 3 cards
+  Middle = 'middle', // 5 cards
+  Back = 'back'      // 5 cards
 }
 
-export enum GamePhase {
-  MainMenu = 'MAIN_MENU',
-  RoomLobby = 'ROOM_LOBBY', // 新增：房间等待阶段
-  Dealing = '发牌中',
-  Bidding = '叫地主',
-  Playing = '游戏中',
-  GameOver = '游戏结束'
-}
-
-export enum GameMode {
-  PvE = 'PVE',
-  Friends = 'FRIENDS'
-}
-
-export interface Player {
-  id: number;
-  name: string;
-  hand: Card[];
-  role: PlayerRole | null;
-  isHuman: boolean;
-  passes: number; // consecutive passes
-  isReady?: boolean; // 新增：多人模式准备状态
-  uid?: number | null; // 新增：Telegram User ID，用于身份识别和断线重连
-}
-
-export interface Move {
-  playerId: number;
-  cards: Card[];
-  type: HandType;
-}
-
-export enum HandType {
-  Single = '单张',
-  Pair = '对子',
-  Triple = '三张',
-  TripleWithOne = '三带一',
-  TripleWithPair = '三带二',
-  Straight = '顺子',
-  Bomb = '炸弹',
-  Rocket = '王炸', // Double Joker
-  Pass = '过',
-  Invalid = '无效'
+export interface PlayerHand {
+  [HandSegment.Front]: CardType[];
+  [HandSegment.Middle]: CardType[];
+  [HandSegment.Back]: CardType[];
 }
 
 export interface GameState {
-  deck: Card[];
-  players: Player[];
-  phase: GamePhase;
-  mode: GameMode; // 新增：当前游戏模式
-  landlordCards: Card[];
-  currentTurnIndex: number; // 0, 1, 2
-  lastMove: Move | null;
-  winnerId: number | null;
-  multiplier: number;
-  baseScore: number;
-  bidsCount: number;
-  roomId?: string; // 新增：房间ID
-}
-
-export interface User {
-  telegram_id: number;
-  username: string;
-  points: number;
-  last_check_in_date: string | null;
-  is_admin: boolean;
-}
-
-export interface PaymentRecord {
-  id: number;
-  telegram_id: number;
-  username: string;
-  amount: number; 
-  product: string;
-  telegram_payment_charge_id: string;
-  created_at: string;
+  phase: 'lobby' | 'dealing' | 'arranging' | 'showdown';
+  playerHand: CardType[]; // The 13 cards dealt to player
+  arrangedHand: PlayerHand;
+  tableId: number | null;
+  seatId: string | null;
+  opponents: { id: number; name: string; isReady: boolean }[];
 }

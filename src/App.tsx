@@ -1,183 +1,130 @@
 
-import React, { useState, useEffect } from 'react';
-import { GamePhase, GameMode } from './types';
-import { useTelegram } from './hooks/useTelegram';
+import React from 'react';
 import { useGameLogic } from './hooks/useGameLogic';
-import { MainMenu } from './components/MainMenu';
-import { GameBoard } from './components/GameBoard';
-import { RoomLobby } from './components/RoomLobby';
-import { AdminPanel } from './components/AdminPanel';
-import { getMuteState, toggleMute } from './services/audioService';
-import { BOT_CONFIG } from './constants';
+import { useAuth } from './hooks/useAuth';
+import { ArrangementBoard } from './components/ArrangementBoard';
+import { Lobby } from './components/Lobby';
+import { Header } from './components/Header';
+import { OpponentsBar } from './components/OpponentsBar';
+import { Showdown } from './components/Showdown';
+import { AuthModal } from './components/AuthModal';
+import { PointsModal } from './components/PointsModal';
+import { AlertCircle } from 'lucide-react';
 
-const App: React.FC = () => {
-  const { 
-    currentUser, 
-    setCurrentUser, 
-    isPaying, 
-    handleBuyStars, 
-    tg, 
-    adminUserList, 
-    handleDeleteUser,
-    startParam,
-    isMockMode
-  } = useTelegram();
-
+function App() {
   const {
     gameState,
-    myPlayerId,
-    startDealing,
-    handleBid,
-    playTurn,
-    handleCreateRoom,
-    handleJoinRoom,
-    resetGame,
-    isMatching
-  } = useGameLogic(currentUser, setCurrentUser);
+    arrangedHand,
+    selectedCards,
+    showResult,
+    currentTable,
+    currentSeat,
+    errorMsg,
+    isAiThinking,
+    handleJoinGame,
+    exitGame,
+    handleCardInteraction,
+    handleRowClick,
+    handleSmartArrange,
+    handleSubmit,
+    startGame
+  } = useGameLogic();
 
-  const [isSoundOn, setIsSoundOn] = useState(!getMuteState());
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
+  const { 
+    user, login, logout, updatePoints, 
+    isAuthModalOpen, setIsAuthModalOpen, 
+    isPointsModalOpen, setIsPointsModalOpen 
+  } = useAuth();
 
-  useEffect(() => {
-    if (currentUser?.last_check_in_date) {
-        const today = new Date().toISOString().split('T')[0];
-        setHasCheckedInToday(currentUser.last_check_in_date === today);
-    }
-  }, [currentUser]);
-
-  // 处理通过邀请链接进入的情况 (startapp=room_xxx)
-  useEffect(() => {
-    // 只有当参数是 room_ 开头，且用户已登录，且当前不在该房间时才执行加入
-    if (startParam && startParam.startsWith('room_') && currentUser) {
-        if (gameState.roomId !== startParam) {
-            handleJoinRoom(startParam);
-        }
-    }
-  }, [startParam, currentUser, gameState.roomId]);
-
-  const handleToggleSound = () => {
-    const isMuted = toggleMute();
-    setIsSoundOn(!isMuted);
+  const handleOpenRecords = () => {
+    alert("战绩记录功能开发中...\n这里将显示您的历史对局和胜率。");
   };
 
-  const handleDailyCheckIn = () => {
-    if (!currentUser) return;
-    const today = new Date().toISOString().split('T')[0];
-    const updatedUser = { ...currentUser, points: currentUser.points + 1000, last_check_in_date: today };
-    setCurrentUser(updatedUser);
-    tg.showAlert("签到成功！获得 1000 积分！");
-  };
-
-  const handleGameStartRequest = (mode: 'pve' | 'friends', isNoShuffle: boolean) => {
-    if (!currentUser) return;
-    if (currentUser.points < 100) {
-        tg.showAlert("积分不足 (需100)，请签到或购买！");
+  const onJoinWithAuth = (tableId: number, seatId: string) => {
+    if (!user) {
+        setIsAuthModalOpen(true);
         return;
     }
-    if (mode === 'pve') {
-        startDealing(isNoShuffle, GameMode.PvE);
-    } else if (mode === 'friends') {
-        if (isMockMode) {
-             tg.showAlert("【模拟模式】自动创建本地局");
-             startDealing(isNoShuffle, GameMode.Friends); 
-        } else {
-             handleCreateRoom();
-        }
-    }
-  };
-
-  /**
-   * 动态生成分享链接
-   */
-  const handleShareRoom = () => {
-     if (!gameState.roomId) return;
-     
-     // 检查配置，如果为空则提示用户 (避免生成 username not found 链接)
-     if (!BOT_CONFIG.username) {
-         tg.showAlert("⚠️ 配置错误：未检测到 VITE_BOT_USERNAME。\n请在 Cloudflare Pages 设置环境变量。");
-         return;
-     }
-
-     // 获取当前玩家姓名
-     const currentPlayerName = tg.initDataUnsafe?.user?.first_name || 
-                               tg.initDataUnsafe?.user?.username || 
-                               "神秘牌友";
-     
-     // 构造标准的 Mini App 链接
-     // 格式: https://t.me/<BOT_USERNAME>/<APP_NAME>?startapp=<ROOM_ID>
-     const gameLink = `https://t.me/${BOT_CONFIG.username}/${BOT_CONFIG.appShortName}?startapp=${gameState.roomId}`;
-     
-     const shareText = `🃏 三缺一！[${currentPlayerName}] 喊你来斗地主！\n🚪 房间号: ${gameState.roomId}\n👇 点击下方按钮入座`;
-     
-     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameLink)}&text=${encodeURIComponent(shareText)}`;
-     
-     try {
-       tg.openTelegramLink(shareUrl);
-     } catch (e) {
-       window.open(shareUrl, '_blank');
-     }
-  };
-
-  const handleRestart = () => {
-      if (gameState.mode === GameMode.Friends && myPlayerId !== 0) {
-          tg.showAlert("只有房主可以重新开始。");
-          return;
-      }
-      startDealing(false, gameState.mode);
+    handleJoinGame(tableId, seatId);
   };
 
   return (
-    <>
-      {showAdminPanel && currentUser?.is_admin && (
-        <AdminPanel 
-          userList={adminUserList} 
-          onClose={() => setShowAdminPanel(false)} 
-          onDeleteUser={handleDeleteUser} 
+    <div className="h-screen w-screen overflow-hidden bg-[#121418] text-gray-100 flex flex-col font-sans selection:bg-yellow-500 selection:text-black">
+      
+      <Header 
+        currentTable={currentTable} 
+        currentSeat={currentSeat} 
+        isInGame={gameState !== 'lobby'} 
+        onExit={exitGame} 
+        onOpenRecords={handleOpenRecords}
+        user={user}
+        onLoginClick={() => setIsAuthModalOpen(true)}
+        onLogoutClick={logout}
+        onPointsClick={() => setIsPointsModalOpen(true)}
+      />
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onLoginSuccess={login} 
+      />
+
+      {user && (
+        <PointsModal
+          isOpen={isPointsModalOpen}
+          onClose={() => setIsPointsModalOpen(false)}
+          currentUser={user}
+          onUpdatePoints={updatePoints}
         />
       )}
 
-      {gameState.phase === GamePhase.MainMenu && (
-        <MainMenu
-          user={currentUser}
-          onCheckIn={handleDailyCheckIn}
-          hasCheckedIn={hasCheckedInToday}
-          onToggleSound={handleToggleSound}
-          isSoundOn={isSoundOn}
-          onBuyPoints={handleBuyStars}
-          isPaying={isPaying}
-          onOpenGroup={() => tg.openTelegramLink("https://t.me/GeminiDouDizhuGroup")}
-          onOpenAdmin={() => setShowAdminPanel(true)}
-          onStartGame={handleGameStartRequest}
-          isMatching={isMatching}
-        />
-      )}
+      <main className="flex-1 relative w-full h-full flex flex-col overflow-hidden bg-[radial-gradient(circle_at_center,_#1f2937_0%,_#0f1115_100%)]">
+        
+        {/* Lobby Phase */}
+        {gameState === 'lobby' && (
+            <div className="w-full h-full flex items-center justify-center animate-in fade-in zoom-in duration-500">
+               <Lobby onJoin={onJoinWithAuth} />
+            </div>
+        )}
 
-      {gameState.phase === GamePhase.RoomLobby && (
-        <RoomLobby 
-           gameState={gameState} 
-           onShare={handleShareRoom} 
-           onExit={resetGame} 
-        />
-      )}
+        {/* Arranging Phase */}
+        {gameState === 'arranging' && (
+            <div className="w-full h-full flex flex-col animate-in slide-in-from-bottom-10 duration-500">
+                <OpponentsBar />
 
-      {(gameState.phase === GamePhase.Dealing || 
-        gameState.phase === GamePhase.Bidding || 
-        gameState.phase === GamePhase.Playing || 
-        gameState.phase === GamePhase.GameOver) && (
-        <GameBoard
-          gameState={gameState}
-          myPlayerId={myPlayerId}
-          onBid={handleBid}
-          onPlayTurn={playTurn}
-          onExit={resetGame}
-          onRestart={handleRestart}
-          onToggleSound={handleToggleSound}
-          isSoundOn={isSoundOn}
-        />
-      )}
-    </>
+                {errorMsg && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-blue-600/90 text-white px-6 py-2 rounded-full shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2">
+                        <AlertCircle size={18} />
+                        <span className="text-sm font-bold">{errorMsg}</span>
+                    </div>
+                )}
+
+                <div className="flex-1 w-full overflow-hidden p-2 sm:p-4">
+                    <ArrangementBoard 
+                        arrangedHand={arrangedHand}
+                        selectedCards={selectedCards}
+                        onCardClick={handleCardInteraction}
+                        onRowClick={handleRowClick}
+                        onSubmit={handleSubmit}
+                        onSmartArrange={handleSmartArrange}
+                        isAiLoading={isAiThinking}
+                    />
+                </div>
+            </div>
+        )}
+
+        {/* Showdown Phase */}
+        {gameState === 'showdown' && (
+            <Showdown 
+                isVisible={showResult} 
+                playerHand={arrangedHand} 
+                onNextRound={startGame} 
+            />
+        )}
+
+      </main>
+    </div>
   );
-};
+}
 
 export default App;
