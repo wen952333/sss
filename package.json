@@ -12,13 +12,15 @@
   "dependencies": {
     "lucide-react": "^0.563.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "@google/genai": "^0.1.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
-    "vite": "^5.1.4"
+    "vite": "^5.1.4",
+    "@types/node": "^20.11.0"
   }
 }

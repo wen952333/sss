@@ -1,6 +1,6 @@
 
 // AI functionality has been disabled.
-export const getSuggestedHandArrangement = async (cards: any[]) => {
+export const getSuggestedHandArrangement = async (_cards: any[]) => {
   return {
     front: [],
     middle: [],

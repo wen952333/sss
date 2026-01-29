@@ -7,5 +7,9 @@ export default defineConfig({
   define: {
     // Polyfill process.env for the @google/genai library usage pattern
     'process.env': process.env
+  },
+  build: {
+    outDir: 'dist', // Ensure this matches Cloudflare 'Build output directory'
+    emptyOutDir: true
   }
 });

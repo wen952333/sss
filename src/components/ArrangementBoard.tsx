@@ -2,7 +2,7 @@
 import React from 'react';
 import { CardType, HandSegment, PlayerHand } from '../types';
 import { Card } from './Card';
-import { Check } from 'lucide-react';
+import { Check, Sparkles, Loader2 } from 'lucide-react';
 
 interface ArrangementBoardProps {
   arrangedHand: PlayerHand;
@@ -10,6 +10,8 @@ interface ArrangementBoardProps {
   onCardClick: (card: CardType) => void;
   onRowClick: (segment: HandSegment) => void;
   onSubmit: () => void;
+  onSmartArrange: () => void;
+  isAiLoading: boolean;
 }
 
 export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
@@ -17,7 +19,9 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
   selectedCards,
   onCardClick,
   onRowClick,
-  onSubmit
+  onSubmit,
+  onSmartArrange,
+  isAiLoading
 }) => {
   const renderRow = (segment: HandSegment, label: string) => {
     const cards = arrangedHand[segment];
@@ -29,6 +33,8 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
         onClick={() => onRowClick(segment)}
         className="flex-1 relative flex items-center px-4 sm:px-8 bg-white/5 rounded-2xl border border-white/10 mb-3 group transition-all hover:bg-white/10 hover:border-white/20 min-h-[140px] sm:min-h-[200px] cursor-pointer"
       >
+        
+        {/* Right Label (Background Text) */}
         <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col items-end pointer-events-none z-0">
             <div className="text-3xl sm:text-5xl font-black tracking-widest text-white/5 group-hover:text-white/10 transition-colors uppercase">
                 {segment === HandSegment.Front ? 'Front' : segment === HandSegment.Middle ? 'Middle' : 'Back'}
@@ -41,6 +47,7 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
             </div>
         </div>
 
+        {/* Cards Container (Stacked) */}
         <div className="relative z-10 flex items-center h-full w-full pl-2 pointer-events-none">
             {cards.map((card, index) => {
                 const isSelected = selectedCards.some(c => c.id === card.id);
@@ -48,13 +55,13 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
                     <div 
                         key={card.id} 
                         onClick={(e) => {
-                            e.stopPropagation(); 
+                            e.stopPropagation(); // Stop bubbling to row click
                             onCardClick(card);
                         }} 
                         className="pointer-events-auto transition-all duration-200"
                         style={{ 
-                            marginLeft: index === 0 ? 0 : '-50px', 
-                            zIndex: index, 
+                            marginLeft: index === 0 ? 0 : '-50px', // Stacking overlap amount
+                            zIndex: index, // Ensure stacking order
                         }}
                     >
                         <Card card={card} selected={isSelected} />
@@ -62,6 +69,7 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
                 );
             })}
             
+            {/* Empty State / Drop Zone Indicator */}
             {cards.length === 0 && (
                 <div className="absolute left-6 text-white/20 text-lg sm:text-xl font-medium italic border-2 border-dashed border-white/10 rounded-xl w-24 h-36 sm:w-32 sm:h-48 flex items-center justify-center pointer-events-none">
                     点击移入
@@ -74,6 +82,8 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
 
   return (
     <div className="flex flex-col w-full h-full max-w-6xl mx-auto pb-4">
+      
+      {/* Controls Header */}
       <div className="flex-none flex items-center justify-between mb-4 px-2">
         <div className="flex flex-col">
            <h2 className="text-xl font-bold text-white tracking-tight">理牌阶段</h2>
@@ -81,6 +91,21 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
         </div>
         
         <div className="flex items-center gap-3">
+            {/* AI Smart Arrange Button */}
+            <button
+                onClick={onSmartArrange}
+                disabled={isAiLoading}
+                className="flex items-center gap-2 px-5 py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl transition-all shadow-lg shadow-teal-900/50 text-base font-bold active:scale-95 border border-teal-500/30"
+            >
+                {isAiLoading ? (
+                    <Loader2 size={20} className="animate-spin" />
+                ) : (
+                    <Sparkles size={20} />
+                )}
+                <span>{isAiLoading ? '计算中...' : '智能理牌'}</span>
+            </button>
+
+            {/* Submit Button */}
             <button 
                 onClick={onSubmit}
                 className="flex items-center gap-2 px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl transition-all shadow-lg shadow-yellow-900/50 text-base font-bold active:scale-95"
@@ -90,6 +115,7 @@ export const ArrangementBoard: React.FC<ArrangementBoardProps> = ({
         </div>
       </div>
 
+      {/* Rows Container */}
       <div className="flex-1 flex flex-col gap-2 sm:gap-4 min-h-0">
         {renderRow(HandSegment.Front, '头墩')}
         {renderRow(HandSegment.Middle, '中墩')}

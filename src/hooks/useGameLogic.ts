@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
 import { GameState, HandSegment, PlayerHand, CardType } from '../types';
-import { dealCards } from '../utils/pokerLogic';
+import { dealCards, parseCardString } from '../utils/pokerLogic';
+import { getSuggestedHandArrangement } from '../services/geminiService';
 
 const initialHandState: PlayerHand = {
   [HandSegment.Front]: [],
@@ -17,6 +18,7 @@ export const useGameLogic = () => {
   const [currentTable, setCurrentTable] = useState<number | null>(null);
   const [currentSeat, setCurrentSeat] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
   const startGame = () => {
     const dealtHands = dealCards();
@@ -74,6 +76,62 @@ export const useGameLogic = () => {
     setErrorMsg(null);
   };
 
+  const handleSmartArrange = async () => {
+    setIsAiThinking(true);
+    setErrorMsg(null);
+    
+    try {
+        const allCards = [
+            ...arrangedHand.front, 
+            ...arrangedHand.middle, 
+            ...arrangedHand.back
+        ];
+
+        const suggestion = await getSuggestedHandArrangement(allCards);
+        
+        let availableCards = [...allCards];
+        const newHand: PlayerHand = {
+            [HandSegment.Front]: [],
+            [HandSegment.Middle]: [],
+            [HandSegment.Back]: []
+        };
+
+        const distribute = (segmentName: 'front' | 'middle' | 'back', targetSegment: HandSegment) => {
+            const cardStrings = suggestion[segmentName] || [];
+            cardStrings.forEach((str: string) => {
+                const card = parseCardString(str, availableCards);
+                if (card) {
+                    newHand[targetSegment].push(card);
+                    availableCards = availableCards.filter(c => c.id !== card.id);
+                }
+            });
+        };
+
+        distribute('front', HandSegment.Front);
+        distribute('middle', HandSegment.Middle);
+        distribute('back', HandSegment.Back);
+
+        if (availableCards.length > 0) {
+           console.warn("AI missed some cards, appending to back:", availableCards);
+           newHand[HandSegment.Back].push(...availableCards);
+        }
+
+        setArrangedHand(newHand);
+        setSelectedCards([]);
+        
+        if (suggestion.reasoning) {
+            setErrorMsg(`策略: ${suggestion.reasoning}`); 
+            setTimeout(() => setErrorMsg(null), 3000);
+        }
+
+    } catch (err) {
+        console.error(err);
+        setErrorMsg("智能理牌服务繁忙，请稍后再试");
+    } finally {
+        setIsAiThinking(false);
+    }
+  };
+
   const handleSubmit = () => {
       const frontCount = arrangedHand[HandSegment.Front].length;
       const middleCount = arrangedHand[HandSegment.Middle].length;
@@ -96,10 +154,12 @@ export const useGameLogic = () => {
     currentTable,
     currentSeat,
     errorMsg,
+    isAiThinking,
     handleJoinGame,
     exitGame,
     handleCardInteraction,
     handleRowClick,
+    handleSmartArrange,
     handleSubmit,
     startGame 
   };
