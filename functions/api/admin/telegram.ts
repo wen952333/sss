@@ -1,144 +1,179 @@
 
 interface Env { DB: any; TG_BOT_TOKEN: string; ADMIN_CHAT_ID: string; }
 
-// Helper to send messages with fallback
+// Keyboard Definition
+const MAIN_KEYBOARD = {
+  keyboard: [
+    [{ text: "📊 统计数据" }, { text: "🔍 查询用户" }],
+    [{ text: "💰 增加积分" }, { text: "🆔 我的ID" }],
+    [{ text: "🛠 调试信息" }, { text: "❓ 帮助" }]
+  ],
+  resize_keyboard: true,
+  is_persistent: true
+};
+
 async function sendTgMessage(token: string, chatId: string, text: string, replyMarkup: any = null) {
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    const headers = { 'Content-Type': 'application/json' };
-    
-    // Try sending with HTML parsing
     let body: any = { chat_id: chatId, text, parse_mode: 'HTML' };
     if (replyMarkup) body.reply_markup = replyMarkup;
 
-    let response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    let response = await fetch(url, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(body) 
+    });
 
-    // If HTML parsing fails (400 Bad Request), retry as plain text
     if (response.status === 400) {
-      console.warn("HTML send failed, retrying as text...");
-      delete body.parse_mode;
-      // Strip simple tags for readability if possible, or just send raw
-      body.text = text.replace(/<b>|<\/b>|<code>|<\/code>|<pre>|<\/pre>/g, ""); 
-      await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      delete body.parse_mode; // Fallback for bad HTML
+      body.text = text.replace(/<[^>]*>/g, ""); 
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     }
   } catch (e) {
-    console.error("Send Error:", e);
+    console.error("Tg Send Error:", e);
   }
 }
 
-// GET Handler: Webhook Setup
 export const onRequestGet = async ({ request, env }: { request: Request; env: Env }) => {
-  const token = env.TG_BOT_TOKEN ? env.TG_BOT_TOKEN.trim() : "";
+  const token = env.TG_BOT_TOKEN;
   if (!token) return new Response("Error: TG_BOT_TOKEN missing.", { status: 500 });
-
+  
   const url = new URL(request.url);
-  const setup = url.searchParams.get("setup");
-
-  if (setup === "true") {
+  if (url.searchParams.get("setup") === "true") {
     const webhookUrl = `${url.origin}/api/admin/telegram`;
-    try {
-      const tgRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
-      const tgData = await tgRes.json();
-      return new Response(JSON.stringify({ status: "Webhook Request Sent", webhook_url: webhookUrl, telegram_response: tgData }, null, 2), 
-        { headers: { "Content-Type": "application/json" } });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500 });
-    }
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+    return new Response(JSON.stringify(await res.json(), null, 2), { headers: { "Content-Type": "application/json" } });
   }
-
-  return new Response(
-    "Telegram Bot API Normal.\n" +
-    "👉 Access this URL with ?setup=true to configure webhook.\n" +
-    `Example: ${url.origin}/api/admin/telegram?setup=true`,
-    { headers: { "Content-Type": "text/plain" } }
-  );
+  return new Response("Bot API OK. Use ?setup=true to bind webhook.");
 };
 
-// POST Handler: Message Processing
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   try {
-    const token = env.TG_BOT_TOKEN ? env.TG_BOT_TOKEN.trim() : "";
+    const token = env.TG_BOT_TOKEN;
     if (!token) return new Response("Missing Token", { status: 500 });
 
     const update: any = await request.json();
-    
-    // Handle specific updates or ignore unknown ones
-    if (!update.message && !update.edited_message) return new Response('OK');
-
     const message = update.message || update.edited_message;
+    if (!message || !message.text) return new Response('OK');
+
     const chatId = String(message.chat.id);
-    const text = (message.text || "").trim();
-    
-    // Log for debugging
-    console.log(`Msg from ${chatId}: ${text}`);
-
-    // If no text (e.g. sticker), ignore or reply generic
-    if (!text) return new Response('OK');
-
-    const command = text.split(' ')[0];
-    const args = text.split(' ').slice(1);
-
-    // --- Public Commands ---
-
-    if (command === '/ping') {
-        await sendTgMessage(token, chatId, "🏓 <b>Pong!</b> 服务正常。");
-        return new Response('OK');
-    }
-
-    if (command === '/id') {
-        await sendTgMessage(token, chatId, `🆔 Your ID: <code>${chatId}</code>`);
-        return new Response('OK');
-    }
-
-    if (command === '/debug') {
-        const dbStatus = env.DB ? "✅ Connected" : "❌ Missing";
-        const adminStatus = env.ADMIN_CHAT_ID ? "✅ Configured" : "⚠️ Not set";
-        await sendTgMessage(token, chatId, `🛠 <b>Debug Info</b>\nDB: ${dbStatus}\nAdmin Config: ${adminStatus}`);
-        return new Response('OK');
-    }
-
-    // --- Admin Commands ---
-    
+    const text = message.text.trim();
     const adminId = env.ADMIN_CHAT_ID ? env.ADMIN_CHAT_ID.trim() : "";
-    if (adminId && chatId !== adminId) {
-         console.log(`Blocked access from ${chatId}`);
-         return new Response('OK');
+    const isAdmin = adminId && chatId === adminId;
+
+    // --- 1. Universal Commands (Everyone) ---
+    
+    if (text === '/start') {
+        await sendTgMessage(token, chatId, "👋 <b>欢迎使用十三水管理机器人</b>\n请使用下方菜单操作：", MAIN_KEYBOARD);
+        return new Response('OK');
     }
 
-    if (command === '/start' || command === '/help') {
-         await sendTgMessage(token, chatId, 
-            "🤖 <b>Admin Console</b>\n\n" +
-            "/stats - User statistics\n" +
-            "/search <phone> - Find user\n" +
-            "/addpoints <phone> <amount> - Add points"
-         );
-    } else if (command === '/stats') {
-         if (env.DB) {
-             const res: any = await env.DB.prepare("SELECT count(*) as c FROM users").first();
-             const tables: any = await env.DB.prepare("SELECT count(*) as c FROM game_tables").first();
-             await sendTgMessage(token, chatId, `📊 <b>Stats</b>\nUsers: ${res?.c || 0}\nTables: ${tables?.c || 0}`);
-         } else {
-             await sendTgMessage(token, chatId, "⚠️ DB Missing");
-         }
-    } else if (command === '/search') {
-         if (!args[0]) await sendTgMessage(token, chatId, "Usage: /search <phone>");
-         else {
-             const user: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(args[0]).first();
-             if (user) await sendTgMessage(token, chatId, `👤 ${user.nickname}\n💰 ${user.points}\nID: ${user.id}`);
-             else await sendTgMessage(token, chatId, "User not found.");
-         }
-    } else if (command === '/addpoints') {
-         if (args.length < 2) await sendTgMessage(token, chatId, "Usage: /addpoints <phone> <amount>");
-         else {
-             await env.DB.prepare("UPDATE users SET points = points + ? WHERE phone = ?").bind(parseInt(args[1]), args[0]).run();
-             await sendTgMessage(token, chatId, `✅ Added ${args[1]} points to ${args[0]}`);
-         }
+    if (text === '🆔 我的ID' || text === '/id') {
+        await sendTgMessage(token, chatId, `🆔 你的 Chat ID: <code>${chatId}</code>`, MAIN_KEYBOARD);
+        return new Response('OK');
     }
+
+    if (text === '❓ 帮助' || text === '/help') {
+        await sendTgMessage(token, chatId, 
+            "📖 <b>使用说明</b>\n\n" +
+            "1. <b>查询用户</b>：点击按钮，然后直接发送手机号。\n" +
+            "2. <b>增加积分</b>：直接发送 \"手机号 积分\" (空格隔开)。\n" +
+            "3. <b>统计数据</b>：查看当前用户总量。\n\n" +
+            "<i>注：涉及数据的操作仅管理员可用。</i>",
+            MAIN_KEYBOARD
+        );
+        return new Response('OK');
+    }
+
+    if (text === '🛠 调试信息' || text === '/debug') {
+        const info = `DB: ${env.DB ? '✅' : '❌'}\nAdmin: ${isAdmin ? '✅ Verified' : '❌ Mismatch'}\nChatID: ${chatId}`;
+        await sendTgMessage(token, chatId, `🛠 <b>系统状态</b>\n${info}`, MAIN_KEYBOARD);
+        return new Response('OK');
+    }
+
+    // --- 2. Admin Only Commands ---
+
+    if (!isAdmin) {
+        // If user tries admin commands/buttons
+        if (["📊 统计数据", "🔍 查询用户", "💰 增加积分"].includes(text) || /^\d+/.test(text)) {
+             await sendTgMessage(token, chatId, "⛔ <b>无权访问</b>\n请联系管理员将您的 ID 添加到 ADMIN_CHAT_ID。", MAIN_KEYBOARD);
+        }
+        return new Response('OK');
+    }
+
+    // A. Button Clicks
+    if (text === '📊 统计数据' || text === '/stats') {
+        if (!env.DB) return new Response('OK');
+        const u: any = await env.DB.prepare("SELECT count(*) as c FROM users").first();
+        const t: any = await env.DB.prepare("SELECT count(*) as c FROM game_tables").first();
+        await sendTgMessage(token, chatId, `📊 <b>当前数据</b>\n👥 注册用户: ${u?.c || 0}\n🃏 活跃桌子: ${t?.c || 0}`, MAIN_KEYBOARD);
+        return new Response('OK');
+    }
+
+    if (text === '🔍 查询用户') {
+        await sendTgMessage(token, chatId, "🔍 <b>查询模式</b>\n请直接发送 <b>手机号</b> (11位数字)", MAIN_KEYBOARD);
+        return new Response('OK');
+    }
+
+    if (text === '💰 增加积分') {
+        await sendTgMessage(token, chatId, "💰 <b>加分模式</b>\n请发送格式：<code>手机号 积分</code>\n例如：<code>13800000000 5000</code>", MAIN_KEYBOARD);
+        return new Response('OK');
+    }
+
+    // B. Intelligent Pattern Matching (No Prefix Needed)
+
+    // Pattern 1: Search User (Just 11 digits)
+    // Regex: Starts with 1, followed by 10 digits, no spaces inside
+    if (/^1\d{10}$/.test(text)) {
+        if (!env.DB) return new Response('OK');
+        const user: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(text).first();
+        if (user) {
+            await sendTgMessage(token, chatId, 
+                `👤 <b>用户查询结果</b>\n\n` +
+                `🆔 ID: <code>${user.id}</code>\n` +
+                `📱 手机: <code>${user.phone}</code>\n` +
+                `📛 昵称: ${user.nickname}\n` +
+                `💰 积分: <b>${user.points}</b>\n` +
+                `📅 注册: ${user.created_at}`,
+                MAIN_KEYBOARD
+            );
+        } else {
+            await sendTgMessage(token, chatId, `❌ 未找到手机号为 <code>${text}</code> 的用户。`, MAIN_KEYBOARD);
+        }
+        return new Response('OK');
+    }
+
+    // Pattern 2: Add Points (Phone + Space + Amount)
+    // Regex: 11 digits, space(s), number (can be negative)
+    const addPointsMatch = text.match(/^(1\d{10})\s+(-?\d+)$/);
+    if (addPointsMatch) {
+        if (!env.DB) return new Response('OK');
+        const phone = addPointsMatch[1];
+        const amount = parseInt(addPointsMatch[2]);
+
+        const user: any = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(phone).first();
+        if (!user) {
+            await sendTgMessage(token, chatId, `❌ 用户 ${phone} 不存在。`, MAIN_KEYBOARD);
+        } else {
+            await env.DB.prepare("UPDATE users SET points = points + ? WHERE phone = ?").bind(amount, phone).run();
+            const newUser: any = await env.DB.prepare("SELECT points FROM users WHERE phone = ?").bind(phone).first();
+            await sendTgMessage(token, chatId, 
+                `✅ <b>积分变更成功</b>\n\n` +
+                `用户: ${user.nickname}\n` +
+                `变动: ${amount > 0 ? '+' : ''}${amount}\n` +
+                `当前: <b>${newUser.points}</b>`,
+                MAIN_KEYBOARD
+            );
+        }
+        return new Response('OK');
+    }
+
+    // Default: Echo or Ignore
+    // await sendTgMessage(token, chatId, "🤖 无法识别的指令，请使用下方菜单。", MAIN_KEYBOARD);
 
     return new Response('OK');
-
   } catch (e: any) {
     console.error("Handler Error:", e);
-    return new Response('Error handled', { status: 200 });
+    return new Response('OK');
   }
 };
