@@ -112,7 +112,6 @@ export const useGameLogic = () => {
         distribute('back', HandSegment.Back);
 
         if (availableCards.length > 0) {
-           console.warn("AI missed some cards, appending to back:", availableCards);
            newHand[HandSegment.Back].push(...availableCards);
         }
 
